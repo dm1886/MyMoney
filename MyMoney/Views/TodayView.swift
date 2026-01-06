@@ -1,0 +1,248 @@
+//
+//  TodayView.swift
+//  MoneyTracker
+//
+//  Created on 2026-01-01.
+//
+
+import SwiftUI
+import SwiftData
+
+struct TodayView: View {
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var appSettings: AppSettings
+    @Query private var transactions: [Transaction]
+
+    @State private var showingAddTransaction = false
+    @State private var selectedTransactionType: TransactionType?
+
+    var todayTransactions: [Transaction] {
+        transactions
+            .filter { Calendar.current.isDateInToday($0.date) }
+            .sorted { $0.date > $1.date }
+    }
+
+    var todayExpenses: Decimal {
+        todayTransactions
+            .filter { $0.transactionType == .expense }
+            .reduce(0) { sum, transaction in
+                let convertedAmount = CurrencyConverter.shared.convert(
+                    amount: transaction.amount,
+                    from: transaction.currency,
+                    to: appSettings.preferredCurrencyEnum
+                )
+                return sum + convertedAmount
+            }
+    }
+
+    var todayIncome: Decimal {
+        todayTransactions
+            .filter { $0.transactionType == .income }
+            .reduce(0) { sum, transaction in
+                let convertedAmount = CurrencyConverter.shared.convert(
+                    amount: transaction.amount,
+                    from: transaction.currency,
+                    to: appSettings.preferredCurrencyEnum
+                )
+                return sum + convertedAmount
+            }
+    }
+
+    var dailyBalance: Decimal {
+        todayIncome - todayExpenses
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color(.systemGroupedBackground).ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 20) {
+                        VStack(spacing: 12) {
+                            Text(Date().formatted(date: .complete, time: .omitted))
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 16) {
+                                DailySummaryCard(
+                                    title: "Entrate",
+                                    amount: todayIncome,
+                                    currency: appSettings.preferredCurrencyEnum,
+                                    color: .green
+                                )
+
+                                DailySummaryCard(
+                                    title: "Uscite",
+                                    amount: todayExpenses,
+                                    currency: appSettings.preferredCurrencyEnum,
+                                    color: .red
+                                )
+                            }
+
+                            HStack {
+                                Text("Bilancio Giornaliero")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+
+                                Spacer()
+
+                                Text(formatAmount(dailyBalance))
+                                    .font(.title3.bold())
+                                    .foregroundStyle(dailyBalance >= 0 ? .green : .red)
+                            }
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color(.systemBackground))
+                                    .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
+                            )
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+
+                        VStack(spacing: 16) {
+                            Button {
+                                showingAddTransaction = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "plus.circle.fill")
+                                        .font(.title2)
+
+                                    Text("Nuova Transazione")
+                                        .font(.headline)
+                                }
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [.blue, .purple],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                )
+                            }
+                            .padding(.horizontal)
+                        }
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Transazioni di Oggi")
+                                .font(.title2.bold())
+                                .padding(.horizontal)
+
+                            if todayTransactions.isEmpty {
+                                VStack(spacing: 16) {
+                                    Image(systemName: "list.bullet.clipboard")
+                                        .font(.system(size: 50))
+                                        .foregroundStyle(.secondary)
+
+                                    Text("Nessuna transazione oggi")
+                                        .font(.headline)
+
+                                    Text("Tocca il pulsante sopra per aggiungere la tua prima transazione")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 40)
+                                }
+                                .padding(.vertical, 40)
+                            } else {
+                                ForEach(todayTransactions) { transaction in
+                                    TransactionRow(transaction: transaction)
+                                        .padding(.horizontal)
+                                        .contextMenu {
+                                            Button(role: .destructive) {
+                                                deleteTransaction(transaction)
+                                            } label: {
+                                                Label("Elimina", systemImage: "trash")
+                                            }
+                                        }
+                                }
+                            }
+                        }
+
+                        Spacer(minLength: 100)
+                    }
+                    .padding(.vertical)
+                }
+            }
+            .navigationTitle("Oggi")
+            .navigationBarTitleDisplayMode(.large)
+            .sheet(isPresented: $showingAddTransaction) {
+                TransactionTypeSelectionView(selectedType: $selectedTransactionType)
+            }
+            .sheet(item: $selectedTransactionType) { type in
+                AddTransactionView(transactionType: type)
+            }
+        }
+    }
+
+    private func formatAmount(_ amount: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+
+        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
+        let prefix = amount >= 0 ? "+" : ""
+        return "\(prefix)\(appSettings.preferredCurrencyEnum.symbol)\(amountString)"
+    }
+
+    private func deleteTransaction(_ transaction: Transaction) {
+        if let account = transaction.account {
+            account.updateBalance()
+        }
+        modelContext.delete(transaction)
+        try? modelContext.save()
+    }
+}
+
+struct DailySummaryCard: View {
+    let title: String
+    let amount: Decimal
+    let currency: Currency
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Text(formatAmount(amount))
+                .font(.title3.bold())
+                .foregroundStyle(color)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
+        )
+    }
+
+    private func formatAmount(_ amount: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+
+        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
+        return "\(currency.symbol)\(amountString)"
+    }
+}
+
+extension TransactionType: Identifiable {
+    var id: String { self.rawValue }
+}
+
+#Preview {
+    TodayView()
+        .environmentObject(AppSettings.shared)
+        .modelContainer(for: [Account.self, Transaction.self, Category.self, CategoryGroup.self])
+}
