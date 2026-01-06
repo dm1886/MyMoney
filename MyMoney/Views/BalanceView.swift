@@ -11,20 +11,30 @@ import SwiftData
 struct BalanceView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var appSettings: AppSettings
-    @ObservedObject var currencyConverter = CurrencyConverter.shared
     @Query(sort: \Account.name) private var accounts: [Account]
+    @Query private var allCurrencies: [CurrencyRecord]
+    @Query private var exchangeRates: [ExchangeRate]  // Per aggiornamenti reattivi
 
     @State private var showingAddAccount = false
 
+    var preferredCurrencyRecord: CurrencyRecord? {
+        allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
+    }
+
     var totalBalance: Decimal {
-        // Forza SwiftUI a ricalcolare quando i tassi cambiano
-        _ = currencyConverter.lastUpdateTimestamp
+        // SwiftUI si aggiorna automaticamente quando exchangeRates cambia
+        _ = exchangeRates.count
+
+        guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
 
         return accounts.reduce(Decimal(0)) { sum, account in
-            let convertedBalance = CurrencyConverter.shared.convert(
+            guard let accountCurrency = account.currencyRecord else { return sum }
+
+            let convertedBalance = CurrencyService.shared.convert(
                 amount: account.currentBalance,
-                from: account.currency,
-                to: appSettings.preferredCurrencyEnum
+                from: accountCurrency,
+                to: preferredCurrency,
+                context: modelContext
             )
             return sum + convertedBalance
         }
@@ -81,7 +91,12 @@ struct BalanceView: View {
                             } else {
                                 ForEach(accounts) { account in
                                     NavigationLink(destination: AccountDetailView(account: account)) {
-                                        AccountRow(account: account, preferredCurrency: appSettings.preferredCurrencyEnum)
+                                        AccountRow(
+                                            account: account,
+                                            preferredCurrency: appSettings.preferredCurrencyEnum,
+                                            preferredCurrencyRecord: preferredCurrencyRecord,
+                                            exchangeRatesCount: exchangeRates.count
+                                        )
                                     }
                                     .buttonStyle(PlainButtonStyle())
                                 }
@@ -124,18 +139,27 @@ struct BalanceView: View {
 }
 
 struct AccountRow: View {
+    @Environment(\.modelContext) private var modelContext
+
     let account: Account
     let preferredCurrency: Currency
-    @ObservedObject var currencyConverter = CurrencyConverter.shared
+    let preferredCurrencyRecord: CurrencyRecord?
+    let exchangeRatesCount: Int  // Per aggiornamenti reattivi
 
     var displayBalance: String {
-        // Forza SwiftUI a ricalcolare quando i tassi cambiano
-        _ = currencyConverter.lastUpdateTimestamp
+        // SwiftUI si aggiorna automaticamente quando exchangeRatesCount cambia
+        _ = exchangeRatesCount
 
-        let convertedBalance = CurrencyConverter.shared.convert(
+        guard let accountCurrency = account.currencyRecord,
+              let preferredCurr = preferredCurrencyRecord else {
+            return "\(preferredCurrency.symbol)0.00"
+        }
+
+        let convertedBalance = CurrencyService.shared.convert(
             amount: account.currentBalance,
-            from: account.currency,
-            to: preferredCurrency
+            from: accountCurrency,
+            to: preferredCurr,
+            context: modelContext
         )
 
         let formatter = NumberFormatter()

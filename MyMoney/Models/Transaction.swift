@@ -13,7 +13,8 @@ final class Transaction {
     var id: UUID
     var transactionType: TransactionType
     var amount: Decimal
-    var currency: Currency
+    var currency: Currency              // DEPRECATED: Mantieni per backward compatibility
+    var currencyRecord: CurrencyRecord?  // NUOVO: SwiftData relationship
     var date: Date
     var notes: String
 
@@ -48,12 +49,32 @@ final class Transaction {
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
 
+        let symbol = currencyRecord?.symbol ?? currency.symbol
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
-        return "\(currency.symbol)\(amountString)"
+        return "\(symbol)\(amountString)"
     }
 
     var isToday: Bool {
         Calendar.current.isDateInToday(date)
+    }
+
+    // MARK: - Currency Helpers
+
+    /// Helper to get active currency (prefers SwiftData record, falls back to enum)
+    var activeCurrency: CurrencyRecord? {
+        currencyRecord
+    }
+
+    var currencySymbol: String {
+        currencyRecord?.symbol ?? currency.symbol
+    }
+
+    var currencyCode: String {
+        currencyRecord?.code ?? currency.rawValue
+    }
+
+    var currencyDisplayName: String {
+        currencyRecord?.displayName ?? currency.displayName
     }
 }
 

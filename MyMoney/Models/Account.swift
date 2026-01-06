@@ -14,7 +14,8 @@ final class Account {
     var id: UUID
     var name: String
     var accountType: AccountType
-    var currency: Currency
+    var currency: Currency              // DEPRECATED: Mantieni per backward compatibility
+    var currencyRecord: CurrencyRecord?  // NUOVO: SwiftData relationship
     var initialBalance: Decimal
     var currentBalance: Decimal
     var icon: String
@@ -62,7 +63,26 @@ final class Account {
         Color(hex: colorHex) ?? .blue
     }
 
-    func updateBalance() {
+    // MARK: - Currency Helpers
+
+    /// Helper to get active currency (prefers SwiftData record, falls back to enum)
+    var activeCurrency: CurrencyRecord? {
+        currencyRecord
+    }
+
+    var currencySymbol: String {
+        currencyRecord?.symbol ?? currency.symbol
+    }
+
+    var currencyCode: String {
+        currencyRecord?.code ?? currency.rawValue
+    }
+
+    var currencyDisplayName: String {
+        currencyRecord?.displayName ?? currency.displayName
+    }
+
+    func updateBalance(context: ModelContext? = nil) {
         guard let transactions = transactions else {
             currentBalance = initialBalance
             return
@@ -84,11 +104,20 @@ final class Account {
         if let incoming = incomingTransfers {
             for transfer in incoming {
                 if transfer.transactionType == .transfer {
-                    let convertedAmount = CurrencyConverter.shared.convert(
-                        amount: transfer.amount,
-                        from: transfer.currency,
-                        to: currency
-                    )
+                    // Converti usando CurrencyService se disponibile, altrimenti usa valore originale
+                    var convertedAmount = transfer.amount
+
+                    if let ctx = context,
+                       let transferCurr = transfer.currencyRecord,
+                       let accountCurr = currencyRecord {
+                        convertedAmount = CurrencyService.shared.convert(
+                            amount: transfer.amount,
+                            from: transferCurr,
+                            to: accountCurr,
+                            context: ctx
+                        )
+                    }
+
                     balance += convertedAmount
                 }
             }

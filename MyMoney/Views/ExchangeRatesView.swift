@@ -6,55 +6,113 @@
 //
 
 import SwiftUI
+import SwiftData
+
 
 struct ExchangeRatesView: View {
-    @State private var selectedFromCurrency: Currency = .EUR
-    @State private var selectedToCurrency: Currency = .USD
+    @Environment(\.modelContext) private var modelContext
+    @Query private var allCurrencies: [CurrencyRecord]
+
+    @State private var selectedFromCurrency: Currency = .EUR  // DEPRECATED
+    @State private var selectedToCurrency: Currency = .USD   // DEPRECATED
+    @State private var selectedFromCurrencyRecord: CurrencyRecord?
+    @State private var selectedToCurrencyRecord: CurrencyRecord?
     @State private var customRate = ""
     @State private var showingUpdateAlert = false
 
+    // Funzione helper per ottenere il tasso (query diretta solo quando serve)
+    func getRate(from: CurrencyRecord, to: CurrencyRecord) -> Decimal? {
+        CurrencyService.shared.getExchangeRate(from: from, to: to, context: modelContext)
+    }
+
     var currentRate: Decimal? {
-        CurrencyConverter.shared.getExchangeRate(from: selectedFromCurrency, to: selectedToCurrency)
+        guard let from = selectedFromCurrencyRecord, let to = selectedToCurrencyRecord else { return nil }
+        return getRate(from: from, to: to)
     }
 
     var body: some View {
         Form(content: {
             Section {
-                Picker("Da", selection: $selectedFromCurrency) {
-                    ForEach(Currency.allCases, id: \.self) { currency in
-                        Text(currency.displayName)
-                            .tag(currency)
+                NavigationLink {
+                    CurrencySelectionView(selectedCurrency: $selectedFromCurrencyRecord)
+                } label: {
+                    HStack {
+                        Text("Da")
+                            .foregroundStyle(.primary)
+
+                        Spacer()
+
+                        if let currency = selectedFromCurrencyRecord {
+                            HStack(spacing: 8) {
+                                Text(currency.flagEmoji)
+                                Text(currency.code)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            Text("Seleziona")
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
                     }
                 }
 
-                Picker("A", selection: $selectedToCurrency) {
-                    ForEach(Currency.allCases, id: \.self) { currency in
-                        Text(currency.displayName)
-                            .tag(currency)
+                NavigationLink {
+                    CurrencySelectionView(selectedCurrency: $selectedToCurrencyRecord)
+                } label: {
+                    HStack {
+                        Text("A")
+                            .foregroundStyle(.primary)
+
+                        Spacer()
+
+                        if let currency = selectedToCurrencyRecord {
+                            HStack(spacing: 8) {
+                                Text(currency.flagEmoji)
+                                Text(currency.code)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            Text("Seleziona")
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
                     }
                 }
             } header: {
                 Text("Seleziona Valute")
             } footer: {
-                Text("\(selectedFromCurrency.fullName) → \(selectedToCurrency.fullName)")
+                if let from = selectedFromCurrencyRecord, let to = selectedToCurrencyRecord {
+                    Text("\(from.name) → \(to.name)")
+                }
             }
 
             Section {
-                if selectedFromCurrency == selectedToCurrency {
-                    Text("Le valute devono essere diverse")
-                        .foregroundStyle(.secondary)
-                } else {
-                    HStack {
-                        Text("1 \(selectedFromCurrency.rawValue)")
-                        Spacer()
-                        if let rate = currentRate {
-                            Text("= \(formatRate(rate)) \(selectedToCurrency.rawValue)")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text("Non disponibile")
-                                .foregroundStyle(.secondary)
+                if let from = selectedFromCurrencyRecord, let to = selectedToCurrencyRecord {
+                    if from.code == to.code {
+                        Text("Le valute devono essere diverse")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        HStack {
+                            Text("1 \(from.code)")
+                            Spacer()
+                            if let rate = currentRate {
+                                Text("= \(formatRate(rate)) \(to.code)")
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("Non disponibile")
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
+                } else {
+                    Text("Seleziona due valute")
+                        .foregroundStyle(.secondary)
                 }
             } header: {
                 Text("Tasso di Cambio Attuale")
@@ -78,37 +136,15 @@ struct ExchangeRatesView: View {
                         Spacer()
                     }
                 }
-                .disabled(customRate.isEmpty || selectedFromCurrency == selectedToCurrency)
+                .disabled(customRate.isEmpty || selectedFromCurrencyRecord == nil || selectedToCurrencyRecord == nil || selectedFromCurrencyRecord?.code == selectedToCurrencyRecord?.code)
             } header: {
                 Text("Aggiorna Tasso")
             } footer: {
                 Text("Inserisci il tasso di cambio personalizzato. Ad esempio, se 1 EUR = 1.10 USD, inserisci 1.10")
             }
 
-            Section {
-                ForEach(Currency.allCases, id: \.self) { currency in
-                    if currency != selectedFromCurrency {
-                        HStack {
-                            HStack(spacing: 8) {
-                                Text(currency.flag)
-                                Text(currency.rawValue)
-                            }
-
-                            Spacer()
-
-                            if let rate = CurrencyConverter.shared.getExchangeRate(from: selectedFromCurrency, to: currency) {
-                                Text(formatRate(rate))
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                Text("N/A")
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
-                    }
-                }
-            } header: {
-                Text("1 \(selectedFromCurrency.rawValue) =")
-            }
+            // RIMOSSO: Lista completa dei tassi (troppo lenta con 140+ valute)
+            // Gli utenti possono vedere i tassi nella schermata di selezione valuta
         })
         .navigationTitle("Tassi di Cambio")
         .navigationBarTitleDisplayMode(.inline)
@@ -116,6 +152,15 @@ struct ExchangeRatesView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Il tasso di cambio è stato aggiornato con successo")
+        }
+        .onAppear {
+            // Initialize with EUR and USD if not set
+            if selectedFromCurrencyRecord == nil {
+                selectedFromCurrencyRecord = allCurrencies.first { $0.code == "EUR" }
+            }
+            if selectedToCurrencyRecord == nil {
+                selectedToCurrencyRecord = allCurrencies.first { $0.code == "USD" }
+            }
         }
     }
 
@@ -128,24 +173,19 @@ struct ExchangeRatesView: View {
     }
 
     private func updateRate() {
-        guard let rate = Decimal(string: customRate.replacingOccurrences(of: ",", with: ".")) else {
+        guard let rate = Decimal(string: customRate.replacingOccurrences(of: ",", with: ".")),
+              let from = selectedFromCurrencyRecord,
+              let to = selectedToCurrencyRecord else {
             return
         }
 
-        CurrencyConverter.shared.updateExchangeRate(
-            from: selectedFromCurrency,
-            to: selectedToCurrency,
-            rate: rate
+        CurrencyService.shared.updateExchangeRate(
+            from: from,
+            to: to,
+            rate: rate,
+            source: .manual,
+            context: modelContext
         )
-
-        if selectedFromCurrency != selectedToCurrency, rate != 0 {
-            let inverseRate = 1 / rate
-            CurrencyConverter.shared.updateExchangeRate(
-                from: selectedToCurrency,
-                to: selectedFromCurrency,
-                rate: inverseRate
-            )
-        }
 
         customRate = ""
         showingUpdateAlert = true

@@ -12,11 +12,15 @@ import PhotosUI
 struct EditAccountView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var appSettings: AppSettings
     @Bindable var account: Account
+
+    @Query private var allCurrencies: [CurrencyRecord]
 
     @State private var name: String
     @State private var selectedType: AccountType
-    @State private var selectedCurrency: Currency
+    @State private var selectedCurrency: Currency  // DEPRECATED
+    @State private var selectedCurrencyRecord: CurrencyRecord?  // NUOVO
     @State private var selectedIcon: String
     @State private var selectedColor: Color
     @State private var accountDescription: String
@@ -29,6 +33,7 @@ struct EditAccountView: View {
         _name = State(initialValue: account.name)
         _selectedType = State(initialValue: account.accountType)
         _selectedCurrency = State(initialValue: account.currency)
+        _selectedCurrencyRecord = State(initialValue: account.currencyRecord)
         _selectedIcon = State(initialValue: account.icon)
         _selectedColor = State(initialValue: account.color)
         _accountDescription = State(initialValue: account.accountDescription)
@@ -47,11 +52,29 @@ struct EditAccountView: View {
                         }
                     }
 
-                    Picker("Valuta", selection: $selectedCurrency) {
-                        ForEach(Currency.allCases, id: \.self) { currency in
-                            Text("\(currency.flag) \(currency.rawValue) - \(currency.fullName)")
+                    NavigationLink {
+                        CurrencySelectionView(selectedCurrency: $selectedCurrencyRecord)
+                    } label: {
+                        HStack {
+                            Text("Valuta")
                                 .foregroundStyle(.primary)
-                                .tag(currency)
+
+                            Spacer()
+
+                            if let currency = selectedCurrencyRecord {
+                                HStack(spacing: 8) {
+                                    Text(currency.flagEmoji)
+                                    Text(currency.code)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } else {
+                                Text("Seleziona")
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
                         }
                     }
                 }
@@ -126,7 +149,13 @@ struct EditAccountView: View {
     private func saveChanges() {
         account.name = name
         account.accountType = selectedType
-        account.currency = selectedCurrency
+
+        // Update both currency properties
+        if let currencyRecord = selectedCurrencyRecord {
+            account.currency = Currency(rawValue: currencyRecord.code) ?? .EUR
+            account.currencyRecord = currencyRecord
+        }
+
         account.icon = selectedIcon
         account.colorHex = selectedColor.toHex() ?? "#007AFF"
         account.accountDescription = accountDescription

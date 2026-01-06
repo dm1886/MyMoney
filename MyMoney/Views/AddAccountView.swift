@@ -12,10 +12,14 @@ import PhotosUI
 struct AddAccountView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var appSettings: AppSettings
+
+    @Query private var allCurrencies: [CurrencyRecord]
 
     @State private var name = ""
     @State private var selectedType: AccountType = .payment
-    @State private var selectedCurrency: Currency = .EUR
+    @State private var selectedCurrency: Currency = .EUR  // DEPRECATED: Keep for backward compatibility
+    @State private var selectedCurrencyRecord: CurrencyRecord?  // NUOVO: SwiftData currency
     @State private var initialBalance = ""
     @State private var selectedIcon = "creditcard.fill"
     @State private var selectedColor = Color.blue
@@ -23,6 +27,7 @@ struct AddAccountView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var photoData: Data?
     @State private var showingIconPicker = false
+    @State private var showingCurrencyPicker = false
 
     let accountIcons = [
         "creditcard.fill", "banknote.fill", "dollarsign.circle.fill",
@@ -43,11 +48,29 @@ struct AddAccountView: View {
                         }
                     }
 
-                    Picker("Valuta", selection: $selectedCurrency) {
-                        ForEach(Currency.allCases, id: \.self) { currency in
-                            Text("\(currency.flag) \(currency.rawValue) - \(currency.fullName)")
+                    NavigationLink {
+                        CurrencySelectionView(selectedCurrency: $selectedCurrencyRecord)
+                    } label: {
+                        HStack {
+                            Text("Valuta")
                                 .foregroundStyle(.primary)
-                                .tag(currency)
+
+                            Spacer()
+
+                            if let currency = selectedCurrencyRecord {
+                                HStack(spacing: 8) {
+                                    Text(currency.flagEmoji)
+                                    Text(currency.code)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } else {
+                                Text("Seleziona")
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
                         }
                     }
 
@@ -57,7 +80,7 @@ struct AddAccountView: View {
                         TextField("0.00", text: $initialBalance)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
-                        Text(selectedCurrency.symbol)
+                        Text(selectedCurrencyRecord?.symbol ?? "€")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -126,22 +149,34 @@ struct AddAccountView: View {
                     }
                 }
             }
+            .onAppear {
+                // Set default currency to EUR if not already set
+                if selectedCurrencyRecord == nil {
+                    selectedCurrencyRecord = allCurrencies.first { $0.code == "EUR" }
+                }
+            }
         }
     }
 
     private func saveAccount() {
         let balance = Decimal(string: initialBalance.replacingOccurrences(of: ",", with: ".")) ?? 0
 
+        // Use selected currency or default to EUR
+        let currencyToUse = selectedCurrencyRecord ?? allCurrencies.first { $0.code == "EUR" }
+
         let account = Account(
             name: name,
             accountType: selectedType,
-            currency: selectedCurrency,
+            currency: Currency(rawValue: currencyToUse?.code ?? "EUR") ?? .EUR,  // Enum for compatibility
             initialBalance: balance,
             icon: selectedIcon,
             colorHex: selectedColor.toHex() ?? "#007AFF",
             imageData: photoData,
             accountDescription: accountDescription
         )
+
+        // Set SwiftData currency record
+        account.currencyRecord = currencyToUse
 
         modelContext.insert(account)
         try? modelContext.save()

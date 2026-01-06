@@ -13,6 +13,7 @@ struct AddTransactionView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var accounts: [Account]
     @Query private var categories: [Category]
+    @Query private var allCurrencies: [CurrencyRecord]
 
     let transactionType: TransactionType
 
@@ -24,30 +25,41 @@ struct AddTransactionView: View {
     @State private var selectedDate = Date()
     @State private var showingCategoryPicker = false
     @State private var showingNewCategorySheet = false
-    @State private var selectedTransactionCurrency: Currency?
+    @State private var selectedTransactionCurrency: Currency?  // DEPRECATED
+    @State private var selectedTransactionCurrencyRecord: CurrencyRecord?
 
     var transactionCurrency: Currency {
         selectedTransactionCurrency ?? selectedAccount?.currency ?? .EUR
     }
 
-    var accountCurrency: Currency {
-        selectedAccount?.currency ?? .EUR
+    var transactionCurrencyRecord: CurrencyRecord? {
+        selectedTransactionCurrencyRecord ?? selectedAccount?.currencyRecord
+    }
+
+    var accountCurrencyRecord: CurrencyRecord? {
+        selectedAccount?.currencyRecord
     }
 
     var needsConversion: Bool {
-        transactionCurrency != accountCurrency
+        guard let transCurr = transactionCurrencyRecord, let accCurr = accountCurrencyRecord else {
+            return false
+        }
+        return transCurr.code != accCurr.code
     }
 
     var convertedAmount: Decimal? {
         guard needsConversion,
-              let amountDecimal = Decimal(string: amount.replacingOccurrences(of: ",", with: ".")) else {
+              let amountDecimal = Decimal(string: amount.replacingOccurrences(of: ",", with: ".")),
+              let transCurr = transactionCurrencyRecord,
+              let accCurr = accountCurrencyRecord else {
             return nil
         }
 
-        return CurrencyConverter.shared.convert(
+        return CurrencyService.shared.convert(
             amount: amountDecimal,
-            from: transactionCurrency,
-            to: accountCurrency
+            from: transCurr,
+            to: accCurr,
+            context: modelContext
         )
     }
 
@@ -95,44 +107,39 @@ struct AddTransactionView: View {
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                             .font(.title2.bold())
-                        Text(transactionCurrency.symbol)
+                        Text(transactionCurrencyRecord?.symbol ?? transactionCurrency.symbol)
                             .foregroundStyle(.secondary)
                     }
 
-                    Picker("Valuta", selection: $selectedTransactionCurrency) {
-                        Text("Valuta del conto (\(accountCurrency.rawValue))").tag(nil as Currency?)
+                    NavigationLink {
+                        CurrencySelectionView(selectedCurrency: $selectedTransactionCurrencyRecord)
+                    } label: {
+                        HStack {
+                            Text("Valuta")
+                                .foregroundStyle(.primary)
 
-                        let frequentCurrencies = CurrencyUsageTracker.shared.getFrequentCurrencies()
-                        let recentCurrencies = CurrencyUsageTracker.shared.getRecentCurrenciesObjects()
-                        let sortedCurrencies = CurrencyUsageTracker.shared.getSortedCurrencies()
+                            Spacer()
 
-                        // Sezione Frequenti
-                        if !frequentCurrencies.isEmpty {
-                            Section(header: Text("⭐️ Più Usate")) {
-                                ForEach(frequentCurrencies, id: \.self) { currency in
-                                    Text(currency.displayName).tag(currency as Currency?)
+                            if let currency = selectedTransactionCurrencyRecord {
+                                HStack(spacing: 8) {
+                                    Text(currency.flagEmoji)
+                                    Text(currency.code)
+                                        .foregroundStyle(.secondary)
                                 }
-                            }
-                        }
-
-                        // Sezione Recenti
-                        if !recentCurrencies.isEmpty {
-                            Section(header: Text("🕒 Recenti")) {
-                                ForEach(recentCurrencies, id: \.self) { currency in
-                                    if !frequentCurrencies.contains(currency) {
-                                        Text(currency.displayName).tag(currency as Currency?)
-                                    }
+                            } else if let accountCurr = accountCurrencyRecord {
+                                HStack(spacing: 8) {
+                                    Text(accountCurr.flagEmoji)
+                                    Text("Valuta del conto (\(accountCurr.code))")
+                                        .foregroundStyle(.secondary)
                                 }
+                            } else {
+                                Text("Seleziona")
+                                    .foregroundStyle(.secondary)
                             }
-                        }
 
-                        // Tutte le altre
-                        Section(header: Text("🌍 Tutte le Valute")) {
-                            ForEach(sortedCurrencies, id: \.self) { currency in
-                                if !frequentCurrencies.contains(currency) && !recentCurrencies.contains(currency) {
-                                    Text(currency.displayName).tag(currency as Currency?)
-                                }
-                            }
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
                         }
                     }
 
@@ -144,14 +151,16 @@ struct AddTransactionView: View {
                             Text("Convertito")
                                 .foregroundStyle(.secondary)
                             Spacer()
-                            Text("\(accountCurrency.symbol)\(formatDecimal(converted))")
-                                .font(.headline)
-                                .foregroundStyle(.blue)
+                            if let accCurr = accountCurrencyRecord {
+                                Text("\(accCurr.symbol)\(formatDecimal(converted))")
+                                    .font(.headline)
+                                    .foregroundStyle(.blue)
+                            }
                         }
                     }
                 } footer: {
-                    if needsConversion {
-                        Text("L'importo verrà convertito da \(transactionCurrency.rawValue) a \(accountCurrency.rawValue) usando il tasso di cambio corrente.")
+                    if needsConversion, let transCurr = transactionCurrencyRecord, let accCurr = accountCurrencyRecord {
+                        Text("L'importo verrà convertito da \(transCurr.code) a \(accCurr.code) usando il tasso di cambio corrente.")
                     }
                 }
 
@@ -248,10 +257,14 @@ struct AddTransactionView: View {
             return
         }
 
+        // Use selected currency or account's currency
+        let currencyToUse = transactionCurrencyRecord ?? account.currencyRecord
+        let currencyEnumToUse = transactionCurrency
+
         let transaction = Transaction(
             transactionType: transactionType,
             amount: amountDecimal,
-            currency: transactionCurrency, // Usa la valuta selezionata
+            currency: currencyEnumToUse, // Usa la valuta selezionata
             date: selectedDate,
             notes: notes,
             account: account,
@@ -259,16 +272,21 @@ struct AddTransactionView: View {
             destinationAccount: selectedDestinationAccount
         )
 
+        // Set SwiftData currency record
+        transaction.currencyRecord = currencyToUse
+
         modelContext.insert(transaction)
 
-        account.updateBalance()
+        account.updateBalance(context: modelContext)
 
         if let destinationAccount = selectedDestinationAccount {
-            destinationAccount.updateBalance()
+            destinationAccount.updateBalance(context: modelContext)
         }
 
         // Registra l'uso della valuta
-        CurrencyUsageTracker.shared.recordUsage(of: transactionCurrency)
+        if let currencyRecord = currencyToUse {
+            CurrencyService.shared.recordUsage(of: currencyRecord, context: modelContext)
+        }
 
         try? modelContext.save()
 

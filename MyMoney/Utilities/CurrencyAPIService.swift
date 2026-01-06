@@ -6,6 +6,8 @@
 //
 
 import Foundation
+import SwiftUI
+import SwiftData
 
 class CurrencyAPIService {
     static let shared = CurrencyAPIService()
@@ -16,95 +18,90 @@ class CurrencyAPIService {
     private let apiKey = "8d4bde32bba42c21365d2303"
     private let baseURL = "https://v6.exchangerate-api.com/v6/"
 
-    func fetchExchangeRates(baseCurrency: Currency) async throws -> [Currency: Decimal] {
-        let urlString = "\(baseURL)\(apiKey)/latest/\(baseCurrency.rawValue)"
+    // MARK: - Currency Update Functions
 
-        print("🌐 [CurrencyAPI] Starting fetch for base currency: \(baseCurrency.rawValue)")
-        print("🌐 [CurrencyAPI] URL: \(urlString)")
+    func fetchRawAPI(baseCurrency: String) async throws -> String {
+        let urlString = "\(baseURL)\(apiKey)/latest/\(baseCurrency)"
+        Swift.print("🌐 [API] Fetching URL: \(urlString)")
 
         guard let url = URL(string: urlString) else {
-            print("❌ [CurrencyAPI] Invalid URL: \(urlString)")
+            Swift.print("❌ [API] Invalid URL")
             throw CurrencyAPIError.invalidURL
         }
 
-        print("📡 [CurrencyAPI] Sending request...")
+        Swift.print("📡 [API] Sending request...")
         let (data, response) = try await URLSession.shared.data(from: url)
-        print("✅ [CurrencyAPI] Received response, data size: \(data.count) bytes")
+        Swift.print("✅ [API] Received \(data.count) bytes")
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            print("❌ [CurrencyAPI] Response is not HTTPURLResponse")
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            Swift.print("❌ [API] Invalid response or status code")
             throw CurrencyAPIError.invalidResponse
         }
 
-        print("📊 [CurrencyAPI] HTTP Status Code: \(httpResponse.statusCode)")
-
-        guard (200...299).contains(httpResponse.statusCode) else {
-            print("❌ [CurrencyAPI] Invalid status code: \(httpResponse.statusCode)")
-            throw CurrencyAPIError.invalidResponse
-        }
-
-        print("🔄 [CurrencyAPI] Decoding JSON response...")
-        let decoder = JSONDecoder()
-        let apiResponse = try decoder.decode(ExchangeRateResponse.self, from: data)
-        print("✅ [CurrencyAPI] Successfully decoded. Base: \(apiResponse.base), Rates count: \(apiResponse.rates.count)")
-
-        var rates: [Currency: Decimal] = [:]
-
-        for currency in Currency.allCases {
-            if let rate = apiResponse.rates[currency.rawValue] {
-                rates[currency] = Decimal(rate)
-            }
-        }
-
-        print("✅ [CurrencyAPI] Converted \(rates.count) rates to Decimal format")
-        return rates
+        Swift.print("✅ [API] Status code: \(httpResponse.statusCode)")
+        return String(data: data, encoding: .utf8) ?? "Unable to decode data"
     }
 
-    func updateAllRates(baseCurrency: Currency) async throws {
-        print("🚀 [CurrencyAPI] Starting updateAllRates with base: \(baseCurrency.rawValue)")
+    func parseCurrency(jsonString: String, context: ModelContext) throws {
+        Swift.print("🔄 [API] Starting parseCurrency - Thread: \(Thread.isMainThread ? "MAIN" : "BACKGROUND")")
 
-        // Fetch rates once - this gives us all conversion rates from the base currency
-        let rates = try await fetchExchangeRates(baseCurrency: baseCurrency)
+        // Decode JSON
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            Swift.print("❌ [API] Failed to convert string to data")
+            throw CurrencyAPIError.decodingError
+        }
 
-        print("💾 [CurrencyAPI] Updating \(rates.count) rates in CurrencyConverter...")
+        Swift.print("🔄 [API] Decoding JSON...")
+        let decoder = JSONDecoder()
+        let apiResponse = try decoder.decode(ExchangeRateResponse.self, from: jsonData)
+        Swift.print("✅ [API] Decoded \(apiResponse.conversion_rates.count) rates for base: \(apiResponse.base_code)")
+
+        // Get base currency from database
+        Swift.print("💾 [API] Fetching currencies from database...")
+        let allCurrencies = try context.fetch(FetchDescriptor<CurrencyRecord>())
+        Swift.print("💾 [API] Found \(allCurrencies.count) currencies in database")
+
+        let currencyMap = Dictionary(uniqueKeysWithValues: allCurrencies.map { ($0.code, $0) })
+
+        guard let baseCurrency = currencyMap[apiResponse.base_code] else {
+            Swift.print("❌ [API] Base currency not found: \(apiResponse.base_code)")
+            throw NSError(domain: "CurrencyAPI", code: 1,
+                         userInfo: [NSLocalizedDescriptionKey: "Base currency not found: \(apiResponse.base_code)"])
+        }
+
+        Swift.print("✅ [API] Base currency: \(baseCurrency.code)")
         var updatedCount = 0
 
-        // Update all rates from base currency to other currencies
-        // autoSave: false per evitare di salvare centinaia di volte
-        for (toCurrency, rate) in rates {
-            // Salva tasso diretto: EUR -> MOP
-            CurrencyConverter.shared.updateExchangeRate(
+        // Update all rates (batch mode - no save per iteration)
+        Swift.print("🔄 [API] Updating rates...")
+        for (currencyCode, rateValue) in apiResponse.conversion_rates {
+            guard let toCurrency = currencyMap[currencyCode] else { continue }
+
+            let rate = Decimal(rateValue)
+
+            CurrencyService.shared.updateExchangeRate(
                 from: baseCurrency,
                 to: toCurrency,
                 rate: rate,
+                source: .api,
+                context: context,
                 autoSave: false
             )
 
-            // Salva anche il tasso inverso: MOP -> EUR
-            if rate != 0 && toCurrency != baseCurrency {
-                let inverseRate = 1 / rate
-                CurrencyConverter.shared.updateExchangeRate(
-                    from: toCurrency,
-                    to: baseCurrency,
-                    rate: inverseRate,
-                    autoSave: false
-                )
-            }
-
             updatedCount += 1
 
-            if updatedCount % 20 == 0 {
-                print("📝 [CurrencyAPI] Progress: Updated \(updatedCount)/\(rates.count) rates")
+            if updatedCount % 50 == 0 {
+                Swift.print("📝 [API] Progress: \(updatedCount) rates updated...")
             }
         }
 
-        // Salva una sola volta alla fine e notifica le view
-        print("💾 [CurrencyAPI] Saving all rates to disk and notifying views...")
-        CurrencyConverter.shared.saveAndNotify()
-
-        print("✅ [CurrencyAPI] Successfully updated \(updatedCount) exchange rates (with inverse rates)!")
-        print("✅ [CurrencyAPI] Update completed at \(Date())")
+        // Save all at once
+        Swift.print("💾 [API] Saving all \(updatedCount) rates to database...")
+        try context.save()
+        Swift.print("✅ [API] Successfully saved \(updatedCount) rates")
     }
+
 }
 
 struct ExchangeRateResponse: Codable {

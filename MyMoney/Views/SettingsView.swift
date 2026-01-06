@@ -15,20 +15,36 @@ struct SettingsView: View {
     @Query private var transactions: [Transaction]
     @Query private var categories: [Category]
     @Query private var categoryGroups: [CategoryGroup]
+    @Query private var allCurrencies: [CurrencyRecord]
 
     @State private var showingDeleteAllAlert = false
-    @State private var isUpdatingRates = false
-    @State private var showingUpdateSuccess = false
-    @State private var updateError: String?
+    @StateObject private var updateManager = CurrencyUpdateManager()
+    @State private var selectedPreferredCurrency: CurrencyRecord?
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    Picker("Valuta Preferita", selection: $appSettings.preferredCurrencyEnum) {
-                        ForEach(Currency.allCases, id: \.self) { currency in
-                            Text(currency.displayName)
-                                .tag(currency)
+                    NavigationLink {
+                        CurrencySelectionView(selectedCurrency: $selectedPreferredCurrency)
+                    } label: {
+                        HStack {
+                            Text("Valuta Preferita")
+                                .foregroundStyle(.primary)
+
+                            Spacer()
+
+                            if let currency = selectedPreferredCurrency {
+                                HStack(spacing: 8) {
+                                    Text(currency.flagEmoji)
+                                    Text(currency.code)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
                         }
                     }
 
@@ -36,13 +52,18 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Valuta Selezionata")
                                 .font(.body)
-                            Text(appSettings.preferredCurrencyEnum.fullName)
+                            Text(selectedPreferredCurrency?.name ?? appSettings.preferredCurrencyEnum.fullName)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Text("\(appSettings.preferredCurrencyEnum.flag) \(appSettings.preferredCurrencyEnum.rawValue)")
-                            .font(.title3)
+                        if let currency = selectedPreferredCurrency {
+                            Text("\(currency.flagEmoji) \(currency.code)")
+                                .font(.title3)
+                        } else {
+                            Text("\(appSettings.preferredCurrencyEnum.flag) \(appSettings.preferredCurrencyEnum.rawValue)")
+                                .font(.title3)
+                        }
                     }
                 } header: {
                     Text("Valuta")
@@ -149,13 +170,13 @@ struct SettingsView: View {
 
                 Section {
                     Button {
-                        updateRatesAutomatically()
+                        updateManager.updateRates(container: modelContext.container)
                     } label: {
                         HStack {
                             Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
                                 .foregroundStyle(.green)
 
-                            if isUpdatingRates {
+                            if updateManager.isUpdating {
                                 ProgressView()
                                     .padding(.leading, 8)
                                 Text("Aggiornamento in corso...")
@@ -168,9 +189,9 @@ struct SettingsView: View {
                             Spacer()
                         }
                     }
-                    .disabled(isUpdatingRates)
+                    .disabled(updateManager.isUpdating)
 
-                    if let lastUpdate = CurrencyConverter.shared.getLastUpdateDate() {
+                    if let lastUpdate = CurrencyService.shared.getLastUpdateDate(context: modelContext) {
                         HStack {
                             Text("Ultimo Aggiornamento")
                             Spacer()
@@ -219,42 +240,30 @@ struct SettingsView: View {
             } message: {
                 Text("Sei sicuro di voler eliminare tutti i dati? Questa operazione non può essere annullata.")
             }
-            .alert("Tassi Aggiornati", isPresented: $showingUpdateSuccess) {
+            .alert("Tassi Aggiornati", isPresented: $updateManager.showSuccess) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text("I tassi di cambio sono stati aggiornati con successo da internet!")
             }
-            .alert("Errore", isPresented: .constant(updateError != nil)) {
+            .alert("Errore", isPresented: .constant(updateManager.errorMessage != nil)) {
                 Button("OK", role: .cancel) {
-                    updateError = nil
+                    updateManager.errorMessage = nil
                 }
             } message: {
-                Text(updateError ?? "")
+                Text(updateManager.errorMessage ?? "")
             }
-        }
-    }
-
-    private func updateRatesAutomatically() {
-        print("⚙️ [SettingsView] User pressed 'Aggiorna' button")
-        isUpdatingRates = true
-        updateError = nil
-
-        Task {
-            do {
-                print("⚙️ [SettingsView] Starting currency update task...")
-                try await CurrencyAPIService.shared.updateAllRates(baseCurrency: .EUR)
-
-                print("⚙️ [SettingsView] Update successful! Showing success message...")
-                await MainActor.run {
-                    isUpdatingRates = false
-                    showingUpdateSuccess = true
+            .onAppear {
+                // Initialize selected preferred currency
+                if selectedPreferredCurrency == nil {
+                    selectedPreferredCurrency = allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
                 }
-            } catch {
-                print("❌ [SettingsView] Update failed with error: \(error)")
-                print("❌ [SettingsView] Error description: \(error.localizedDescription)")
-                await MainActor.run {
-                    isUpdatingRates = false
-                    updateError = "Impossibile aggiornare i tassi: \(error.localizedDescription)"
+            }
+            .onChange(of: selectedPreferredCurrency) { oldValue, newValue in
+                // Update AppSettings when currency changes
+                if let newCurrency = newValue {
+                    if let currencyEnum = Currency(rawValue: newCurrency.code) {
+                        appSettings.preferredCurrencyEnum = currencyEnum
+                    }
                 }
             }
         }

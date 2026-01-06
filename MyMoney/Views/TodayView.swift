@@ -12,6 +12,8 @@ struct TodayView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var appSettings: AppSettings
     @Query private var transactions: [Transaction]
+    @Query private var allCurrencies: [CurrencyRecord]
+    @Query private var exchangeRates: [ExchangeRate]  // Per aggiornamenti reattivi
 
     @State private var showingAddTransaction = false
     @State private var selectedTransactionType: TransactionType?
@@ -22,27 +24,43 @@ struct TodayView: View {
             .sorted { $0.date > $1.date }
     }
 
+    var preferredCurrencyRecord: CurrencyRecord? {
+        allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
+    }
+
     var todayExpenses: Decimal {
-        todayTransactions
+        _ = exchangeRates.count
+        guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
+
+        return todayTransactions
             .filter { $0.transactionType == .expense }
             .reduce(0) { sum, transaction in
-                let convertedAmount = CurrencyConverter.shared.convert(
+                guard let transactionCurrency = transaction.currencyRecord else { return sum }
+
+                let convertedAmount = CurrencyService.shared.convert(
                     amount: transaction.amount,
-                    from: transaction.currency,
-                    to: appSettings.preferredCurrencyEnum
+                    from: transactionCurrency,
+                    to: preferredCurrency,
+                    context: modelContext
                 )
                 return sum + convertedAmount
             }
     }
 
     var todayIncome: Decimal {
-        todayTransactions
+        _ = exchangeRates.count
+        guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
+
+        return todayTransactions
             .filter { $0.transactionType == .income }
             .reduce(0) { sum, transaction in
-                let convertedAmount = CurrencyConverter.shared.convert(
+                guard let transactionCurrency = transaction.currencyRecord else { return sum }
+
+                let convertedAmount = CurrencyService.shared.convert(
                     amount: transaction.amount,
-                    from: transaction.currency,
-                    to: appSettings.preferredCurrencyEnum
+                    from: transactionCurrency,
+                    to: preferredCurrency,
+                    context: modelContext
                 )
                 return sum + convertedAmount
             }
@@ -194,7 +212,7 @@ struct TodayView: View {
 
     private func deleteTransaction(_ transaction: Transaction) {
         if let account = transaction.account {
-            account.updateBalance()
+            account.updateBalance(context: modelContext)
         }
         modelContext.delete(transaction)
         try? modelContext.save()

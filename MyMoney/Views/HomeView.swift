@@ -11,19 +11,29 @@ import SwiftData
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var appSettings: AppSettings
-    @ObservedObject var currencyConverter = CurrencyConverter.shared
     @Query private var accounts: [Account]
     @Query private var transactions: [Transaction]
+    @Query private var allCurrencies: [CurrencyRecord]
+    @Query private var exchangeRates: [ExchangeRate]  // Per aggiornamenti reattivi
+
+    var preferredCurrencyRecord: CurrencyRecord? {
+        allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
+    }
 
     var totalBalance: Decimal {
-        // Forza SwiftUI a ricalcolare quando i tassi cambiano
-        _ = currencyConverter.lastUpdateTimestamp
+        // SwiftUI si aggiorna automaticamente quando exchangeRates cambia
+        _ = exchangeRates.count
+
+        guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
 
         return accounts.reduce(Decimal(0)) { sum, account in
-            let convertedBalance = CurrencyConverter.shared.convert(
+            guard let accountCurrency = account.currencyRecord else { return sum }
+
+            let convertedBalance = CurrencyService.shared.convert(
                 amount: account.currentBalance,
-                from: account.currency,
-                to: appSettings.preferredCurrencyEnum
+                from: accountCurrency,
+                to: preferredCurrency,
+                context: modelContext
             )
             return sum + convertedBalance
         }
@@ -34,28 +44,38 @@ struct HomeView: View {
     }
 
     var todayExpenses: Decimal {
-        _ = currencyConverter.lastUpdateTimestamp
+        _ = exchangeRates.count
+        guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
+
         return todayTransactions
             .filter { $0.transactionType == .expense }
             .reduce(0) { sum, transaction in
-                let convertedAmount = CurrencyConverter.shared.convert(
+                guard let transactionCurrency = transaction.currencyRecord else { return sum }
+
+                let convertedAmount = CurrencyService.shared.convert(
                     amount: transaction.amount,
-                    from: transaction.currency,
-                    to: appSettings.preferredCurrencyEnum
+                    from: transactionCurrency,
+                    to: preferredCurrency,
+                    context: modelContext
                 )
                 return sum + convertedAmount
             }
     }
 
     var todayIncome: Decimal {
-        _ = currencyConverter.lastUpdateTimestamp
+        _ = exchangeRates.count
+        guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
+
         return todayTransactions
             .filter { $0.transactionType == .income }
             .reduce(0) { sum, transaction in
-                let convertedAmount = CurrencyConverter.shared.convert(
+                guard let transactionCurrency = transaction.currencyRecord else { return sum }
+
+                let convertedAmount = CurrencyService.shared.convert(
                     amount: transaction.amount,
-                    from: transaction.currency,
-                    to: appSettings.preferredCurrencyEnum
+                    from: transactionCurrency,
+                    to: preferredCurrency,
+                    context: modelContext
                 )
                 return sum + convertedAmount
             }

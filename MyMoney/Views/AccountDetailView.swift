@@ -151,7 +151,7 @@ struct AccountDetailView: View {
             Text("Sei sicuro di voler eliminare questo conto? Tutte le transazioni associate verranno eliminate.")
         }
         .onAppear {
-            account.updateBalance()
+            account.updateBalance(context: modelContext)
         }
     }
 
@@ -171,19 +171,28 @@ struct AccountDetailView: View {
 }
 
 struct TransactionRow: View {
+    @Environment(\.modelContext) private var modelContext
+
     let transaction: Transaction
 
     var needsConversion: Bool {
-        guard let account = transaction.account else { return false }
-        return transaction.currency != account.currency
+        guard let account = transaction.account,
+              let transactionCurr = transaction.currencyRecord,
+              let accountCurr = account.currencyRecord else { return false }
+        return transactionCurr.code != accountCurr.code
     }
 
     var convertedAmount: Decimal? {
-        guard needsConversion, let account = transaction.account else { return nil }
-        return CurrencyConverter.shared.convert(
+        guard needsConversion,
+              let account = transaction.account,
+              let transactionCurr = transaction.currencyRecord,
+              let accountCurr = account.currencyRecord else { return nil }
+
+        return CurrencyService.shared.convert(
             amount: transaction.amount,
-            from: transaction.currency,
-            to: account.currency
+            from: transactionCurr,
+            to: accountCurr,
+            context: modelContext
         )
     }
 

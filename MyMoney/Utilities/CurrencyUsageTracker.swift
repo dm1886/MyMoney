@@ -104,7 +104,7 @@ final class CurrencyUsageTracker {
         UserDefaults.standard.set(count, forKey: usageCountKey)
     }
 
-    private func getRecentCurrencies() -> [String] {
+    func getRecentCurrencies() -> [String] {
         return UserDefaults.standard.stringArray(forKey: recentCurrenciesKey) ?? []
     }
 
