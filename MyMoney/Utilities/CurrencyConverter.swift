@@ -36,11 +36,18 @@ class CurrencyConverter: ObservableObject {
         return amount * rate
     }
 
-    func updateExchangeRate(from: Currency, to: Currency, rate: Decimal) {
+    func updateExchangeRate(from: Currency, to: Currency, rate: Decimal, autoSave: Bool = true) {
         if exchangeRates[from] == nil {
             exchangeRates[from] = [:]
         }
         exchangeRates[from]?[to] = rate
+        if autoSave {
+            saveRates()
+        }
+    }
+
+    // Metodo per notificare le view dopo aggiornamenti batch
+    func saveAndNotify() {
         saveRates()
     }
 

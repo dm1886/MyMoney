@@ -70,12 +70,27 @@ class CurrencyAPIService {
         var updatedCount = 0
 
         // Update all rates from base currency to other currencies
+        // autoSave: false per evitare di salvare centinaia di volte
         for (toCurrency, rate) in rates {
+            // Salva tasso diretto: EUR -> MOP
             CurrencyConverter.shared.updateExchangeRate(
                 from: baseCurrency,
                 to: toCurrency,
-                rate: rate
+                rate: rate,
+                autoSave: false
             )
+
+            // Salva anche il tasso inverso: MOP -> EUR
+            if rate != 0 && toCurrency != baseCurrency {
+                let inverseRate = 1 / rate
+                CurrencyConverter.shared.updateExchangeRate(
+                    from: toCurrency,
+                    to: baseCurrency,
+                    rate: inverseRate,
+                    autoSave: false
+                )
+            }
+
             updatedCount += 1
 
             if updatedCount % 20 == 0 {
@@ -83,7 +98,11 @@ class CurrencyAPIService {
             }
         }
 
-        print("✅ [CurrencyAPI] Successfully updated \(updatedCount) exchange rates!")
+        // Salva una sola volta alla fine e notifica le view
+        print("💾 [CurrencyAPI] Saving all rates to disk and notifying views...")
+        CurrencyConverter.shared.saveAndNotify()
+
+        print("✅ [CurrencyAPI] Successfully updated \(updatedCount) exchange rates (with inverse rates)!")
         print("✅ [CurrencyAPI] Update completed at \(Date())")
     }
 }
