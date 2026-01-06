@@ -21,6 +21,7 @@ final class Transaction {
     var account: Account?
     var category: Category?
     var destinationAccount: Account?
+    var destinationAmount: Decimal?     // Importo nel conto destinazione (per trasferimenti con conversione)
 
     init(
         transactionType: TransactionType,
@@ -82,12 +83,14 @@ enum TransactionType: String, Codable {
     case expense = "Uscita"
     case income = "Entrata"
     case transfer = "Trasferimento"
+    case adjustment = "Aggiustamento"
 
     var icon: String {
         switch self {
         case .expense: return "arrow.down.circle.fill"
         case .income: return "arrow.up.circle.fill"
         case .transfer: return "arrow.left.arrow.right.circle.fill"
+        case .adjustment: return "slider.horizontal.3"
         }
     }
 
@@ -96,6 +99,7 @@ enum TransactionType: String, Codable {
         case .expense: return "#FF3B30"
         case .income: return "#34C759"
         case .transfer: return "#007AFF"
+        case .adjustment: return "#5856D6"
         }
     }
 }

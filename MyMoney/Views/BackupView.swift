@@ -60,7 +60,7 @@ struct BackupView: View {
                     .frame(height: 44)
                 }
             } header: {
-                Text("Account")
+                Text("Account Apple")
             } footer: {
                 if !authManager.isAuthenticated {
                     Text("Accedi con Apple ID per abilitare backup automatici su iCloud")

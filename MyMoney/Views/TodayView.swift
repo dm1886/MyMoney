@@ -72,122 +72,143 @@ struct TodayView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color(.systemGroupedBackground).ignoresSafeArea()
+            List {
+                // Summary Cards Section
+                Section {
+                    VStack(spacing: 12) {
+                        Text(Date().formatted(date: .complete, time: .omitted))
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        VStack(spacing: 12) {
-                            Text(Date().formatted(date: .complete, time: .omitted))
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
+                        HStack(spacing: 16) {
+                            DailySummaryCard(
+                                title: "Entrate",
+                                amount: todayIncome,
+                                currency: appSettings.preferredCurrencyEnum,
+                                color: .green
+                            )
 
-                            HStack(spacing: 16) {
-                                DailySummaryCard(
-                                    title: "Entrate",
-                                    amount: todayIncome,
-                                    currency: appSettings.preferredCurrencyEnum,
-                                    color: .green
-                                )
-
-                                DailySummaryCard(
-                                    title: "Uscite",
-                                    amount: todayExpenses,
-                                    currency: appSettings.preferredCurrencyEnum,
-                                    color: .red
-                                )
-                            }
-
-                            HStack {
-                                Text("Bilancio Giornaliero")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-
-                                Spacer()
-
-                                Text(formatAmount(dailyBalance))
-                                    .font(.title3.bold())
-                                    .foregroundStyle(dailyBalance >= 0 ? .green : .red)
-                            }
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color(.systemBackground))
-                                    .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
+                            DailySummaryCard(
+                                title: "Uscite",
+                                amount: todayExpenses,
+                                currency: appSettings.preferredCurrencyEnum,
+                                color: .red
                             )
                         }
-                        .padding(.horizontal)
-                        .padding(.top, 8)
 
-                        VStack(spacing: 16) {
-                            Button {
-                                showingAddTransaction = true
-                            } label: {
-                                HStack {
-                                    Image(systemName: "plus.circle.fill")
-                                        .font(.title2)
+                        HStack {
+                            Text("Bilancio Giornaliero")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
 
-                                    Text("Nuova Transazione")
-                                        .font(.headline)
-                                }
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [.blue, .purple],
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                        )
-                                )
-                            }
-                            .padding(.horizontal)
+                            Spacer()
+
+                            Text(formatAmount(dailyBalance))
+                                .font(.title3.bold())
+                                .foregroundStyle(dailyBalance >= 0 ? .green : .red)
                         }
-
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Transazioni di Oggi")
-                                .font(.title2.bold())
-                                .padding(.horizontal)
-
-                            if todayTransactions.isEmpty {
-                                VStack(spacing: 16) {
-                                    Image(systemName: "list.bullet.clipboard")
-                                        .font(.system(size: 50))
-                                        .foregroundStyle(.secondary)
-
-                                    Text("Nessuna transazione oggi")
-                                        .font(.headline)
-
-                                    Text("Tocca il pulsante sopra per aggiungere la tua prima transazione")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 40)
-                                }
-                                .padding(.vertical, 40)
-                            } else {
-                                ForEach(todayTransactions) { transaction in
-                                    TransactionRow(transaction: transaction)
-                                        .padding(.horizontal)
-                                        .contextMenu {
-                                            Button(role: .destructive) {
-                                                deleteTransaction(transaction)
-                                            } label: {
-                                                Label("Elimina", systemImage: "trash")
-                                            }
-                                        }
-                                }
-                            }
-                        }
-
-                        Spacer(minLength: 100)
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(.systemBackground))
+                                .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
+                        )
                     }
-                    .padding(.vertical)
+                    .padding(.vertical, 8)
                 }
+                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+
+                // Add Transaction Button Section
+                Section {
+                    Button {
+                        showingAddTransaction = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title2)
+
+                            Text("Nuova Transazione")
+                                .font(.headline)
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.blue, .purple],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                        )
+                    }
+                }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+
+                // Transactions Section
+                Section {
+                    if todayTransactions.isEmpty {
+                        VStack(spacing: 16) {
+                            Image(systemName: "list.bullet.clipboard")
+                                .font(.system(size: 50))
+                                .foregroundStyle(.secondary)
+
+                            Text("Nessuna transazione oggi")
+                                .font(.headline)
+
+                            Text("Tocca il pulsante sopra per aggiungere la tua prima transazione")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 20)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                    } else {
+                        ForEach(todayTransactions) { transaction in
+                            NavigationLink {
+                                EditTransactionView(transaction: transaction)
+                            } label: {
+                                TransactionRow(transaction: transaction)
+                            }
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    deleteTransaction(transaction)
+                                } label: {
+                                    Label("Elimina", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    deleteTransaction(transaction)
+                                } label: {
+                                    Label("Elimina", systemImage: "trash")
+                                }
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Transazioni di Oggi")
+                        .font(.title2.bold())
+                        .foregroundStyle(.primary)
+                        .textCase(nil)
+                }
+                .headerProminence(.increased)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color(.systemGroupedBackground))
             .navigationTitle("Oggi")
             .navigationBarTitleDisplayMode(.large)
             .sheet(isPresented: $showingAddTransaction) {

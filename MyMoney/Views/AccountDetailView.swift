@@ -15,6 +15,7 @@ struct AccountDetailView: View {
 
     @State private var showingEditSheet = false
     @State private var showingDeleteAlert = false
+    @State private var showingBalanceAdjustment = false
 
     var sortedTransactions: [Transaction] {
         (account.transactions ?? []).sorted { $0.date > $1.date }
@@ -124,6 +125,14 @@ struct AccountDetailView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
                     Button {
+                        showingBalanceAdjustment = true
+                    } label: {
+                        Label("Aggiusta Saldo", systemImage: "slider.horizontal.3")
+                    }
+
+                    Divider()
+
+                    Button {
                         showingEditSheet = true
                     } label: {
                         Label("Modifica", systemImage: "pencil")
@@ -141,6 +150,9 @@ struct AccountDetailView: View {
         }
         .sheet(isPresented: $showingEditSheet) {
             EditAccountView(account: account)
+        }
+        .sheet(isPresented: $showingBalanceAdjustment) {
+            BalanceAdjustmentView(account: account)
         }
         .alert("Elimina Conto", isPresented: $showingDeleteAlert) {
             Button("Annulla", role: .cancel) { }
@@ -249,13 +261,13 @@ struct TransactionRow: View {
 
             VStack(alignment: .trailing, spacing: 4) {
                 if let displayText = formattedConvertedDisplay {
-                    Text(transaction.transactionType == .expense ? "-\(displayText)" : "+\(displayText)")
+                    Text(formatTransactionAmount(displayText))
                         .font(.body.bold())
-                        .foregroundStyle(transaction.transactionType == .expense ? .red : .green)
+                        .foregroundStyle(transactionColor)
                 } else {
-                    Text(transaction.transactionType == .expense ? "-\(transaction.displayAmount)" : "+\(transaction.displayAmount)")
+                    Text(formatTransactionAmount(transaction.displayAmount))
                         .font(.body.bold())
-                        .foregroundStyle(transaction.transactionType == .expense ? .red : .green)
+                        .foregroundStyle(transactionColor)
                 }
             }
         }
@@ -265,6 +277,34 @@ struct TransactionRow: View {
                 .fill(Color(.systemBackground))
                 .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
         )
+    }
+
+    private func formatTransactionAmount(_ displayAmount: String) -> String {
+        switch transaction.transactionType {
+        case .expense:
+            return "-\(displayAmount)"
+        case .income:
+            return "+\(displayAmount)"
+        case .transfer:
+            return "-\(displayAmount)"
+        case .adjustment:
+            // Amount is already signed
+            let sign = transaction.amount >= 0 ? "+" : "-"
+            return "\(sign)\(displayAmount)"
+        }
+    }
+
+    private var transactionColor: Color {
+        switch transaction.transactionType {
+        case .expense:
+            return .red
+        case .income:
+            return .green
+        case .transfer:
+            return .blue
+        case .adjustment:
+            return transaction.amount >= 0 ? .green : .red
+        }
     }
 }
 

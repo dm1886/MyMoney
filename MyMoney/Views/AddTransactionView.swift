@@ -27,6 +27,8 @@ struct AddTransactionView: View {
     @State private var showingNewCategorySheet = false
     @State private var selectedTransactionCurrency: Currency?  // DEPRECATED
     @State private var selectedTransactionCurrencyRecord: CurrencyRecord?
+    @State private var destinationAmount = ""  // Importo manuale per destinazione
+    @State private var isDestinationAmountManual = false  // Se true, usa valore manuale invece di conversione automatica
 
     var transactionCurrency: Currency {
         selectedTransactionCurrency ?? selectedAccount?.currency ?? .EUR
@@ -63,10 +65,44 @@ struct AddTransactionView: View {
         )
     }
 
+    // MARK: - Transfer Conversion Logic
+
+    var transferNeedsConversion: Bool {
+        guard transactionType == .transfer,
+              let sourceCurr = selectedAccount?.currencyRecord,
+              let destCurr = selectedDestinationAccount?.currencyRecord else {
+            return false
+        }
+        return sourceCurr.code != destCurr.code
+    }
+
+    var autoConvertedDestinationAmount: Decimal? {
+        guard transferNeedsConversion,
+              let amountDecimal = Decimal(string: amount.replacingOccurrences(of: ",", with: ".")),
+              let sourceCurr = selectedAccount?.currencyRecord,
+              let destCurr = selectedDestinationAccount?.currencyRecord else {
+            return nil
+        }
+
+        return CurrencyService.shared.convert(
+            amount: amountDecimal,
+            from: sourceCurr,
+            to: destCurr,
+            context: modelContext
+        )
+    }
+
+    var finalDestinationAmount: Decimal? {
+        if isDestinationAmountManual {
+            return Decimal(string: destinationAmount.replacingOccurrences(of: ",", with: "."))
+        }
+        return autoConvertedDestinationAmount
+    }
+
     var body: some View {
         NavigationStack {
             Form {
-                // CATEGORIA - Ora in cima
+                // CATEGORIA - Solo per expense/income
                 if transactionType != .transfer {
                     Section {
                         Button {
@@ -98,95 +134,172 @@ struct AddTransactionView: View {
                     }
                 }
 
-                // IMPORTO E VALUTA
+                // CONTI - Prima per i trasferimenti
+                if transactionType == .transfer {
+                    Section {
+                        NavigationLink {
+                            AccountSelectionView(selectedAccount: $selectedAccount, showNavigationBar: false)
+                        } label: {
+                            accountRowLabel(title: "Da Conto", account: selectedAccount)
+                        }
+
+                        NavigationLink {
+                            AccountSelectionView(selectedAccount: $selectedDestinationAccount, showNavigationBar: false)
+                        } label: {
+                            accountRowLabel(title: "A Conto", account: selectedDestinationAccount)
+                        }
+                    } header: {
+                        Text("Trasferimento")
+                    }
+                }
+
+                // IMPORTO
                 Section {
                     HStack {
-                        Text("Importo")
+                        Text(transactionType == .transfer ? "Importo da prelevare" : "Importo")
                         Spacer()
                         TextField("0.00", text: $amount)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                             .font(.title2.bold())
-                        Text(transactionCurrencyRecord?.symbol ?? transactionCurrency.symbol)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    NavigationLink {
-                        CurrencySelectionView(selectedCurrency: $selectedTransactionCurrencyRecord)
-                    } label: {
-                        HStack {
-                            Text("Valuta")
-                                .foregroundStyle(.primary)
-
-                            Spacer()
-
-                            if let currency = selectedTransactionCurrencyRecord {
-                                HStack(spacing: 8) {
-                                    Text(currency.flagEmoji)
-                                    Text(currency.code)
-                                        .foregroundStyle(.secondary)
+                            .onChange(of: amount) { _, _ in
+                                // Reset manual override quando cambia l'importo
+                                if transactionType == .transfer {
+                                    isDestinationAmountManual = false
+                                    if let converted = autoConvertedDestinationAmount {
+                                        destinationAmount = formatDecimal(converted)
+                                    }
                                 }
-                            } else if let accountCurr = accountCurrencyRecord {
-                                HStack(spacing: 8) {
-                                    Text(accountCurr.flagEmoji)
-                                    Text("Valuta del conto (\(accountCurr.code))")
-                                        .foregroundStyle(.secondary)
-                                }
-                            } else {
-                                Text("Seleziona")
-                                    .foregroundStyle(.secondary)
                             }
-
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
+                        if transactionType == .transfer {
+                            Text(selectedAccount?.currencyRecord?.symbol ?? selectedAccount?.currency.symbol ?? "€")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(transactionCurrencyRecord?.symbol ?? transactionCurrency.symbol)
+                                .foregroundStyle(.secondary)
                         }
                     }
 
-                    // Mostra conversione se necessaria
-                    if needsConversion, let converted = convertedAmount {
-                        HStack {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                                .foregroundStyle(.blue)
-                            Text("Convertito")
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            if let accCurr = accountCurrencyRecord {
-                                Text("\(accCurr.symbol)\(formatDecimal(converted))")
-                                    .font(.headline)
+                    // Selezione valuta (solo per expense/income)
+                    if transactionType != .transfer {
+                        NavigationLink {
+                            CurrencySelectionView(selectedCurrency: $selectedTransactionCurrencyRecord)
+                        } label: {
+                            HStack {
+                                Text("Valuta")
+                                    .foregroundStyle(.primary)
+
+                                Spacer()
+
+                                if let currency = selectedTransactionCurrencyRecord {
+                                    HStack(spacing: 8) {
+                                        Text(currency.flagEmoji)
+                                        Text(currency.code)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                } else if let accountCurr = accountCurrencyRecord {
+                                    HStack(spacing: 8) {
+                                        Text(accountCurr.flagEmoji)
+                                        Text("Valuta del conto (\(accountCurr.code))")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                } else {
+                                    Text("Seleziona")
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+
+                        // Mostra conversione se necessaria (per expense/income)
+                        if needsConversion, let converted = convertedAmount {
+                            HStack {
+                                Image(systemName: "arrow.triangle.2.circlepath")
                                     .foregroundStyle(.blue)
+                                Text("Convertito")
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                if let accCurr = accountCurrencyRecord {
+                                    Text("\(accCurr.symbol)\(formatDecimal(converted))")
+                                        .font(.headline)
+                                        .foregroundStyle(.blue)
+                                }
                             }
                         }
                     }
                 } footer: {
-                    if needsConversion, let transCurr = transactionCurrencyRecord, let accCurr = accountCurrencyRecord {
+                    if transactionType != .transfer && needsConversion,
+                       let transCurr = transactionCurrencyRecord,
+                       let accCurr = accountCurrencyRecord {
                         Text("L'importo verrà convertito da \(transCurr.code) a \(accCurr.code) usando il tasso di cambio corrente.")
                     }
                 }
 
-                // CONTO
-                Section {
-                    Picker("Conto", selection: $selectedAccount) {
-                        Text("Seleziona un conto").tag(nil as Account?)
-                        ForEach(accounts) { account in
-                            HStack {
-                                Image(systemName: account.icon)
-                                Text(account.name)
+                // CONVERSIONE TRASFERIMENTO
+                if transactionType == .transfer && transferNeedsConversion {
+                    Section {
+                        HStack {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .foregroundStyle(.blue)
+                            Text("Importo da accreditare")
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+
+                            if !isDestinationAmountManual, let converted = autoConvertedDestinationAmount {
+                                Text("\(selectedDestinationAccount?.currencyRecord?.symbol ?? "")\(formatDecimal(converted))")
+                                    .font(.headline)
+                                    .foregroundStyle(.blue)
                             }
-                            .tag(account as Account?)
+                        }
+
+                        Button {
+                            isDestinationAmountManual.toggle()
+                            if !isDestinationAmountManual, let converted = autoConvertedDestinationAmount {
+                                destinationAmount = formatDecimal(converted)
+                            }
+                        } label: {
+                            HStack {
+                                Text(isDestinationAmountManual ? "Importo Manuale" : "Modifica Importo")
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Image(systemName: isDestinationAmountManual ? "checkmark.circle.fill" : "pencil.circle")
+                                    .foregroundStyle(isDestinationAmountManual ? .blue : .secondary)
+                            }
+                        }
+
+                        if isDestinationAmountManual {
+                            HStack {
+                                Text("Importo personalizzato")
+                                Spacer()
+                                TextField("0.00", text: $destinationAmount)
+                                    .keyboardType(.decimalPad)
+                                    .multilineTextAlignment(.trailing)
+                                    .font(.title3.bold())
+                                Text(selectedDestinationAccount?.currencyRecord?.symbol ?? "")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    } header: {
+                        Text("Conversione Valuta")
+                    } footer: {
+                        if let sourceCurr = selectedAccount?.currencyRecord,
+                           let destCurr = selectedDestinationAccount?.currencyRecord {
+                            Text("L'importo verrà convertito automaticamente da \(sourceCurr.code) a \(destCurr.code). Puoi modificare l'importo di destinazione se necessario.")
                         }
                     }
+                }
 
-                    if transactionType == .transfer {
-                        Picker("A Conto", selection: $selectedDestinationAccount) {
-                            Text("Seleziona destinazione").tag(nil as Account?)
-                            ForEach(accounts.filter { $0.id != selectedAccount?.id }) { account in
-                                HStack {
-                                    Image(systemName: account.icon)
-                                    Text(account.name)
-                                }
-                                .tag(account as Account?)
-                            }
+                // CONTO (solo per expense/income)
+                if transactionType != .transfer {
+                    Section {
+                        NavigationLink {
+                            AccountSelectionView(selectedAccount: $selectedAccount, showNavigationBar: false)
+                        } label: {
+                            accountRowLabel(title: "Conto", account: selectedAccount)
                         }
                     }
                 }
@@ -275,6 +388,11 @@ struct AddTransactionView: View {
         // Set SwiftData currency record
         transaction.currencyRecord = currencyToUse
 
+        // Set destination amount for transfers with currency conversion
+        if transactionType == .transfer && transferNeedsConversion {
+            transaction.destinationAmount = finalDestinationAmount
+        }
+
         modelContext.insert(transaction)
 
         account.updateBalance(context: modelContext)
@@ -299,6 +417,46 @@ struct AddTransactionView: View {
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
         return formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
+    }
+
+    @ViewBuilder
+    private func accountRowLabel(title: String, account: Account?) -> some View {
+        HStack {
+            Text(title)
+                .foregroundStyle(.primary)
+
+            Spacer()
+
+            if let account = account {
+                HStack(spacing: 8) {
+                    if let imageData = account.imageData, let uiImage = UIImage(data: imageData) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 28, height: 28)
+                            .clipShape(Circle())
+                    } else {
+                        Image(systemName: account.icon)
+                            .foregroundStyle(account.color)
+                    }
+
+                    Text(account.name)
+                        .foregroundStyle(.secondary)
+
+                    if let currency = account.currencyRecord {
+                        Text(currency.flagEmoji)
+                            .font(.caption)
+                    }
+                }
+            } else {
+                Text("Seleziona")
+                    .foregroundStyle(.secondary)
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
     }
 }
 

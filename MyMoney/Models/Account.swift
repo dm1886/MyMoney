@@ -98,18 +98,25 @@ final class Account {
                 balance += transaction.amount
             case .transfer:
                 balance -= transaction.amount
+            case .adjustment:
+                balance += transaction.amount  // Amount is signed (+ or -)
             }
         }
 
         if let incoming = incomingTransfers {
             for transfer in incoming {
                 if transfer.transactionType == .transfer {
-                    // Converti usando CurrencyService se disponibile, altrimenti usa valore originale
+                    // Usa destinationAmount se disponibile (importo manuale o auto-convertito),
+                    // altrimenti converti usando CurrencyService
                     var convertedAmount = transfer.amount
 
-                    if let ctx = context,
-                       let transferCurr = transfer.currencyRecord,
-                       let accountCurr = currencyRecord {
+                    if let destAmount = transfer.destinationAmount {
+                        // Usa l'importo di destinazione salvato
+                        convertedAmount = destAmount
+                    } else if let ctx = context,
+                              let transferCurr = transfer.currencyRecord,
+                              let accountCurr = currencyRecord {
+                        // Fallback: converti automaticamente
                         convertedAmount = CurrencyService.shared.convert(
                             amount: transfer.amount,
                             from: transferCurr,

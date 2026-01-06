@@ -197,9 +197,26 @@ struct AccountRow: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(account.name)
-                    .font(.body.bold())
-                    .foregroundStyle(.primary)
+                HStack(spacing: 6) {
+                    Text(account.name)
+                        .font(.body.bold())
+                        .foregroundStyle(.primary)
+
+                    // Currency badge
+                    if let accountCurrency = account.currencyRecord {
+                        Text(accountCurrency.flagEmoji)
+                            .font(.caption)
+                        Text(accountCurrency.code)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 2)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color(.systemGray6))
+                            )
+                    }
+                }
 
                 Text(account.accountType.rawValue)
                     .font(.caption)
