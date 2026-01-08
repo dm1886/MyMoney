@@ -30,6 +30,18 @@ struct AddTransactionView: View {
     @State private var destinationAmount = ""  // Importo manuale per destinazione
     @State private var isDestinationAmountManual = false  // Se true, usa valore manuale invece di conversione automatica
 
+    // MARK: - Scheduled Transaction States
+    @State private var isScheduled = false
+    @State private var scheduledDate = Date()
+    @State private var isAutomatic = false
+
+    // MARK: - Recurring Transaction States
+    @State private var isRecurring = false
+    @State private var recurrenceInterval: Int = 1
+    @State private var recurrenceUnit: RecurrenceUnit = .month
+    @State private var hasEndDate = false
+    @State private var recurrenceEndDate = Date()
+
     var transactionCurrency: Currency {
         selectedTransactionCurrency ?? selectedAccount?.currency ?? .EUR
     }
@@ -97,6 +109,52 @@ struct AddTransactionView: View {
             return Decimal(string: destinationAmount.replacingOccurrences(of: ",", with: "."))
         }
         return autoConvertedDestinationAmount
+    }
+
+    // MARK: - Recurring Transaction Helpers
+
+    var currentRecurrenceRule: RecurrenceRule {
+        RecurrenceRule(interval: recurrenceInterval, unit: recurrenceUnit)
+    }
+
+    var nextOccurrences: [Date] {
+        guard isRecurring else { return [] }
+
+        let maxOccurrences = 5
+        var occurrences: [Date] = []
+        var currentDate = scheduledDate
+
+        for _ in 0..<maxOccurrences {
+            guard let nextDate = currentRecurrenceRule.nextOccurrence(from: currentDate) else {
+                break
+            }
+
+            // Se c'è data fine, controlla che non sia superata
+            if hasEndDate && nextDate > recurrenceEndDate {
+                break
+            }
+
+            occurrences.append(nextDate)
+            currentDate = nextDate
+        }
+
+        return occurrences
+    }
+
+    var totalOccurrences: Int {
+        guard isRecurring, hasEndDate else { return 0 }
+
+        var count = 0
+        var currentDate = scheduledDate
+        let endDate = recurrenceEndDate
+
+        while let nextDate = currentRecurrenceRule.nextOccurrence(from: currentDate), nextDate <= endDate {
+            count += 1
+            currentDate = nextDate
+            if count > 1000 { break } // Safety limit
+        }
+
+        return count
     }
 
     var body: some View {
@@ -308,6 +366,208 @@ struct AddTransactionView: View {
                     DatePicker("Data", selection: $selectedDate, displayedComponents: [.date, .hourAndMinute])
                 }
 
+                // MARK: - Scheduled Transaction Section
+                Section {
+                    Toggle(isOn: $isScheduled) {
+                        HStack {
+                            Image(systemName: "clock.badge.checkmark")
+                                .foregroundStyle(.orange)
+                            Text("Programma Transazione")
+                        }
+                    }
+                    .onChange(of: isScheduled) { _, newValue in
+                        if newValue {
+                            // Imposta data programmata a ora corrente (modificabile dall'utente)
+                            scheduledDate = Date()
+                        }
+                    }
+
+                    if isScheduled {
+                        DatePicker("Data Programmata", selection: $scheduledDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
+                            .datePickerStyle(.compact)
+
+                        Toggle(isOn: $isAutomatic) {
+                            HStack {
+                                Image(systemName: isAutomatic ? "bolt.fill" : "hand.tap.fill")
+                                    .foregroundStyle(isAutomatic ? .blue : .orange)
+                                Text("Esecuzione Automatica")
+                            }
+                        }
+
+                        if isAutomatic {
+                            HStack(spacing: 8) {
+                                Image(systemName: "info.circle")
+                                    .foregroundStyle(.blue)
+                                    .font(.caption)
+                                Text("La transazione verrà eseguita automaticamente alla data programmata")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 4)
+                        } else {
+                            HStack(spacing: 8) {
+                                Image(systemName: "info.circle")
+                                    .foregroundStyle(.orange)
+                                    .font(.caption)
+                                Text("Riceverai una notifica per confermare la transazione")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                } header: {
+                    if isScheduled {
+                        Text("Programmazione")
+                    }
+                } footer: {
+                    if isScheduled {
+                        Text("Le transazioni programmate possono essere gestite dalla sezione Impostazioni")
+                    }
+                }
+
+                // MARK: - Recurring Transaction Section
+                if isScheduled {
+                    Section {
+                        Toggle(isOn: $isRecurring) {
+                            HStack {
+                                Image(systemName: "repeat.circle.fill")
+                                    .foregroundStyle(.purple)
+                                Text("Transazione Ricorrente")
+                            }
+                        }
+                        .onChange(of: isRecurring) { _, newValue in
+                            if newValue {
+                                // Set end date a 1 anno nel futuro di default
+                                recurrenceEndDate = Calendar.current.date(byAdding: .year, value: 1, to: scheduledDate) ?? scheduledDate
+                            }
+                        }
+
+                        if isRecurring {
+                            // Intervallo - Numero da 1 a 365
+                            HStack {
+                                Text("Ogni")
+                                    .foregroundStyle(.secondary)
+
+                                Spacer()
+
+                                Picker("", selection: $recurrenceInterval) {
+                                    ForEach(1...365, id: \.self) { number in
+                                        Text("\(number)").tag(number)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .frame(maxWidth: 100)
+                            }
+
+                            // Unità - Giorno/Mese/Anno
+                            Picker("", selection: $recurrenceUnit) {
+                                ForEach(RecurrenceUnit.allCases, id: \.self) { unit in
+                                    Text(recurrenceInterval == 1 ? unit.rawValue : unit.pluralName)
+                                        .tag(unit)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            Toggle(isOn: $hasEndDate) {
+                                HStack {
+                                    Image(systemName: "calendar.badge.clock")
+                                        .foregroundStyle(.orange)
+                                    Text("Data Fine")
+                                }
+                            }
+
+                            if hasEndDate {
+                                DatePicker("Fino a", selection: $recurrenceEndDate, in: scheduledDate..., displayedComponents: [.date])
+                                    .datePickerStyle(.compact)
+                            }
+
+                            // Preview delle prossime occorrenze
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: "list.bullet.circle")
+                                        .foregroundStyle(.purple)
+                                    Text("Prossime Occorrenze")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                ForEach(Array(nextOccurrences.enumerated()), id: \.offset) { index, date in
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "\(index + 1).circle.fill")
+                                            .font(.caption)
+                                            .foregroundStyle(.purple)
+                                        Text(date.formatted(date: .abbreviated, time: .shortened))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+
+                                // Mostra messaggio se non ci sono occorrenze (data fine troppo vicina)
+                                if nextOccurrences.isEmpty {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "exclamationmark.triangle")
+                                            .font(.caption)
+                                            .foregroundStyle(.orange)
+                                        Text("Nessuna occorrenza futura con queste impostazioni")
+                                            .font(.caption)
+                                            .foregroundStyle(.orange)
+                                    }
+                                }
+
+                                // Mostra info sul totale
+                                if hasEndDate {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "info.circle")
+                                            .font(.caption)
+                                            .foregroundStyle(.blue)
+                                        if totalOccurrences > 5 {
+                                            Text("Totale: \(totalOccurrences) ripetizioni (mostrate prime 5)")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        } else {
+                                            Text("Totale: \(totalOccurrences) ripetizioni")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                } else if !nextOccurrences.isEmpty && nextOccurrences.count == 5 {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "ellipsis.circle")
+                                            .font(.caption)
+                                            .foregroundStyle(.purple)
+                                        Text("La ripetizione continua all'infinito (mostrate prime 5)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+
+                                // Indicatore modalità esecuzione
+                                Divider()
+                                    .padding(.vertical, 4)
+
+                                HStack(spacing: 6) {
+                                    Image(systemName: isAutomatic ? "bolt.fill" : "hand.tap.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(isAutomatic ? .blue : .orange)
+                                    Text(isAutomatic ? "Tutte le istanze saranno eseguite automaticamente" : "Tutte le istanze richiederanno conferma manuale")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    } header: {
+                        if isRecurring {
+                            Text("Ripetizione")
+                        }
+                    } footer: {
+                        if isRecurring {
+                            Text(currentRecurrenceRule.description)
+                        }
+                    }
+                }
+
                 Section("Note") {
                     TextField("Aggiungi note (opzionale)", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
@@ -393,12 +653,32 @@ struct AddTransactionView: View {
             transaction.destinationAmount = finalDestinationAmount
         }
 
+        // Set scheduled transaction fields
+        if isScheduled {
+            transaction.isScheduled = true
+            transaction.scheduledDate = scheduledDate
+            transaction.isAutomatic = isAutomatic
+            transaction.status = .pending
+        } else {
+            transaction.status = .executed
+        }
+
+        // Set recurring transaction fields
+        if isRecurring && isScheduled {
+            transaction.isRecurring = true
+            transaction.recurrenceRule = currentRecurrenceRule
+            transaction.recurrenceEndDate = hasEndDate ? recurrenceEndDate : nil
+        }
+
         modelContext.insert(transaction)
 
-        account.updateBalance(context: modelContext)
+        // Update balance only for executed (non-scheduled) transactions
+        if !isScheduled {
+            account.updateBalance(context: modelContext)
 
-        if let destinationAccount = selectedDestinationAccount {
-            destinationAccount.updateBalance(context: modelContext)
+            if let destinationAccount = selectedDestinationAccount {
+                destinationAccount.updateBalance(context: modelContext)
+            }
         }
 
         // Registra l'uso della valuta
@@ -407,6 +687,22 @@ struct AddTransactionView: View {
         }
 
         try? modelContext.save()
+
+        // Generate recurring instances if this is a recurring template
+        if isRecurring && isScheduled {
+            Task {
+                await RecurringTransactionManager.shared.generateInstances(
+                    for: transaction,
+                    monthsAhead: 3,
+                    modelContext: modelContext
+                )
+            }
+        } else if isScheduled {
+            // Schedule local notification for single scheduled transactions
+            Task {
+                await LocalNotificationManager.shared.scheduleNotification(for: transaction)
+            }
+        }
 
         dismiss()
     }

@@ -7,11 +7,23 @@
 
 import SwiftUI
 import SwiftData
-import Combine
+import BackgroundTasks
 
 @main
 struct MoneyTrackerApp: App {
-    @StateObject private var appSettings = AppSettings.shared
+    @State private var appSettings = AppSettings.shared
+    @Environment(\.scenePhase) private var scenePhase
+
+    // Notification delegate
+    private let notificationDelegate = NotificationDelegate()
+
+    init() {
+        // Register background tasks
+        BackgroundTaskManager.shared.registerBackgroundTasks()
+
+        // Setup local notifications
+        LocalNotificationManager.shared.setupNotificationCategories()
+    }
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -96,9 +108,68 @@ struct MoneyTrackerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(appSettings)
+                .environment(\.appSettings, appSettings)
                 .preferredColorScheme(appSettings.themeMode.colorScheme)
+                .onAppear {
+                    // Start transaction scheduler and check missed transactions
+                    Task { @MainActor in
+                        // Configure notification delegate with model context
+                        notificationDelegate.modelContext = sharedModelContainer.mainContext
+                        UNUserNotificationCenter.current().delegate = notificationDelegate
+
+                        // Request notification permissions
+                        _ = await LocalNotificationManager.shared.requestPermission()
+
+                        TransactionScheduler.shared.startScheduler(container: sharedModelContainer)
+
+                        // Clear badge when app is opened
+                        await BackgroundTaskManager.shared.clearBadge()
+
+                        // Check for missed transactions (important if app was force-closed)
+                        let missed = await MissedTransactionManager.shared.checkMissedTransactions(
+                            modelContext: sharedModelContainer.mainContext
+                        )
+
+                        if missed.automatic > 0 {
+                            print("✅ Executed \(missed.automatic) missed automatic transaction(s) on app launch")
+                        }
+
+                        if missed.manual > 0 {
+                            print("⏳ \(missed.manual) manual transaction(s) are waiting for confirmation")
+                        }
+
+                        // Generate recurring transaction instances
+                        await RecurringTransactionManager.shared.generateRecurringInstances(
+                            modelContext: sharedModelContainer.mainContext,
+                            monthsAhead: 3
+                        )
+
+                        // Debug: List pending notifications
+                        await LocalNotificationManager.shared.listPendingNotifications()
+                    }
+                }
         }
         .modelContainer(sharedModelContainer)
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            switch newPhase {
+            case .background:
+                // App went to background - schedule background task
+                print("📱 App entering background - scheduling background task")
+                BackgroundTaskManager.shared.scheduleBackgroundTask()
+
+            case .active:
+                // App became active - clear badge
+                print("📱 App became active - clearing badge")
+                Task { @MainActor in
+                    await BackgroundTaskManager.shared.clearBadge()
+                }
+
+            case .inactive:
+                break
+
+            @unknown default:
+                break
+            }
+        }
     }
 }

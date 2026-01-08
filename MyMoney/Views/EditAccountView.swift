@@ -12,7 +12,7 @@ import PhotosUI
 struct EditAccountView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject var appSettings: AppSettings
+    @Environment(\.appSettings) var appSettings
     @Bindable var account: Account
 
     @Query private var allCurrencies: [CurrencyRecord]

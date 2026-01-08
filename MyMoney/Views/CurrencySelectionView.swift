@@ -11,7 +11,7 @@ import SwiftData
 struct CurrencySelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject var appSettings: AppSettings
+    @Environment(\.appSettings) var appSettings
 
     @Query(sort: \CurrencyRecord.code) private var allCurrencies: [CurrencyRecord]
     @Query private var allExchangeRates: [ExchangeRate]
@@ -268,7 +268,7 @@ struct AlphabeticalIndex: View {
 #Preview {
     NavigationStack {
         CurrencySelectionView(selectedCurrency: .constant(nil))
-            .environmentObject(AppSettings.shared)
+            .environment(\.appSettings, AppSettings.shared)
             .modelContainer(for: [CurrencyRecord.self, ExchangeRate.self])
     }
 }

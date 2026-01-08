@@ -7,20 +7,19 @@
 
 import Foundation
 import SwiftData
-import Combine
 
-class CurrencyUpdateManager: ObservableObject {
-    @MainActor @Published var isUpdating = false
-    @MainActor @Published var showSuccess = false
-    @MainActor @Published var errorMessage: String?
+@Observable
+@MainActor
+class CurrencyUpdateManager {
+    var isUpdating = false
+    var showSuccess = false
+    var errorMessage: String?
 
     func updateRates(container: ModelContainer) {
         Swift.print("🔄 [UpdateManager] Starting update - Thread: \(Thread.isMainThread ? "MAIN" : "BACKGROUND")")
 
-        Task { @MainActor in
-            self.isUpdating = true
-            self.errorMessage = nil
-        }
+        self.isUpdating = true
+        self.errorMessage = nil
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }

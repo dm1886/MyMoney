@@ -7,7 +7,6 @@
 
 import Foundation
 import SwiftUI
-import Combine
 
 enum ThemeMode: String, CaseIterable, Codable {
     case system = "Sistema"
@@ -26,30 +25,43 @@ enum ThemeMode: String, CaseIterable, Codable {
     }
 }
 
-final class AppSettings: ObservableObject {
+// Environment key per AppSettings (pattern @Observable)
+private struct AppSettingsKey: EnvironmentKey {
+    static let defaultValue = AppSettings.shared
+}
+
+extension EnvironmentValues {
+    var appSettings: AppSettings {
+        get { self[AppSettingsKey.self] }
+        set { self[AppSettingsKey.self] = newValue }
+    }
+}
+
+@Observable
+final class AppSettings {
     static let shared = AppSettings()
 
-    @Published var preferredCurrency: String = Currency.EUR.rawValue {
+    var preferredCurrency: String = Currency.EUR.rawValue {
         didSet {
             UserDefaults.standard.set(preferredCurrency, forKey: "preferredCurrency")
         }
     }
 
-    @Published var themeMode: ThemeMode = .system {
+    var themeMode: ThemeMode = .system {
         didSet {
             UserDefaults.standard.set(themeMode.rawValue, forKey: "themeMode")
         }
     }
 
     // Backward compatibility - deprecato ma mantenuto per non rompere codice esistente
-    @Published var isDarkMode: Bool = false {
+    var isDarkMode: Bool = false {
         didSet {
             // Quando isDarkMode cambia, aggiorna themeMode
             themeMode = isDarkMode ? .dark : .light
         }
     }
 
-    @Published var hasCompletedOnboarding: Bool = false {
+    var hasCompletedOnboarding: Bool = false {
         didSet {
             UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding")
         }

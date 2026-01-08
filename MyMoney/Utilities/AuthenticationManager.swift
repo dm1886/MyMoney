@@ -7,7 +7,6 @@
 
 import Foundation
 import AuthenticationServices
-import Combine
 
 enum AuthenticationState {
     case undefined
@@ -15,13 +14,14 @@ enum AuthenticationState {
     case unauthenticated
 }
 
-final class AuthenticationManager: ObservableObject {
+@Observable
+final class AuthenticationManager {
     static let shared = AuthenticationManager()
 
-    @Published var authenticationState: AuthenticationState = .undefined
-    @Published var userID: String?
-    @Published var userName: String?
-    @Published var userEmail: String?
+    var authenticationState: AuthenticationState = .undefined
+    var userID: String?
+    var userName: String?
+    var userEmail: String?
 
     private let userIDKey = "userID"
     private let userNameKey = "userName"

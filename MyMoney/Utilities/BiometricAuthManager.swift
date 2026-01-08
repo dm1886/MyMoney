@@ -7,7 +7,6 @@
 
 import Foundation
 import LocalAuthentication
-import Combine
 
 enum BiometricType {
     case none
@@ -15,12 +14,12 @@ enum BiometricType {
     case faceID
 }
 
-final class BiometricAuthManager: ObservableObject {
+@Observable final class BiometricAuthManager  {
     static let shared = BiometricAuthManager()
 
-    @Published var isAuthenticated: Bool = false
-    @Published var isBiometricEnabled: Bool = false
-    @Published var authenticationError: String?
+   var isAuthenticated: Bool = false
+     var isBiometricEnabled: Bool = false
+     var authenticationError: String?
 
     private let biometricEnabledKey = "biometricAuthEnabled"
 

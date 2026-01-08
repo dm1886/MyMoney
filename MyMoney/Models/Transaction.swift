@@ -23,6 +23,18 @@ final class Transaction {
     var destinationAccount: Account?
     var destinationAmount: Decimal?     // Importo nel conto destinazione (per trasferimenti con conversione)
 
+    // MARK: - Scheduled Transaction Fields
+    var isScheduled: Bool = false
+    var scheduledDate: Date?            // Data di esecuzione programmata
+    var isAutomatic: Bool = false       // Se true, esegue automaticamente; se false, richiede conferma
+    var status: TransactionStatus = TransactionStatus.executed  // Stato della transazione
+
+    // MARK: - Recurring Transaction Fields
+    var isRecurring: Bool = false
+    var recurrenceRule: RecurrenceRule?
+    var recurrenceEndDate: Date?        // Data fine ripetizione (opzionale)
+    var parentRecurringTransactionId: UUID?  // Link alla transazione template se questa è un'istanza generata
+
     init(
         transactionType: TransactionType,
         amount: Decimal,
@@ -100,6 +112,31 @@ enum TransactionType: String, Codable {
         case .income: return "#34C759"
         case .transfer: return "#007AFF"
         case .adjustment: return "#5856D6"
+        }
+    }
+}
+
+enum TransactionStatus: String, Codable {
+    case pending = "Da Confermare"        // Transazione programmata in attesa
+    case executed = "Eseguita"            // Transazione eseguita (normale o programmata eseguita)
+    case cancelled = "Annullata"          // Transazione programmata annullata
+    case failed = "Fallita"               // Esecuzione automatica fallita
+
+    var icon: String {
+        switch self {
+        case .pending: return "clock.badge.exclamationmark"
+        case .executed: return "checkmark.circle.fill"
+        case .cancelled: return "xmark.circle.fill"
+        case .failed: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    var color: String {
+        switch self {
+        case .pending: return "#FF9500"    // Orange
+        case .executed: return "#34C759"   // Green
+        case .cancelled: return "#8E8E93"  // Gray
+        case .failed: return "#FF3B30"     // Red
         }
     }
 }

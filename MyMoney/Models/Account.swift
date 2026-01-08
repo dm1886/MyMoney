@@ -90,7 +90,8 @@ final class Account {
 
         var balance = initialBalance
 
-        for transaction in transactions {
+        // Only count EXECUTED transactions (not pending, cancelled, or failed)
+        for transaction in transactions where transaction.status == .executed {
             switch transaction.transactionType {
             case .expense:
                 balance -= transaction.amount
@@ -103,30 +104,29 @@ final class Account {
             }
         }
 
+        // Add incoming transfers (only executed)
         if let incoming = incomingTransfers {
-            for transfer in incoming {
-                if transfer.transactionType == .transfer {
-                    // Usa destinationAmount se disponibile (importo manuale o auto-convertito),
-                    // altrimenti converti usando CurrencyService
-                    var convertedAmount = transfer.amount
+            for transfer in incoming where transfer.status == .executed && transfer.transactionType == .transfer {
+                // Usa destinationAmount se disponibile (importo manuale o auto-convertito),
+                // altrimenti converti usando CurrencyService
+                var convertedAmount = transfer.amount
 
-                    if let destAmount = transfer.destinationAmount {
-                        // Usa l'importo di destinazione salvato
-                        convertedAmount = destAmount
-                    } else if let ctx = context,
-                              let transferCurr = transfer.currencyRecord,
-                              let accountCurr = currencyRecord {
-                        // Fallback: converti automaticamente
-                        convertedAmount = CurrencyService.shared.convert(
-                            amount: transfer.amount,
-                            from: transferCurr,
-                            to: accountCurr,
-                            context: ctx
-                        )
-                    }
-
-                    balance += convertedAmount
+                if let destAmount = transfer.destinationAmount {
+                    // Usa l'importo di destinazione salvato
+                    convertedAmount = destAmount
+                } else if let ctx = context,
+                          let transferCurr = transfer.currencyRecord,
+                          let accountCurr = currencyRecord {
+                    // Fallback: converti automaticamente
+                    convertedAmount = CurrencyService.shared.convert(
+                        amount: transfer.amount,
+                        from: transferCurr,
+                        to: accountCurr,
+                        context: ctx
+                    )
                 }
+
+                balance += convertedAmount
             }
         }
 

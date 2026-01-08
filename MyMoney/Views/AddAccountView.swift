@@ -12,7 +12,7 @@ import PhotosUI
 struct AddAccountView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject var appSettings: AppSettings
+    @Environment(\.appSettings) var appSettings
 
     @Query private var allCurrencies: [CurrencyRecord]
 

@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var selectedTab = 0
-    @StateObject private var biometricManager = BiometricAuthManager.shared
+    @State private var biometricManager = BiometricAuthManager.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {

@@ -10,7 +10,7 @@ import SwiftData
 
 struct TodayView: View {
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject var appSettings: AppSettings
+    @Environment(\.appSettings) var appSettings
     @Query private var transactions: [Transaction]
     @Query private var allCurrencies: [CurrencyRecord]
     @Query private var exchangeRates: [ExchangeRate]  // Per aggiornamenti reattivi
@@ -20,8 +20,25 @@ struct TodayView: View {
 
     var todayTransactions: [Transaction] {
         transactions
-            .filter { Calendar.current.isDateInToday($0.date) }
+            .filter { Calendar.current.isDateInToday($0.date) && $0.status != .pending }
             .sorted { $0.date > $1.date }
+    }
+
+    var scheduledForToday: [Transaction] {
+        transactions
+            .filter { transaction in
+                guard let scheduledDate = transaction.scheduledDate else { return false }
+                let isToday = Calendar.current.isDateInToday(scheduledDate)
+
+                // Escludi i template ricorrenti (mostra solo istanze generate)
+                let isRecurringTemplate = transaction.isRecurring && transaction.parentRecurringTransactionId == nil
+
+                return transaction.isScheduled &&
+                       transaction.status == .pending &&
+                       isToday &&
+                       !isRecurringTemplate
+            }
+            .sorted { ($0.scheduledDate ?? Date()) < ($1.scheduledDate ?? Date()) }
     }
 
     var preferredCurrencyRecord: CurrencyRecord? {
@@ -151,9 +168,47 @@ struct TodayView: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
 
-                // Transactions Section
+                // Scheduled Transactions for Today Section
+                if !scheduledForToday.isEmpty {
+                    Section {
+                        ForEach(scheduledForToday) { transaction in
+                            VStack(spacing: 0) {
+                                NavigationLink {
+                                    EditTransactionView(transaction: transaction)
+                                } label: {
+                                    ScheduledTransactionRow(transaction: transaction)
+                                }
+                            }
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    deleteTransaction(transaction)
+                                } label: {
+                                    Label("Elimina", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    deleteTransaction(transaction)
+                                } label: {
+                                    Label("Elimina", systemImage: "trash")
+                                }
+                            }
+                        }
+                    } header: {
+                        Text("Programmate per Oggi")
+                            .font(.title2.bold())
+                            .foregroundStyle(.orange)
+                            .textCase(nil)
+                    }
+                    .headerProminence(.increased)
+                }
+
+                // Regular Transactions Section
                 Section {
-                    if todayTransactions.isEmpty {
+                    if todayTransactions.isEmpty && scheduledForToday.isEmpty {
                         VStack(spacing: 16) {
                             Image(systemName: "list.bullet.clipboard")
                                 .font(.system(size: 50))
@@ -172,6 +227,14 @@ struct TodayView: View {
                         .padding(.vertical, 40)
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
+                    } else if todayTransactions.isEmpty {
+                        Text("Nessuna transazione eseguita oggi")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 20)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     } else {
                         ForEach(todayTransactions) { transaction in
                             NavigationLink {
@@ -199,7 +262,7 @@ struct TodayView: View {
                         }
                     }
                 } header: {
-                    Text("Transazioni di Oggi")
+                    Text("Transazioni Eseguite")
                         .font(.title2.bold())
                         .foregroundStyle(.primary)
                         .textCase(nil)
@@ -232,10 +295,24 @@ struct TodayView: View {
     }
 
     private func deleteTransaction(_ transaction: Transaction) {
+        // Cancel notification if transaction was scheduled
+        if transaction.isScheduled {
+            LocalNotificationManager.shared.cancelNotification(for: transaction)
+        }
+
+        // Delete transaction first
+        modelContext.delete(transaction)
+
+        // Then update account balance (without the deleted transaction)
         if let account = transaction.account {
             account.updateBalance(context: modelContext)
         }
-        modelContext.delete(transaction)
+
+        if let destinationAccount = transaction.destinationAccount {
+            destinationAccount.updateBalance(context: modelContext)
+        }
+
+        // Save everything
         try? modelContext.save()
     }
 }
@@ -282,6 +359,6 @@ extension TransactionType: Identifiable {
 
 #Preview {
     TodayView()
-        .environmentObject(AppSettings.shared)
+        .environment(\.appSettings, AppSettings.shared)
         .modelContainer(for: [Account.self, Transaction.self, Category.self, CategoryGroup.self])
 }

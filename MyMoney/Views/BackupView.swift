@@ -17,7 +17,7 @@ struct BackupView: View {
     @Query private var categories: [Category]
     @Query private var categoryGroups: [CategoryGroup]
 
-    @StateObject private var authManager = AuthenticationManager.shared
+    @State private var authManager = AuthenticationManager.shared
 
     @State private var showingExportPicker = false
     @State private var showingImportPicker = false

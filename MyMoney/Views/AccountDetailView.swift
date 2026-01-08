@@ -18,7 +18,9 @@ struct AccountDetailView: View {
     @State private var showingBalanceAdjustment = false
 
     var sortedTransactions: [Transaction] {
-        (account.transactions ?? []).sorted { $0.date > $1.date }
+        (account.transactions ?? [])
+            .filter { $0.status != .pending }
+            .sorted { $0.date > $1.date }
     }
 
     var body: some View {
@@ -231,8 +233,17 @@ struct TransactionRow: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(transaction.category?.name ?? transaction.transactionType.rawValue)
-                    .font(.body.bold())
+                HStack(spacing: 6) {
+                    Text(transaction.category?.name ?? transaction.transactionType.rawValue)
+                        .font(.body.bold())
+
+                    // Icona per transazioni programmate eseguite
+                    if transaction.isScheduled && transaction.status == .executed {
+                        Image(systemName: "clock.badge.checkmark.fill")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                    }
+                }
 
                 Text(transaction.date.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption)

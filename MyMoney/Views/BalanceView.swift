@@ -10,10 +10,11 @@ import SwiftData
 
 struct BalanceView: View {
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject var appSettings: AppSettings
+    @Environment(\.appSettings) var appSettings
     @Query(sort: \Account.name) private var accounts: [Account]
     @Query private var allCurrencies: [CurrencyRecord]
     @Query private var exchangeRates: [ExchangeRate]  // Per aggiornamenti reattivi
+    @Query private var transactions: [Transaction]    // Per aggiornamenti reattivi quando transazioni cambiano
 
     @State private var showingAddAccount = false
 
@@ -22,22 +23,63 @@ struct BalanceView: View {
     }
 
     var totalBalance: Decimal {
-        // SwiftUI si aggiorna automaticamente quando exchangeRates cambia
-        _ = exchangeRates.count
-
         guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
 
         return accounts.reduce(Decimal(0)) { sum, account in
             guard let accountCurrency = account.currencyRecord else { return sum }
 
+            // Calcola il saldo on-the-fly dalle transazioni invece di usare currentBalance
+            let accountBalance = calculateAccountBalance(account)
+
             let convertedBalance = CurrencyService.shared.convert(
-                amount: account.currentBalance,
+                amount: accountBalance,
                 from: accountCurrency,
                 to: preferredCurrency,
                 context: modelContext
             )
             return sum + convertedBalance
         }
+    }
+
+    // Calcola il saldo dell'account direttamente dalle transazioni
+    private func calculateAccountBalance(_ account: Account) -> Decimal {
+        var balance = account.initialBalance
+
+        // Somma tutte le transazioni EXECUTED dell'account
+        if let accountTransactions = account.transactions {
+            for transaction in accountTransactions where transaction.status == .executed {
+                switch transaction.transactionType {
+                case .expense:
+                    balance -= transaction.amount
+                case .income:
+                    balance += transaction.amount
+                case .transfer:
+                    balance -= transaction.amount
+                case .adjustment:
+                    balance += transaction.amount
+                }
+            }
+        }
+
+        // Aggiungi trasferimenti in entrata
+        if let incoming = account.incomingTransfers {
+            for transfer in incoming where transfer.status == .executed && transfer.transactionType == .transfer {
+                if let destAmount = transfer.destinationAmount {
+                    balance += destAmount
+                } else if let transferCurr = transfer.currencyRecord,
+                          let accountCurr = account.currencyRecord {
+                    let convertedAmount = CurrencyService.shared.convert(
+                        amount: transfer.amount,
+                        from: transferCurr,
+                        to: accountCurr,
+                        context: modelContext
+                    )
+                    balance += convertedAmount
+                }
+            }
+        }
+
+        return balance
     }
 
     var body: some View {
@@ -140,6 +182,7 @@ struct BalanceView: View {
 
 struct AccountRow: View {
     @Environment(\.modelContext) private var modelContext
+    @Query private var transactions: [Transaction]  // Per aggiornamenti reattivi
 
     let account: Account
     let preferredCurrency: Currency
@@ -147,16 +190,16 @@ struct AccountRow: View {
     let exchangeRatesCount: Int  // Per aggiornamenti reattivi
 
     var displayBalance: String {
-        // SwiftUI si aggiorna automaticamente quando exchangeRatesCount cambia
-        _ = exchangeRatesCount
-
         guard let accountCurrency = account.currencyRecord,
               let preferredCurr = preferredCurrencyRecord else {
             return "\(preferredCurrency.symbol)0.00"
         }
 
+        // Calcola il saldo on-the-fly dalle transazioni
+        let accountBalance = calculateBalance(for: account)
+
         let convertedBalance = CurrencyService.shared.convert(
-            amount: account.currentBalance,
+            amount: accountBalance,
             from: accountCurrency,
             to: preferredCurr,
             context: modelContext
@@ -169,6 +212,44 @@ struct AccountRow: View {
 
         let amountString = formatter.string(from: convertedBalance as NSDecimalNumber) ?? "0.00"
         return "\(preferredCurrency.symbol)\(amountString)"
+    }
+
+    private func calculateBalance(for account: Account) -> Decimal {
+        var balance = account.initialBalance
+
+        if let accountTransactions = account.transactions {
+            for transaction in accountTransactions where transaction.status == .executed {
+                switch transaction.transactionType {
+                case .expense:
+                    balance -= transaction.amount
+                case .income:
+                    balance += transaction.amount
+                case .transfer:
+                    balance -= transaction.amount
+                case .adjustment:
+                    balance += transaction.amount
+                }
+            }
+        }
+
+        if let incoming = account.incomingTransfers {
+            for transfer in incoming where transfer.status == .executed && transfer.transactionType == .transfer {
+                if let destAmount = transfer.destinationAmount {
+                    balance += destAmount
+                } else if let transferCurr = transfer.currencyRecord,
+                          let accountCurr = account.currencyRecord {
+                    let convertedAmount = CurrencyService.shared.convert(
+                        amount: transfer.amount,
+                        from: transferCurr,
+                        to: accountCurr,
+                        context: modelContext
+                    )
+                    balance += convertedAmount
+                }
+            }
+        }
+
+        return balance
     }
 
     var body: some View {
@@ -231,7 +312,7 @@ struct AccountRow: View {
                     .foregroundStyle(.primary)
 
                 if account.currency != preferredCurrency {
-                    Text("\(account.currency.symbol)\(formatDecimal(account.currentBalance))")
+                    Text("\(account.currency.symbol)\(formatDecimal(calculateBalance(for: account)))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -260,6 +341,6 @@ struct AccountRow: View {
 
 #Preview {
     BalanceView()
-        .environmentObject(AppSettings.shared)
+        .environment(\.appSettings, AppSettings.shared)
         .modelContainer(for: [Account.self, Transaction.self, Category.self, CategoryGroup.self])
 }

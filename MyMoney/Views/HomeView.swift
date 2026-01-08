@@ -10,7 +10,7 @@ import SwiftData
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject var appSettings: AppSettings
+    @Environment(\.appSettings) var appSettings
     @Query private var accounts: [Account]
     @Query private var transactions: [Transaction]
     @Query private var allCurrencies: [CurrencyRecord]
@@ -21,16 +21,16 @@ struct HomeView: View {
     }
 
     var totalBalance: Decimal {
-        // SwiftUI si aggiorna automaticamente quando exchangeRates cambia
-        _ = exchangeRates.count
-
         guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
 
         return accounts.reduce(Decimal(0)) { sum, account in
             guard let accountCurrency = account.currencyRecord else { return sum }
 
+            // Calcola il saldo on-the-fly dalle transazioni
+            let accountBalance = calculateAccountBalance(account)
+
             let convertedBalance = CurrencyService.shared.convert(
-                amount: account.currentBalance,
+                amount: accountBalance,
                 from: accountCurrency,
                 to: preferredCurrency,
                 context: modelContext
@@ -39,8 +39,47 @@ struct HomeView: View {
         }
     }
 
+    // Calcola il saldo dell'account direttamente dalle transazioni
+    private func calculateAccountBalance(_ account: Account) -> Decimal {
+        var balance = account.initialBalance
+
+        if let accountTransactions = account.transactions {
+            for transaction in accountTransactions where transaction.status == .executed {
+                switch transaction.transactionType {
+                case .expense:
+                    balance -= transaction.amount
+                case .income:
+                    balance += transaction.amount
+                case .transfer:
+                    balance -= transaction.amount
+                case .adjustment:
+                    balance += transaction.amount
+                }
+            }
+        }
+
+        if let incoming = account.incomingTransfers {
+            for transfer in incoming where transfer.status == .executed && transfer.transactionType == .transfer {
+                if let destAmount = transfer.destinationAmount {
+                    balance += destAmount
+                } else if let transferCurr = transfer.currencyRecord,
+                          let accountCurr = account.currencyRecord {
+                    let convertedAmount = CurrencyService.shared.convert(
+                        amount: transfer.amount,
+                        from: transferCurr,
+                        to: accountCurr,
+                        context: modelContext
+                    )
+                    balance += convertedAmount
+                }
+            }
+        }
+
+        return balance
+    }
+
     var todayTransactions: [Transaction] {
-        transactions.filter { Calendar.current.isDateInToday($0.date) }
+        transactions.filter { Calendar.current.isDateInToday($0.date) && $0.status != .pending }
     }
 
     var todayExpenses: Decimal {
@@ -81,6 +120,17 @@ struct HomeView: View {
             }
     }
 
+    var overdueManualTransactions: [Transaction] {
+        let now = Date()
+        return transactions.filter { transaction in
+            guard let scheduledDate = transaction.scheduledDate else { return false }
+            return transaction.isScheduled &&
+                   transaction.status == .pending &&
+                   !transaction.isAutomatic &&
+                   scheduledDate < now
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -101,6 +151,42 @@ struct HomeView: View {
                             )
                     }
                     .padding(.top, 20)
+
+                    // Overdue Manual Transactions Banner
+                    if !overdueManualTransactions.isEmpty {
+                        NavigationLink(destination: PendingTransactionsView()) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.title2)
+                                    .foregroundStyle(.orange)
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Transazioni in Attesa")
+                                        .font(.headline)
+                                        .foregroundStyle(.primary)
+
+                                    Text("\(overdueManualTransactions.count) transazione\(overdueManualTransactions.count == 1 ? "" : "i") da confermare")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.orange.opacity(0.1))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.orange, lineWidth: 2)
+                                    )
+                            )
+                            .padding(.horizontal)
+                        }
+                    }
 
                     VStack(spacing: 16) {
                         HStack {
@@ -256,6 +342,6 @@ struct StatRow: View {
 
 #Preview {
     HomeView()
-        .environmentObject(AppSettings.shared)
+        .environment(\.appSettings, AppSettings.shared)
         .modelContainer(for: [Account.self, Transaction.self, Category.self, CategoryGroup.self])
 }

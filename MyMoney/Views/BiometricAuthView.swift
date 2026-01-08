@@ -9,7 +9,7 @@ import SwiftUI
 import LocalAuthentication
 
 struct BiometricAuthView: View {
-    @ObservedObject var biometricManager = BiometricAuthManager.shared
+    @State private var biometricManager = BiometricAuthManager.shared
     @State private var showingError = false
     @State private var errorMessage = ""
     @State private var authAttempts = 0

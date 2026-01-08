@@ -6,13 +6,13 @@
 //
 
 import Foundation
-import Combine
 
-class CurrencyConverter: ObservableObject {
+@Observable
+class CurrencyConverter {
     static let shared = CurrencyConverter()
 
     // Questa proprietà notifica SwiftUI quando i tassi cambiano
-    @Published var lastUpdateTimestamp: Date = Date()
+    var lastUpdateTimestamp: Date = Date()
 
     private init() {
         loadSavedRates()
