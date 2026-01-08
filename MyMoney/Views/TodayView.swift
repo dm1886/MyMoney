@@ -17,6 +17,8 @@ struct TodayView: View {
 
     @State private var showingAddTransaction = false
     @State private var selectedTransactionType: TransactionType?
+    @State private var selectedDate = Date()  // Data attualmente visualizzata
+    @State private var showingCalendar = false  // Mostra/nascondi calendario
 
     var todayTransactions: [Transaction] {
         transactions

@@ -23,6 +23,45 @@ struct AccountDetailView: View {
             .sorted { $0.date > $1.date }
     }
 
+    // Calcola saldo on-the-fly
+    private var calculatedBalance: Decimal {
+        var balance = account.initialBalance
+
+        if let accountTransactions = account.transactions {
+            for transaction in accountTransactions where transaction.status == .executed {
+                switch transaction.transactionType {
+                case .expense:
+                    balance -= transaction.amount
+                case .income:
+                    balance += transaction.amount
+                case .transfer:
+                    balance -= transaction.amount
+                case .adjustment:
+                    balance += transaction.amount
+                }
+            }
+        }
+
+        if let incoming = account.incomingTransfers {
+            for transfer in incoming where transfer.status == .executed && transfer.transactionType == .transfer {
+                if let destAmount = transfer.destinationAmount {
+                    balance += destAmount
+                } else if let transferCurr = transfer.currencyRecord,
+                              let accountCurr = account.currencyRecord {
+                    let convertedAmount = CurrencyService.shared.convert(
+                        amount: transfer.amount,
+                        from: transferCurr,
+                        to: accountCurr,
+                        context: modelContext
+                    )
+                    balance += convertedAmount
+                }
+            }
+        }
+
+        return balance
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -64,9 +103,9 @@ struct AccountDetailView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
 
-                        Text("\(account.currency.symbol)\(formatDecimal(account.currentBalance))")
+                        Text("\(account.currency.symbol)\(formatDecimal(calculatedBalance))")
                             .font(.system(size: 36, weight: .bold, design: .rounded))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(calculatedBalance < 0 ? .red : .primary)
                     }
 
                     if !account.accountDescription.isEmpty {

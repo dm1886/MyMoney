@@ -10,6 +10,7 @@ import SwiftData
 
 struct AccountSelectionView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Account.name) private var accounts: [Account]
 
     @Binding var selectedAccount: Account?
@@ -52,7 +53,8 @@ struct AccountSelectionView: View {
                 ForEach(accounts) { account in
                     AccountGridCard(
                         account: account,
-                        isSelected: selectedAccount?.id == account.id
+                        isSelected: selectedAccount?.id == account.id,
+                        modelContext: modelContext
                     )
                     .onTapGesture {
                         selectedAccount = account
@@ -69,6 +71,46 @@ struct AccountSelectionView: View {
 struct AccountGridCard: View {
     let account: Account
     let isSelected: Bool
+    let modelContext: ModelContext
+
+    // Calcola saldo on-the-fly
+    private var calculatedBalance: Decimal {
+        var balance = account.initialBalance
+
+        if let accountTransactions = account.transactions {
+            for transaction in accountTransactions where transaction.status == .executed {
+                switch transaction.transactionType {
+                case .expense:
+                    balance -= transaction.amount
+                case .income:
+                    balance += transaction.amount
+                case .transfer:
+                    balance -= transaction.amount
+                case .adjustment:
+                    balance += transaction.amount
+                }
+            }
+        }
+
+        if let incoming = account.incomingTransfers {
+            for transfer in incoming where transfer.status == .executed && transfer.transactionType == .transfer {
+                if let destAmount = transfer.destinationAmount {
+                    balance += destAmount
+                } else if let transferCurr = transfer.currencyRecord,
+                              let accountCurr = account.currencyRecord {
+                    let convertedAmount = CurrencyService.shared.convert(
+                        amount: transfer.amount,
+                        from: transferCurr,
+                        to: accountCurr,
+                        context: modelContext
+                    )
+                    balance += convertedAmount
+                }
+            }
+        }
+
+        return balance
+    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -146,9 +188,9 @@ struct AccountGridCard: View {
             }
 
             // Account Balance
-            Text(formatAmount(account.currentBalance, currency: account.currencyRecord))
+            Text(formatAmount(calculatedBalance, currency: account.currencyRecord))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(calculatedBalance < 0 ? .red : .secondary)
         }
         .frame(maxWidth: .infinity)
         .padding()

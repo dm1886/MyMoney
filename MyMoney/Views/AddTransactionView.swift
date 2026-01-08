@@ -42,6 +42,9 @@ struct AddTransactionView: View {
     @State private var hasEndDate = false
     @State private var recurrenceEndDate = Date()
 
+    // MARK: - UI State
+    @State private var hasSetDefaultAccount = false
+
     var transactionCurrency: Currency {
         selectedTransactionCurrency ?? selectedAccount?.currency ?? .EUR
     }
@@ -200,12 +203,14 @@ struct AddTransactionView: View {
                         } label: {
                             accountRowLabel(title: "Da Conto", account: selectedAccount)
                         }
+                        .id(selectedAccount?.id)  // Forza re-rendering quando account cambia
 
                         NavigationLink {
                             AccountSelectionView(selectedAccount: $selectedDestinationAccount, showNavigationBar: false)
                         } label: {
                             accountRowLabel(title: "A Conto", account: selectedDestinationAccount)
                         }
+                        .id(selectedDestinationAccount?.id)  // Forza re-rendering quando account cambia
                     } header: {
                         Text("Trasferimento")
                     }
@@ -359,6 +364,7 @@ struct AddTransactionView: View {
                         } label: {
                             accountRowLabel(title: "Conto", account: selectedAccount)
                         }
+                        .id(selectedAccount?.id)  // Forza re-rendering quando account cambia
                     }
                 }
 
@@ -593,14 +599,20 @@ struct AddTransactionView: View {
                 CategoryPickerView(selectedCategory: $selectedCategory, transactionType: transactionType)
             }
             .onChange(of: selectedCategory) { oldValue, newValue in
-                // Auto-seleziona il conto predefinito della categoria
-                if let category = newValue, let defaultAccount = category.defaultAccount {
+                // Auto-seleziona il conto predefinito della categoria SOLO se non c'è già un account selezionato dall'utente
+                if let category = newValue,
+                   let defaultAccount = category.defaultAccount,
+                   selectedAccount == nil {
                     selectedAccount = defaultAccount
                 }
             }
             .onAppear {
-                if let firstAccount = accounts.first {
-                    selectedAccount = firstAccount
+                // Setta default account SOLO la prima volta
+                if !hasSetDefaultAccount {
+                    if let firstAccount = accounts.first {
+                        selectedAccount = firstAccount
+                    }
+                    hasSetDefaultAccount = true
                 }
 
                 if transactionType == .income {

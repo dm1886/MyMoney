@@ -189,14 +189,11 @@ struct AccountRow: View {
     let preferredCurrencyRecord: CurrencyRecord?
     let exchangeRatesCount: Int  // Per aggiornamenti reattivi
 
-    var displayBalance: String {
+    private func displayBalance(for accountBalance: Decimal) -> String {
         guard let accountCurrency = account.currencyRecord,
               let preferredCurr = preferredCurrencyRecord else {
             return "\(preferredCurrency.symbol)0.00"
         }
-
-        // Calcola il saldo on-the-fly dalle transazioni
-        let accountBalance = calculateBalance(for: account)
 
         let convertedBalance = CurrencyService.shared.convert(
             amount: accountBalance,
@@ -253,6 +250,8 @@ struct AccountRow: View {
     }
 
     var body: some View {
+        let balance = calculateBalance(for: account)
+
         HStack(spacing: 16) {
             // Mostra immagine personalizzata se esiste, altrimenti icona
             if let imageData = account.imageData, let uiImage = UIImage(data: imageData) {
@@ -307,14 +306,14 @@ struct AccountRow: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 4) {
-                Text(displayBalance)
+                Text(displayBalance(for: balance))
                     .font(.body.bold())
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(balance < 0 ? .red : .primary)
 
                 if account.currency != preferredCurrency {
-                    Text("\(account.currency.symbol)\(formatDecimal(calculateBalance(for: account)))")
+                    Text("\(account.currency.symbol)\(formatDecimal(balance))")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(balance < 0 ? .red : .secondary)
                 }
             }
 
