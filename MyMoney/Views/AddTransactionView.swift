@@ -556,7 +556,7 @@ struct AddTransactionView: View {
                                     Image(systemName: isAutomatic ? "bolt.fill" : "hand.tap.fill")
                                         .font(.caption)
                                         .foregroundStyle(isAutomatic ? .blue : .orange)
-                                    Text(isAutomatic ? "Tutte le istanze saranno eseguite automaticamente" : "Tutte le istanze richiederanno conferma manuale")
+                                    Text(isAutomatic ? "Tutte le transazioni saranno eseguite automaticamente" : "Tutte le transazioni richiederanno conferma manuale")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -696,6 +696,11 @@ struct AddTransactionView: View {
         // Registra l'uso della valuta
         if let currencyRecord = currencyToUse {
             CurrencyService.shared.recordUsage(of: currencyRecord, context: modelContext)
+        }
+
+        // Registra l'uso della categoria (solo per transazioni eseguite)
+        if !isScheduled, let category = selectedCategory {
+            category.recordUsage()
         }
 
         try? modelContext.save()

@@ -118,6 +118,13 @@ class LocalNotificationManager: NSObject {
         print("🗑️ Cancelled notification for transaction: \(transaction.id)")
     }
 
+    // Versione che accetta solo l'ID per evitare problemi di "detached context"
+    func cancelNotification(transactionId: UUID) {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [transactionId.uuidString])
+        print("🗑️ Cancelled notification for transaction: \(transactionId)")
+    }
+
     // MARK: - Update Notification
 
     func updateNotification(for transaction: Transaction) async {
@@ -158,5 +165,45 @@ class LocalNotificationManager: NSObject {
                 print("   - \(notification.identifier): \(nextTriggerDate.formatted(date: .abbreviated, time: .shortened))")
             }
         }
+    }
+
+    // MARK: - Clear All Notifications
+
+    func cancelAllNotifications() {
+        let center = UNUserNotificationCenter.current()
+        center.removeAllPendingNotificationRequests()
+        print("🗑️ All pending notifications cancelled")
+    }
+
+    // MARK: - Clean Orphan Notifications
+
+    func cleanOrphanNotifications(validTransactionIds: Set<UUID>) async -> Int {
+        let center = UNUserNotificationCenter.current()
+        let pending = await center.pendingNotificationRequests()
+
+        var orphanCount = 0
+        var orphanIds: [String] = []
+
+        for notification in pending {
+            if let uuid = UUID(uuidString: notification.identifier) {
+                // Se l'ID della notifica non corrisponde a nessuna transazione valida
+                if !validTransactionIds.contains(uuid) {
+                    orphanIds.append(notification.identifier)
+                    orphanCount += 1
+                }
+            }
+        }
+
+        if !orphanIds.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: orphanIds)
+            print("🧹 Cleaned \(orphanCount) orphan notifications")
+            for id in orphanIds {
+                print("   - Removed: \(id)")
+            }
+        } else {
+            print("✅ No orphan notifications found")
+        }
+
+        return orphanCount
     }
 }

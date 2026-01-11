@@ -144,6 +144,12 @@ class TransactionScheduler {
             destinationAccount.updateBalance(context: modelContext)
         }
 
+        // Record category usage
+        if let category = transaction.category {
+            print("   📊 Recording category usage: \(category.name)")
+            category.recordUsage()
+        }
+
         // Save
         do {
             try modelContext.save()

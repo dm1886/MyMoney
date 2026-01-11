@@ -17,6 +17,7 @@ struct EditTransactionView: View {
 
     let transaction: Transaction
 
+    @State private var transactionType: TransactionType
     @State private var amount: String
     @State private var selectedAccount: Account?
     @State private var selectedDestinationAccount: Account?
@@ -31,12 +32,30 @@ struct EditTransactionView: View {
     @State private var scheduledDate: Date
     @State private var isAutomatic: Bool
 
+    // Recurring fields (salvate per evitare crash dopo eliminazione)
+    @State private var isRecurring: Bool
+    @State private var parentRecurringTransactionId: UUID?
+    @State private var recurrenceRule: RecurrenceRule?
+    @State private var recurrenceEndDate: Date?
+    @State private var transactionStatus: TransactionStatus
+
     // Deletion dialog
     @State private var showingDeleteDialog = false
     @State private var showingRecurringDeleteOptions = false
+    @State private var showingStopRecurrenceAlert = false
+    @State private var showingDeleteInstancesWarning = false
+    @State private var selectedDeletionOption: RecurringDeletionOption?
+
+    // Help disclosure states
+    @State private var showingStopRecurrenceHelp = false
+    @State private var showingDeleteTransactionsHelp = false
 
     init(transaction: Transaction) {
         self.transaction = transaction
+
+        // IMPORTANTE: Salva TUTTE le proprietà usate nel body per evitare crash dopo eliminazione
+        _transactionType = State(initialValue: transaction.transactionType)
+        _transactionStatus = State(initialValue: transaction.status)
 
         // Convert Decimal to String properly
         let formatter = NumberFormatter()
@@ -57,6 +76,12 @@ struct EditTransactionView: View {
         _isScheduled = State(initialValue: transaction.isScheduled)
         _scheduledDate = State(initialValue: transaction.scheduledDate ?? Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date())
         _isAutomatic = State(initialValue: transaction.isAutomatic)
+
+        // Initialize recurring fields
+        _isRecurring = State(initialValue: transaction.isRecurring)
+        _parentRecurringTransactionId = State(initialValue: transaction.parentRecurringTransactionId)
+        _recurrenceRule = State(initialValue: transaction.recurrenceRule)
+        _recurrenceEndDate = State(initialValue: transaction.recurrenceEndDate)
     }
 
     var transactionCurrencyRecord: CurrencyRecord? {
@@ -80,7 +105,7 @@ struct EditTransactionView: View {
                 }
 
                 // Category Section
-                if transaction.transactionType != .transfer {
+                if transactionType != .transfer {
                     Section {
                         Button {
                             showingCategoryPicker = true
@@ -175,7 +200,7 @@ struct EditTransactionView: View {
                         }
                     }
                     .onChange(of: isScheduled) { _, newValue in
-                        if newValue && transaction.status != .pending {
+                        if newValue && transactionStatus != .pending {
                             // Set default scheduled date if enabling for first time
                             scheduledDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
                         }
@@ -204,16 +229,16 @@ struct EditTransactionView: View {
                         }
 
                         // Show current status if already scheduled
-                        if transaction.isScheduled {
+                        if isScheduled {
                             HStack {
                                 Text("Stato:")
                                     .foregroundStyle(.secondary)
                                 Spacer()
                                 HStack(spacing: 4) {
-                                    Image(systemName: transaction.status.icon)
-                                    Text(transaction.status.rawValue)
+                                    Image(systemName: transactionStatus.icon)
+                                    Text(transactionStatus.rawValue)
                                 }
-                                .foregroundStyle(Color(hex: transaction.status.color) ?? .primary)
+                                .foregroundStyle(Color(hex: transactionStatus.color) ?? .primary)
                             }
                             .font(.caption)
                         }
@@ -227,18 +252,18 @@ struct EditTransactionView: View {
                 }
 
                 // MARK: - Recurring Transaction Info (Read-only)
-                if transaction.isRecurring || transaction.parentRecurringTransactionId != nil {
+                if isRecurring || parentRecurringTransactionId != nil {
                     Section {
                         HStack {
                             Image(systemName: "repeat.circle.fill")
                                 .foregroundStyle(.purple)
-                            Text(transaction.isRecurring ? "Template Ricorrente" : "Istanza Ricorrente")
+                            Text(isRecurring ? "Template Ricorrente" : "Transazione Ricorrente")
                             Spacer()
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(.purple)
                         }
 
-                        if let rule = transaction.recurrenceRule {
+                        if let rule = recurrenceRule {
                             HStack {
                                 Image(systemName: rule.icon)
                                     .foregroundStyle(.purple)
@@ -249,7 +274,7 @@ struct EditTransactionView: View {
                             }
                         }
 
-                        if let endDate = transaction.recurrenceEndDate {
+                        if let endDate = recurrenceEndDate {
                             HStack {
                                 Image(systemName: "calendar.badge.clock")
                                     .foregroundStyle(.orange)
@@ -258,7 +283,7 @@ struct EditTransactionView: View {
                                 Text(endDate.formatted(date: .abbreviated, time: .omitted))
                                     .foregroundStyle(.secondary)
                             }
-                        } else if transaction.isRecurring || transaction.parentRecurringTransactionId != nil {
+                        } else if isRecurring || parentRecurringTransactionId != nil {
                             HStack {
                                 Image(systemName: "infinity.circle")
                                     .foregroundStyle(.blue)
@@ -269,47 +294,88 @@ struct EditTransactionView: View {
                     } header: {
                         Text("Ripetizione")
                     } footer: {
-                        if transaction.isRecurring {
+                        if isRecurring {
                             Text("Questo è il template principale della serie ricorrente.")
                         } else {
-                            Text("Questa è un'istanza di una serie ricorrente. La modifica influenzerà solo questa istanza.")
+                            Text("Questa è una transazione di una serie ricorrente. La modifica influenzerà solo questa transazione.")
                         }
                     }
 
                     // MARK: - Gestione Ripetizione
-                    if transaction.parentRecurringTransactionId != nil {
+                    if parentRecurringTransactionId != nil {
                         Section {
-                            Button {
-                                stopRecurrenceFromHere()
-                            } label: {
-                                HStack {
-                                    Image(systemName: "stop.circle")
-                                        .foregroundStyle(.orange)
-                                    Text("Interrompi Ripetizione da Qui")
-                                    Spacer()
+                            VStack(alignment: .leading, spacing: 8) {
+                                Button {
+                                    showingStopRecurrenceAlert = true
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "stop.circle")
+                                            .foregroundStyle(.orange)
+                                        Text("Interrompi Ripetizione da Qui")
+                                        Spacer()
+                                    }
                                 }
+
+                                DisclosureGroup(
+                                    isExpanded: $showingStopRecurrenceHelp,
+                                    content: {
+                                        Text("Ferma la ripetizione mantenendo questa transazione. Tutte le transazioni future verranno eliminate, ma questa rimarrà intatta.")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .padding(.top, 4)
+                                    },
+                                    label: {
+                                        Text("Cosa succede?")
+                                            .font(.caption)
+                                            .foregroundStyle(.blue)
+                                    }
+                                )
                             }
 
-                            Button {
-                                showingRecurringDeleteOptions = true
-                            } label: {
-                                HStack {
-                                    Image(systemName: "trash.circle")
-                                        .foregroundStyle(.red)
-                                    Text("Elimina Istanze...")
-                                    Spacer()
+                            Divider()
+                                .padding(.vertical, 4)
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                Button {
+                                    showingDeleteInstancesWarning = true
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "trash.circle")
+                                            .foregroundStyle(.red)
+                                        Text("Elimina Transazioni...")
+                                        Spacer()
+                                    }
                                 }
+
+                                DisclosureGroup(
+                                    isExpanded: $showingDeleteTransactionsHelp,
+                                    content: {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text("• Solo Questa: elimina solo questa transazione")
+                                            Text("• Questa e Future: elimina questa + tutte le future")
+                                            Text("• Tutte: elimina l'intera serie ricorrente")
+                                        }
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.top, 4)
+                                    },
+                                    label: {
+                                        Text("Cosa succede?")
+                                            .font(.caption)
+                                            .foregroundStyle(.blue)
+                                    }
+                                )
                             }
                         } header: {
-                            Text("Gestione Serie")
+                            Text("Gestione Ripetizione")
                         } footer: {
-                            Text("Puoi interrompere la ripetizione o eliminare istanze specifiche della serie.")
+                            Text("Puoi interrompere la ripetizione o eliminare transazioni specifiche della serie.")
                         }
                     }
                 }
 
                 // MARK: - Manual Confirmation Buttons
-                if transaction.status == .pending && !transaction.isAutomatic {
+                if transactionStatus == .pending && !isAutomatic {
                     Section {
                         VStack(spacing: 12) {
                             Text("Questa transazione richiede conferma manuale")
@@ -384,7 +450,21 @@ struct EditTransactionView: View {
                 }
             }
             .sheet(isPresented: $showingCategoryPicker) {
-                CategoryPickerView(selectedCategory: $selectedCategory, transactionType: transaction.transactionType)
+                CategoryPickerView(selectedCategory: $selectedCategory, transactionType: transactionType)
+            }
+            .alert("Interrompi Ripetizione", isPresented: $showingStopRecurrenceAlert) {
+                Button("Conferma", role: .destructive) {
+                    stopRecurrenceFromHere()
+                }
+            } message: {
+                Text("Questa transazione non si ripeterà più dopo questa data. Tutte le transazioni future verranno eliminate.")
+            }
+            .alert("Elimina Transazioni Ricorrenti", isPresented: $showingDeleteInstancesWarning) {
+                Button("Continua", role: .destructive) {
+                    showingRecurringDeleteOptions = true
+                }
+            } message: {
+                Text("Stai per eliminare delle transazioni della serie ricorrente. Questa azione non può essere annullata. Vuoi continuare?")
             }
             .confirmationDialog(
                 "Elimina Transazione Ricorrente",
@@ -393,11 +473,10 @@ struct EditTransactionView: View {
             ) {
                 ForEach(RecurringDeletionOption.allCases, id: \.self) { option in
                     Button(option.rawValue, role: .destructive) {
+                        selectedDeletionOption = option
                         deleteRecurring(option: option)
                     }
                 }
-
-                Button("Annulla", role: .cancel) {}
             } message: {
                 Text("Scegli quale parte della serie ricorrente eliminare:")
             }
@@ -405,7 +484,6 @@ struct EditTransactionView: View {
                 Button("Elimina", role: .destructive) {
                     deleteTransaction()
                 }
-                Button("Annulla", role: .cancel) {}
             } message: {
                 Text("Sei sicuro di voler eliminare questa transazione?")
             }
@@ -413,23 +491,36 @@ struct EditTransactionView: View {
     }
 
     private func confirmTransaction() {
+        // IMPORTANTE: Salva l'ID PRIMA dell'esecuzione
+        let transactionId = transaction.id
+
         // Execute transaction asynchronously
         Task { @MainActor in
             await TransactionScheduler.shared.executeTransaction(transaction, modelContext: modelContext)
 
-            // Cancel notification after execution succeeds
-            LocalNotificationManager.shared.cancelNotification(for: transaction)
+            // Cancel notification after execution succeeds (usa solo l'ID)
+            LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
 
+            // Dismiss con delay per evitare crash
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 secondi
             dismiss()
         }
     }
 
     private func cancelTransaction() {
-        // Cancel notification when cancelling
-        LocalNotificationManager.shared.cancelNotification(for: transaction)
+        // IMPORTANTE: Salva l'ID PRIMA di cancellare
+        let transactionId = transaction.id
+
+        // Cancel notification when cancelling (usa solo l'ID)
+        LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
 
         TransactionScheduler.shared.cancelTransaction(transaction, modelContext: modelContext)
-        dismiss()
+
+        // Dismiss con delay per evitare crash
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 secondi
+            dismiss()
+        }
     }
 
     private func saveTransaction() {
@@ -468,6 +559,11 @@ struct EditTransactionView: View {
                 transaction.status = .executed
                 // Use scheduled date if available, otherwise use now
                 transaction.date = transaction.scheduledDate ?? Date()
+
+                // Record category usage when converting from scheduled to executed
+                if let category = selectedCategory {
+                    category.recordUsage()
+                }
             }
             transaction.scheduledDate = nil
         }
@@ -496,92 +592,294 @@ struct EditTransactionView: View {
     }
 
     private func initiateDelete() {
+        print("🚀 [DEBUG] initiateDelete() - START")
+
+        // Check if this transaction still exists in the context
+        // (potrebbe essere stata già eliminata da "Interrompi Ripetizione da Qui")
+        let descriptor = FetchDescriptor<Transaction>()
+        guard let allTransactions = try? modelContext.fetch(descriptor),
+              allTransactions.contains(where: { $0.id == transaction.id }) else {
+            // La transazione è già stata eliminata, chiudi la vista
+            print("⚠️ [DEBUG] Transaction already deleted in initiateDelete, dismissing")
+            dismiss()
+            return
+        }
+
+        print("🔍 [DEBUG] Checking if transaction is recurring...")
+        let isRecurring = transaction.isRecurring
+        print("   isRecurring: \(isRecurring)")
+
+        let parentId = transaction.parentRecurringTransactionId
+        print("   parentRecurringTransactionId: \(parentId?.uuidString ?? "nil")")
+
         // Check if this is a recurring transaction or instance
-        if transaction.isRecurring || transaction.parentRecurringTransactionId != nil {
-            showingRecurringDeleteOptions = true
+        if isRecurring || parentId != nil {
+            print("📋 [DEBUG] Showing delete instances warning")
+            showingDeleteInstancesWarning = true
         } else {
+            print("📋 [DEBUG] Showing simple delete dialog")
             showingDeleteDialog = true
         }
+
+        print("✅ [DEBUG] initiateDelete() - COMPLETED")
     }
 
     private func deleteTransaction() {
-        // Cancel notification if exists
-        LocalNotificationManager.shared.cancelNotification(for: transaction)
+        print("🗑️ [DEBUG] deleteTransaction() - START")
 
-        // Delete transaction and update account balances
-        if let account = transaction.account {
+        // Verifica se la transazione esiste ancora
+        let descriptor = FetchDescriptor<Transaction>()
+        guard let allTransactions = try? modelContext.fetch(descriptor),
+              allTransactions.contains(where: { $0.id == transaction.id }) else {
+            // La transazione è già stata eliminata
+            print("⚠️ [DEBUG] Transaction already deleted, dismissing")
+            dismiss()
+            return
+        }
+
+        print("🔍 [DEBUG] Reading transaction properties...")
+
+        // IMPORTANTE: Salva TUTTE le informazioni necessarie PRIMA
+        let transactionId = transaction.id
+        print("   ✅ Got transactionId: \(transactionId)")
+
+        let isScheduled = transaction.isScheduled
+        print("   ✅ Got isScheduled: \(isScheduled)")
+
+        let accountToUpdate = transaction.account
+        print("   ✅ Got account: \(accountToUpdate?.name ?? "nil")")
+
+        let destinationAccountToUpdate = transaction.destinationAccount
+        print("   ✅ Got destinationAccount: \(destinationAccountToUpdate?.name ?? "nil")")
+
+        // STRATEGIA: Chiudi la vista PRIMA di eliminare
+        print("👋 [DEBUG] Dismissing BEFORE deletion")
+        dismiss()
+
+        // Elimina DOPO aver chiuso la vista
+        Task { @MainActor in
+            // Piccolo delay per assicurarsi che la vista sia chiusa
+            try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 secondi
+
+            print("⏳ [DEBUG] Vista chiusa, ora elimino...")
+
+            // Cancel notification if exists (usa solo l'ID)
+            if isScheduled {
+                print("🔔 [DEBUG] Cancelling notification for: \(transactionId)")
+                LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
+                print("   ✅ Notification cancelled")
+            }
+
             // Delete transaction
+            print("🗑️ [DEBUG] Deleting transaction from context...")
             modelContext.delete(transaction)
+            print("   ✅ Transaction deleted from context")
 
-            // Update balances AFTER deletion
-            account.updateBalance(context: modelContext)
+            // Update balances AFTER deletion usando i riferimenti salvati
+            if let account = accountToUpdate {
+                print("💰 [DEBUG] Updating balance for account: \(account.name)")
+                account.updateBalance(context: modelContext)
+                print("   ✅ Balance updated")
+            }
 
-            if let destinationAccount = transaction.destinationAccount {
+            if let destinationAccount = destinationAccountToUpdate {
+                print("💰 [DEBUG] Updating balance for destination account: \(destinationAccount.name)")
                 destinationAccount.updateBalance(context: modelContext)
+                print("   ✅ Destination balance updated")
             }
 
             // Save everything together
+            print("💾 [DEBUG] Saving context...")
             try? modelContext.save()
-        }
+            print("   ✅ Context saved")
 
-        dismiss()
+            print("✅ [DEBUG] deleteTransaction() - COMPLETED")
+        }
     }
 
     private func deleteRecurring(option: RecurringDeletionOption) {
-        RecurringTransactionManager.shared.deleteRecurring(
-            transaction: transaction,
-            option: option,
-            modelContext: modelContext
-        )
+        print("🔄 [DEBUG] deleteRecurring() - START with option: \(option.rawValue)")
 
-        // Update balances after deletion
-        if let account = transaction.account {
-            account.updateBalance(context: modelContext)
+        // Verifica se la transazione esiste ancora
+        let descriptor = FetchDescriptor<Transaction>()
+        guard let allTransactions = try? modelContext.fetch(descriptor),
+              allTransactions.contains(where: { $0.id == transaction.id }) else {
+            // La transazione è già stata eliminata
+            print("⚠️ [DEBUG] Transaction already deleted in deleteRecurring, dismissing")
+            dismiss()
+            return
         }
 
-        if let destinationAccount = transaction.destinationAccount {
-            destinationAccount.updateBalance(context: modelContext)
-        }
+        print("🔍 [DEBUG] Reading transaction data and account references...")
+        // IMPORTANTE: Salva TUTTI i dati necessari PRIMA
+        let transactionId = transaction.id
+        print("   ✅ Got transactionId: \(transactionId)")
 
+        let accountToUpdate = transaction.account
+        print("   ✅ Got account: \(accountToUpdate?.name ?? "nil")")
+
+        let destinationAccountToUpdate = transaction.destinationAccount
+        print("   ✅ Got destinationAccount: \(destinationAccountToUpdate?.name ?? "nil")")
+
+        let templateId = transaction.parentRecurringTransactionId ?? transaction.id
+        print("   ✅ Got templateId: \(templateId)")
+
+        let thisScheduledDate = transaction.scheduledDate
+        print("   ✅ Got scheduledDate: \(thisScheduledDate?.description ?? "nil")")
+
+        // STRATEGIA: Chiudi la vista PRIMA di eliminare
+        print("👋 [DEBUG] Dismissing BEFORE deletion")
         dismiss()
+
+        // Elimina DOPO aver chiuso la vista
+        Task { @MainActor in
+            // Piccolo delay per assicurarsi che la vista sia chiusa
+            try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 secondi
+
+            print("⏳ [DEBUG] Vista chiusa, ora elimino...")
+
+            // Fetch transactions again in the async context
+            let descriptor = FetchDescriptor<Transaction>()
+            guard let allTransactions = try? modelContext.fetch(descriptor) else {
+                print("⚠️ [DEBUG] Could not fetch transactions")
+                return
+            }
+
+            print("🗑️ [DEBUG] Executing deletion for option: \(option.rawValue)")
+
+            switch option {
+            case .thisOnly:
+                // Elimina solo questa transazione
+                print("   Deleting single transaction: \(transactionId)")
+                if let transactionToDelete = allTransactions.first(where: { $0.id == transactionId }) {
+                    LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
+                    modelContext.delete(transactionToDelete)
+                    print("   ✅ Deleted single transaction")
+                }
+
+            case .thisAndFuture:
+                // Elimina questa transazione e tutte le future
+                guard let thisDate = thisScheduledDate else {
+                    print("   ⚠️ No scheduled date for thisAndFuture deletion")
+                    return
+                }
+
+                let transactionsToDelete = allTransactions.filter { t in
+                    guard t.parentRecurringTransactionId == templateId,
+                          let tDate = t.scheduledDate else {
+                        return false
+                    }
+                    return tDate >= thisDate
+                }
+
+                print("   Deleting \(transactionsToDelete.count) transactions (this and future)")
+                for t in transactionsToDelete {
+                    let tId = t.id
+                    LocalNotificationManager.shared.cancelNotification(transactionId: tId)
+                    modelContext.delete(t)
+                }
+
+                // Se la transazione corrente è il template, eliminala
+                if transactionId == templateId {
+                    if let template = allTransactions.first(where: { $0.id == templateId }) {
+                        modelContext.delete(template)
+                        print("   ✅ Deleted template as well")
+                    }
+                }
+
+                print("   ✅ Deleted \(transactionsToDelete.count) future transactions")
+
+            case .all:
+                // Elimina tutte le transazioni + template
+                let allRelated = allTransactions.filter {
+                    $0.id == templateId || $0.parentRecurringTransactionId == templateId
+                }
+
+                print("   Deleting all \(allRelated.count) transactions including template")
+                for t in allRelated {
+                    let tId = t.id
+                    LocalNotificationManager.shared.cancelNotification(transactionId: tId)
+                    modelContext.delete(t)
+                }
+
+                print("   ✅ Deleted all \(allRelated.count) instances")
+            }
+
+            // Save context
+            try? modelContext.save()
+            print("   ✅ Context saved")
+
+            // Update balances AFTER deletion usando i riferimenti salvati
+            if let account = accountToUpdate {
+                print("💰 [DEBUG] Updating balance for account: \(account.name)")
+                account.updateBalance(context: modelContext)
+                print("   ✅ Balance updated")
+            }
+
+            if let destinationAccount = destinationAccountToUpdate {
+                print("💰 [DEBUG] Updating balance for destination account: \(destinationAccount.name)")
+                destinationAccount.updateBalance(context: modelContext)
+                print("   ✅ Destination balance updated")
+            }
+
+            print("✅ [DEBUG] deleteRecurring() - COMPLETED")
+        }
     }
 
     private func stopRecurrenceFromHere() {
+        // IMPORTANTE: Salva TUTTI i dati necessari PRIMA
         guard let templateId = transaction.parentRecurringTransactionId,
               let thisScheduledDate = transaction.scheduledDate else {
             return
         }
 
-        // Trova il template
-        let descriptor = FetchDescriptor<Transaction>()
-        guard let allTransactions = try? modelContext.fetch(descriptor),
-              let template = allTransactions.first(where: { $0.id == templateId }) else {
-            return
-        }
+        print("🛑 [DEBUG] stopRecurrenceFromHere - templateId: \(templateId), date: \(thisScheduledDate)")
 
-        // Imposta la data fine al giorno prima di questa istanza
-        if let dayBefore = Calendar.current.date(byAdding: .day, value: -1, to: thisScheduledDate) {
-            template.recurrenceEndDate = dayBefore
-        }
-
-        // Elimina tutte le istanze future (dopo questa, escludendo questa)
-        let futureInstances = allTransactions.filter { t in
-            guard t.parentRecurringTransactionId == templateId,
-                  let tDate = t.scheduledDate else {
-                return false
-            }
-            return tDate > thisScheduledDate
-        }
-
-        for instance in futureInstances {
-            LocalNotificationManager.shared.cancelNotification(for: instance)
-            modelContext.delete(instance)
-        }
-
-        try? modelContext.save()
-
-        print("🛑 Ripetizione interrotta. Eliminate \(futureInstances.count) istanze future.")
-
+        // STRATEGIA: Chiudi la vista PRIMA di modificare/eliminare
+        print("👋 [DEBUG] Dismissing BEFORE stopping recurrence")
         dismiss()
+
+        // Modifica/Elimina DOPO aver chiuso la vista
+        Task { @MainActor in
+            // Piccolo delay per assicurarsi che la vista sia chiusa
+            try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 secondi
+
+            print("⏳ [DEBUG] Vista chiusa, ora interrompo la ripetizione...")
+
+            // Trova il template
+            let descriptor = FetchDescriptor<Transaction>()
+            guard let allTransactions = try? modelContext.fetch(descriptor),
+                  let template = allTransactions.first(where: { $0.id == templateId }) else {
+                print("⚠️ [DEBUG] Template not found")
+                return
+            }
+
+            // Imposta la data fine al giorno prima di questa transazione
+            if let dayBefore = Calendar.current.date(byAdding: .day, value: -1, to: thisScheduledDate) {
+                template.recurrenceEndDate = dayBefore
+                print("📅 [DEBUG] Set recurrence end date to: \(dayBefore)")
+            }
+
+            // Elimina tutte le transazioni future (dopo questa, escludendo questa)
+            let futureTransactions = allTransactions.filter { t in
+                guard t.parentRecurringTransactionId == templateId,
+                      let tDate = t.scheduledDate else {
+                    return false
+                }
+                return tDate > thisScheduledDate
+            }
+
+            for transaction in futureTransactions {
+                // Salva l'ID prima di eliminare
+                let transactionId = transaction.id
+                LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
+                modelContext.delete(transaction)
+            }
+
+            try? modelContext.save()
+
+            print("🛑 Ripetizione interrotta. Eliminate \(futureTransactions.count) transazioni future.")
+            print("✅ [DEBUG] stopRecurrenceFromHere - COMPLETED")
+        }
     }
 }

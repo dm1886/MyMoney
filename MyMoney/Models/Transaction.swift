@@ -33,7 +33,7 @@ final class Transaction {
     var isRecurring: Bool = false
     var recurrenceRule: RecurrenceRule?
     var recurrenceEndDate: Date?        // Data fine ripetizione (opzionale)
-    var parentRecurringTransactionId: UUID?  // Link alla transazione template se questa è un'istanza generata
+    var parentRecurringTransactionId: UUID?  // Link alla transazione template se questa è una transazione generata
 
     init(
         transactionType: TransactionType,

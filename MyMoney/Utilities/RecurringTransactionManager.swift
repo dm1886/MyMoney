@@ -16,7 +16,7 @@ class RecurringTransactionManager {
 
     // MARK: - Generate Recurring Instances
 
-    /// Genera le prossime istanze per tutte le transazioni ricorrenti
+    /// Genera le prossime transazione per tutte le transazioni ricorrenti
     func generateRecurringInstances(modelContext: ModelContext, monthsAhead: Int = 3) async {
         print("🔄 Generating recurring transaction instances...")
 
@@ -28,7 +28,7 @@ class RecurringTransactionManager {
             // Trova tutte le transazioni ricorrenti template (parent)
             let recurringTemplates = allTransactions.filter { transaction in
                 transaction.isRecurring &&
-                transaction.parentRecurringTransactionId == nil  // Solo template, non istanze
+                transaction.parentRecurringTransactionId == nil  // Solo template, non transazione
             }
 
             print("📊 Found \(recurringTemplates.count) recurring transaction templates")
@@ -45,7 +45,7 @@ class RecurringTransactionManager {
         }
     }
 
-    /// Genera istanze per una specifica transazione ricorrente
+    /// Genera transazione per una specifica transazione ricorrente
     func generateInstances(
         for template: Transaction,
         monthsAhead: Int,
@@ -57,14 +57,14 @@ class RecurringTransactionManager {
             return
         }
 
-        // Calcola fino a quale data generare istanze
+        // Calcola fino a quale data generare transazione
         let endDate = template.recurrenceEndDate ?? Calendar.current.date(
             byAdding: .month,
             value: monthsAhead,
             to: Date()
         ) ?? Date()
 
-        // Trova l'ultima istanza già generata
+        // Trova l'ultima transaziona già generata
         let descriptor = FetchDescriptor<Transaction>()
         let allTransactions = try? modelContext.fetch(descriptor)
 
@@ -78,7 +78,7 @@ class RecurringTransactionManager {
         var generatedCount = 0
 
         if lastInstanceDate == nil {
-            // Prima volta - genera anche l'istanza iniziale (quella di oggi/prima data)
+            // Prima volta - genera anche l'transaziona iniziale (quella di oggi/prima data)
             let alreadyExists = existingInstances.contains { instance in
                 guard let instanceDate = instance.scheduledDate else { return false }
                 return Calendar.current.isDate(instanceDate, inSameDayAs: firstScheduledDate)
@@ -95,7 +95,7 @@ class RecurringTransactionManager {
         var currentDate = startDate
 
         while let nextDate = rule.nextOccurrence(from: currentDate), nextDate <= endDate {
-            // Controlla se esiste già un'istanza per questa data
+            // Controlla se esiste già un'transaziona per questa data
             let alreadyExists = existingInstances.contains { instance in
                 guard let instanceDate = instance.scheduledDate else { return false }
                 return Calendar.current.isDate(instanceDate, inSameDayAs: nextDate)
@@ -114,7 +114,7 @@ class RecurringTransactionManager {
         }
     }
 
-    /// Crea una singola istanza da un template
+    /// Crea una singola transaziona da un template
     private func createInstance(
         from template: Transaction,
         scheduledDate: Date,
@@ -140,7 +140,7 @@ class RecurringTransactionManager {
         instance.isAutomatic = template.isAutomatic
         instance.status = .pending
 
-        // NON è ricorrente (è un'istanza)
+        // NON è ricorrente (è un'transaziona)
         instance.isRecurring = false
 
         // Link al parent
@@ -177,13 +177,15 @@ class RecurringTransactionManager {
 
         switch option {
         case .thisOnly:
-            // Elimina solo questa istanza
-            LocalNotificationManager.shared.cancelNotification(for: transaction)
+            // Elimina solo questa transaziona
+            // IMPORTANTE: Salva l'ID PRIMA di eliminare
+            let transactionId = transaction.id
+            LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
             modelContext.delete(transaction)
-            print("   Deleted single instance: \(transaction.id)")
+            print("   Deleted single instance: \(transactionId)")
 
         case .thisAndFuture:
-            // Elimina questa istanza e tutte le future
+            // Elimina questa transaziona e tutte le future
             let transactionsToDelete = allTransactions.filter { t in
                 guard t.parentRecurringTransactionId == templateId,
                       let tDate = t.scheduledDate,
@@ -194,7 +196,9 @@ class RecurringTransactionManager {
             }
 
             for t in transactionsToDelete {
-                LocalNotificationManager.shared.cancelNotification(for: t)
+                // IMPORTANTE: Salva l'ID PRIMA di eliminare
+                let tId = t.id
+                LocalNotificationManager.shared.cancelNotification(transactionId: tId)
                 modelContext.delete(t)
             }
 
@@ -206,13 +210,15 @@ class RecurringTransactionManager {
             print("   Deleted \(transactionsToDelete.count) future instances")
 
         case .all:
-            // Elimina tutte le istanze + template
+            // Elimina tutte le transazione + template
             let allRelated = allTransactions.filter {
                 $0.id == templateId || $0.parentRecurringTransactionId == templateId
             }
 
             for t in allRelated {
-                LocalNotificationManager.shared.cancelNotification(for: t)
+                // IMPORTANTE: Salva l'ID PRIMA di eliminare
+                let tId = t.id
+                LocalNotificationManager.shared.cancelNotification(transactionId: tId)
                 modelContext.delete(t)
             }
 

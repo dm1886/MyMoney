@@ -214,8 +214,11 @@ struct ScheduledTransactionRow: View {
     }
 
     private func deleteTransaction() {
+        // IMPORTANTE: Salva l'ID PRIMA di eliminare per evitare crash
+        let transactionId = transaction.id
+
         // Cancel notification when deleting scheduled transaction
-        LocalNotificationManager.shared.cancelNotification(for: transaction)
+        LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
 
         modelContext.delete(transaction)
         try? modelContext.save()

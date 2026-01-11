@@ -31,8 +31,9 @@ struct MoneyTrackerApp: App {
             Transaction.self,
             Category.self,
             CategoryGroup.self,
-            CurrencyRecord.self,    // NUOVO: Modello valute
-            ExchangeRate.self       // NUOVO: Modello tassi di cambio
+            CurrencyRecord.self,    // Modello valute
+            ExchangeRate.self,      // Modello tassi di cambio
+            Budget.self             // Modello budget
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -56,47 +57,52 @@ struct MoneyTrackerApp: App {
                 do {
                     try CurrencyMigrationManager.shared.performMigration(context: context)
                     print("✅ [App] Currency migration completed")
-
-                    // Auto-download rates on first launch (in background, non-blocking)
-                    Swift.print("🌐 [App] Starting automatic rate download on first launch...")
-
-                    DispatchQueue.global(qos: .utility).async {
-                        Swift.print("🔄 [App] Auto-download started - Thread: \(Thread.isMainThread ? "MAIN" : "BACKGROUND")")
-
-                        let backgroundContext = ModelContext(container)
-
-                        do {
-                            let semaphore = DispatchSemaphore(value: 0)
-                            var apiResponse: String?
-                            var apiError: Error?
-
-                            Task {
-                                do {
-                                    apiResponse = try await CurrencyAPIService.shared.fetchRawAPI(baseCurrency: "EUR")
-                                } catch {
-                                    apiError = error
-                                }
-                                semaphore.signal()
-                            }
-
-                            semaphore.wait()
-
-                            if let error = apiError {
-                                throw error
-                            }
-
-                            if let response = apiResponse {
-                                try CurrencyAPIService.shared.parseCurrency(jsonString: response, context: backgroundContext)
-                                Swift.print("✅ [App] Auto-download completed successfully")
-                            }
-                        } catch {
-                            Swift.print("⚠️ [App] Auto-download failed: \(error)")
-                        }
-                    }
                 } catch {
                     print("❌ [App] Currency migration failed: \(error)")
                     print("⚠️ [App] App will continue with legacy currency system")
                 }
+            }
+
+            // Download exchange rates only on first app launch
+            let isFirstLaunch = !UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
+            if isFirstLaunch {
+                print("🌐 [App] First launch detected - downloading exchange rates...")
+                UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
+
+                DispatchQueue.global(qos: .utility).async {
+                    let backgroundContext = ModelContext(container)
+
+                    do {
+                        let semaphore = DispatchSemaphore(value: 0)
+                        var apiResponse: String?
+                        var apiError: Error?
+
+                        Task {
+                            do {
+                                apiResponse = try await CurrencyAPIService.shared.fetchRawAPI(baseCurrency: "EUR")
+                            } catch {
+                                apiError = error
+                            }
+                            semaphore.signal()
+                        }
+
+                        semaphore.wait()
+
+                        if let error = apiError {
+                            throw error
+                        }
+
+                        if let response = apiResponse {
+                            try CurrencyAPIService.shared.parseCurrency(jsonString: response, context: backgroundContext)
+                            Swift.print("✅ [App] First launch exchange rates downloaded successfully")
+                        }
+                    } catch {
+                        Swift.print("⚠️ [App] First launch rate download failed: \(error)")
+                        Swift.print("   You can download rates manually from Settings")
+                    }
+                }
+            } else {
+                print("ℹ️ [App] Not first launch - skipping automatic rate download")
             }
 
             return container
@@ -110,6 +116,7 @@ struct MoneyTrackerApp: App {
             ContentView()
                 .environment(\.appSettings, appSettings)
                 .preferredColorScheme(appSettings.themeMode.colorScheme)
+                .tint(appSettings.accentColor)  // Applica accent color globalmente
                 .onAppear {
                     // Start transaction scheduler and check missed transactions
                     Task { @MainActor in
@@ -119,6 +126,16 @@ struct MoneyTrackerApp: App {
 
                         // Request notification permissions
                         _ = await LocalNotificationManager.shared.requestPermission()
+
+                        // Clean orphan notifications (notifications for deleted transactions)
+                        let descriptor = FetchDescriptor<Transaction>()
+                        if let allTransactions = try? sharedModelContainer.mainContext.fetch(descriptor) {
+                            let validIds = Set(allTransactions.map { $0.id })
+                            let orphanCount = await LocalNotificationManager.shared.cleanOrphanNotifications(validTransactionIds: validIds)
+                            if orphanCount > 0 {
+                                print("🧹 Cleaned \(orphanCount) orphan notification(s) on app launch")
+                            }
+                        }
 
                         TransactionScheduler.shared.startScheduler(container: sharedModelContainer)
 

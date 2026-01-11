@@ -67,6 +67,16 @@ final class AppSettings {
         }
     }
 
+    var accentColorHex: String = "#007AFF" {  // Default iOS blue
+        didSet {
+            UserDefaults.standard.set(accentColorHex, forKey: "accentColorHex")
+        }
+    }
+
+    var accentColor: Color {
+        Color(hex: accentColorHex) ?? .blue
+    }
+
     private init() {
         self.preferredCurrency = UserDefaults.standard.string(forKey: "preferredCurrency") ?? Currency.EUR.rawValue
 
@@ -82,6 +92,7 @@ final class AppSettings {
 
         self.isDarkMode = (themeMode == .dark)
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        self.accentColorHex = UserDefaults.standard.string(forKey: "accentColorHex") ?? "#007AFF"
     }
 
     var preferredCurrencyEnum: Currency {

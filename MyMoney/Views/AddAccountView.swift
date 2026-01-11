@@ -21,6 +21,7 @@ struct AddAccountView: View {
     @State private var selectedCurrency: Currency = .EUR  // DEPRECATED: Keep for backward compatibility
     @State private var selectedCurrencyRecord: CurrencyRecord?  // NUOVO: SwiftData currency
     @State private var initialBalance = ""
+    @State private var creditLimit = ""
     @State private var selectedIcon = "creditcard.fill"
     @State private var selectedColor = Color.blue
     @State private var accountDescription = ""
@@ -35,6 +36,17 @@ struct AddAccountView: View {
         "building.columns.fill", "chart.line.uptrend.xyaxis", "wallet.pass.fill",
         "briefcase.fill", "bag.fill", "cart.fill"
     ]
+
+    var balanceLabel: String {
+        switch selectedType {
+        case .creditCard, .liability:
+            return "Debito Iniziale"
+        case .asset:
+            return "Bilancio Iniziale"
+        case .payment, .cash:
+            return "Saldo Iniziale"
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -75,13 +87,26 @@ struct AddAccountView: View {
                     }
 
                     HStack {
-                        Text("Saldo Iniziale")
+                        Text(balanceLabel)
                         Spacer()
                         TextField("0.00", text: $initialBalance)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                         Text(selectedCurrencyRecord?.symbol ?? "€")
                             .foregroundStyle(.secondary)
+                    }
+
+                    // Credit limit field (only for credit cards)
+                    if selectedType == .creditCard {
+                        HStack {
+                            Text("Limite Massimo")
+                            Spacer()
+                            TextField("0.00", text: $creditLimit)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                            Text(selectedCurrencyRecord?.symbol ?? "€")
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
@@ -159,16 +184,28 @@ struct AddAccountView: View {
     }
 
     private func saveAccount() {
-        let balance = Decimal(string: initialBalance.replacingOccurrences(of: ",", with: ".")) ?? 0
+        var balance = Decimal(string: initialBalance.replacingOccurrences(of: ",", with: ".")) ?? 0
+
+        // For credit cards and liabilities, debt is stored as negative
+        if selectedType == .creditCard || selectedType == .liability {
+            balance = -abs(balance)
+        }
 
         // Use selected currency or default to EUR
         let currencyToUse = selectedCurrencyRecord ?? allCurrencies.first { $0.code == "EUR" }
+
+        // Parse credit limit (only for credit cards)
+        var limit: Decimal? = nil
+        if selectedType == .creditCard {
+            limit = Decimal(string: creditLimit.replacingOccurrences(of: ",", with: "."))
+        }
 
         let account = Account(
             name: name,
             accountType: selectedType,
             currency: Currency(rawValue: currencyToUse?.code ?? "EUR") ?? .EUR,  // Enum for compatibility
             initialBalance: balance,
+            creditLimit: limit,
             icon: selectedIcon,
             colorHex: selectedColor.toHex() ?? "#007AFF",
             imageData: photoData,

@@ -22,6 +22,44 @@ struct BalanceView: View {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
     }
 
+    // Group accounts by type
+    var cashAccounts: [Account] {
+        accounts.filter { $0.accountType == .cash }
+    }
+
+    var paymentAccounts: [Account] {
+        accounts.filter { $0.accountType == .payment }
+    }
+
+    var creditCardAccounts: [Account] {
+        accounts.filter { $0.accountType == .creditCard }
+    }
+
+    var assetAccounts: [Account] {
+        accounts.filter { $0.accountType == .asset }
+    }
+
+    var liabilityAccounts: [Account] {
+        accounts.filter { $0.accountType == .liability }
+    }
+
+    // Calculate section totals
+    func sectionTotal(for accounts: [Account]) -> Decimal {
+        guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
+
+        return accounts.reduce(Decimal(0)) { sum, account in
+            guard let accountCurrency = account.currencyRecord else { return sum }
+            let accountBalance = calculateAccountBalance(account)
+            let convertedBalance = CurrencyService.shared.convert(
+                amount: accountBalance,
+                from: accountCurrency,
+                to: preferredCurrency,
+                context: modelContext
+            )
+            return sum + convertedBalance
+        }
+    }
+
     var totalBalance: Decimal {
         guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
 
@@ -131,18 +169,77 @@ struct BalanceView: View {
                                 .padding(.vertical, 60)
                                 .frame(maxWidth: .infinity)
                             } else {
-                                ForEach(accounts) { account in
-                                    NavigationLink(destination: AccountDetailView(account: account)) {
-                                        AccountRow(
-                                            account: account,
-                                            preferredCurrency: appSettings.preferredCurrencyEnum,
-                                            preferredCurrencyRecord: preferredCurrencyRecord,
-                                            exchangeRatesCount: exchangeRates.count
-                                        )
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
+                                // Contanti Section
+                                if !cashAccounts.isEmpty {
+                                    AccountSection(
+                                        title: "Contanti",
+                                        icon: "banknote.fill",
+                                        color: .green,
+                                        accounts: cashAccounts,
+                                        total: sectionTotal(for: cashAccounts),
+                                        preferredCurrency: appSettings.preferredCurrencyEnum,
+                                        preferredCurrencyRecord: preferredCurrencyRecord,
+                                        exchangeRatesCount: exchangeRates.count
+                                    )
                                 }
-                                .padding(.horizontal)
+
+                                // Pagamento Section
+                                if !paymentAccounts.isEmpty {
+                                    AccountSection(
+                                        title: "Pagamento",
+                                        icon: "creditcard.fill",
+                                        color: .blue,
+                                        accounts: paymentAccounts,
+                                        total: sectionTotal(for: paymentAccounts),
+                                        preferredCurrency: appSettings.preferredCurrencyEnum,
+                                        preferredCurrencyRecord: preferredCurrencyRecord,
+                                        exchangeRatesCount: exchangeRates.count
+                                    )
+                                }
+
+                                // Attività Section
+                                if !assetAccounts.isEmpty {
+                                    AccountSection(
+                                        title: "Attività",
+                                        icon: "building.columns.fill",
+                                        color: .purple,
+                                        accounts: assetAccounts,
+                                        total: sectionTotal(for: assetAccounts),
+                                        preferredCurrency: appSettings.preferredCurrencyEnum,
+                                        preferredCurrencyRecord: preferredCurrencyRecord,
+                                        exchangeRatesCount: exchangeRates.count
+                                    )
+                                }
+
+                                // Carta di Credito Section
+                                if !creditCardAccounts.isEmpty {
+                                    AccountSection(
+                                        title: "Carta di Credito",
+                                        icon: "creditcard.fill",
+                                        color: .orange,
+                                        accounts: creditCardAccounts,
+                                        total: sectionTotal(for: creditCardAccounts),
+                                        preferredCurrency: appSettings.preferredCurrencyEnum,
+                                        preferredCurrencyRecord: preferredCurrencyRecord,
+                                        exchangeRatesCount: exchangeRates.count,
+                                        isDebt: true
+                                    )
+                                }
+
+                                // Passività Section
+                                if !liabilityAccounts.isEmpty {
+                                    AccountSection(
+                                        title: "Passività",
+                                        icon: "chart.line.downtrend.xyaxis",
+                                        color: .red,
+                                        accounts: liabilityAccounts,
+                                        total: sectionTotal(for: liabilityAccounts),
+                                        preferredCurrency: appSettings.preferredCurrencyEnum,
+                                        preferredCurrencyRecord: preferredCurrencyRecord,
+                                        exchangeRatesCount: exchangeRates.count,
+                                        isDebt: true
+                                    )
+                                }
                             }
                         }
 
@@ -152,7 +249,7 @@ struct BalanceView: View {
                 }
             }
             .navigationTitle("Bilancio")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -202,13 +299,26 @@ struct AccountRow: View {
             context: modelContext
         )
 
+        // For credit cards and liabilities, show absolute value (debts are stored as negative)
+        let displayAmount = (account.accountType == .creditCard || account.accountType == .liability) ? abs(convertedBalance) : convertedBalance
+
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
 
-        let amountString = formatter.string(from: convertedBalance as NSDecimalNumber) ?? "0.00"
+        let amountString = formatter.string(from: displayAmount as NSDecimalNumber) ?? "0.00"
         return "\(preferredCurrency.symbol)\(amountString)"
+    }
+
+    private func balanceColor(for balance: Decimal) -> Color {
+        if account.accountType == .creditCard || account.accountType == .liability {
+            // For debts, negative (debt exists) is red, zero/positive is green
+            return balance < 0 ? .red : .green
+        } else {
+            // For normal accounts, negative is red, positive is primary
+            return balance < 0 ? .red : .primary
+        }
     }
 
     private func calculateBalance(for account: Account) -> Decimal {
@@ -308,12 +418,13 @@ struct AccountRow: View {
             VStack(alignment: .trailing, spacing: 4) {
                 Text(displayBalance(for: balance))
                     .font(.body.bold())
-                    .foregroundStyle(balance < 0 ? .red : .primary)
+                    .foregroundStyle(balanceColor(for: balance))
 
                 if account.currency != preferredCurrency {
-                    Text("\(account.currency.symbol)\(formatDecimal(balance))")
+                    let displayedBalance = (account.accountType == .creditCard || account.accountType == .liability) ? abs(balance) : balance
+                    Text("\(account.currency.symbol)\(formatDecimal(displayedBalance))")
                         .font(.caption)
-                        .foregroundStyle(balance < 0 ? .red : .secondary)
+                        .foregroundStyle(balanceColor(for: balance))
                 }
             }
 
@@ -335,6 +446,78 @@ struct AccountRow: View {
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
         return formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
+    }
+}
+
+// MARK: - Account Section View
+
+struct AccountSection: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let accounts: [Account]
+    let total: Decimal
+    let preferredCurrency: Currency
+    let preferredCurrencyRecord: CurrencyRecord?
+    let exchangeRatesCount: Int
+    var isDebt: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Section Header with Total
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: icon)
+                        .foregroundStyle(color)
+                        .font(.title3)
+
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                }
+
+                Spacer()
+
+                // Section Total
+                Text(formatSectionTotal(total))
+                    .font(.subheadline.bold())
+                    .foregroundStyle(total < 0 ? .red : color)
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+
+            // Accounts in this section
+            ForEach(accounts) { account in
+                NavigationLink(destination: AccountDetailView(account: account)) {
+                    AccountRow(
+                        account: account,
+                        preferredCurrency: preferredCurrency,
+                        preferredCurrencyRecord: preferredCurrencyRecord,
+                        exchangeRatesCount: exchangeRatesCount
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            .padding(.horizontal)
+        }
+        .padding(.vertical, 8)
+    }
+
+    private func formatSectionTotal(_ amount: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+
+        // For debts, show as positive in UI but with indicator
+        let displayAmount = isDebt ? abs(amount) : amount
+        let amountString = formatter.string(from: displayAmount as NSDecimalNumber) ?? "0.00"
+
+        if isDebt {
+            return "-\(preferredCurrency.symbol)\(amountString)"
+        } else {
+            return "\(preferredCurrency.symbol)\(amountString)"
+        }
     }
 }
 

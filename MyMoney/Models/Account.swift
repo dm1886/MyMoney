@@ -18,6 +18,7 @@ final class Account {
     var currencyRecord: CurrencyRecord?  // NUOVO: SwiftData relationship
     var initialBalance: Decimal
     var currentBalance: Decimal
+    var creditLimit: Decimal?            // For credit card accounts
     var icon: String
     var colorHex: String
     var imageData: Data?
@@ -38,6 +39,7 @@ final class Account {
         accountType: AccountType,
         currency: Currency,
         initialBalance: Decimal = 0,
+        creditLimit: Decimal? = nil,
         icon: String = "creditcard.fill",
         colorHex: String = "#007AFF",
         imageData: Data? = nil,
@@ -49,6 +51,7 @@ final class Account {
         self.currency = currency
         self.initialBalance = initialBalance
         self.currentBalance = initialBalance
+        self.creditLimit = creditLimit
         self.icon = icon
         self.colorHex = colorHex
         self.imageData = imageData

@@ -22,6 +22,7 @@ struct SettingsView: View {
     @State private var showingDeleteScheduledAlert = false
     @State private var updateManager = CurrencyUpdateManager()
     @State private var selectedPreferredCurrency: CurrencyRecord?
+    @State private var orphanNotificationsCount: Int?
 
     var pendingTransactionsCount: Int {
         transactions.filter { $0.status == .pending && $0.isScheduled }.count
@@ -85,6 +86,64 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("Valuta")
+                }
+
+                // MARK: - Accent Color Section
+                Section {
+                    NavigationLink {
+                        AccentColorPickerView()
+                    } label: {
+                        HStack {
+                            Text("Colore Principale")
+                                .foregroundStyle(.primary)
+
+                            Spacer()
+
+                            Circle()
+                                .fill(appSettings.accentColor)
+                                .frame(width: 24, height: 24)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color(.systemGray4), lineWidth: 1)
+                                )
+                        }
+                    }
+                } header: {
+                    Text("Personalizzazione")
+                } footer: {
+                    Text("Scegli il colore principale dell'app. Verrà applicato a tutti gli elementi dell'interfaccia.")
+                }
+
+                Section {
+                    NavigationLink(destination: BudgetListView()) {
+                        HStack {
+                            Image(systemName: "chart.pie.fill")
+                                .foregroundStyle(.green)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Budget")
+                                Text("Gestisci i tuoi budget per categoria")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
+                    NavigationLink(destination: RecurringExpensesView()) {
+                        HStack {
+                            Image(systemName: "arrow.clockwise.circle.fill")
+                                .foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Spese Ricorrenti")
+                                Text("Categorie utilizzate frequentemente")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Monitoraggio Spese")
+                } footer: {
+                    Text("Imposta budget per le categorie e monitora le spese ricorrenti per un migliore controllo delle tue finanze.")
                 }
 
                 Section {
@@ -333,6 +392,41 @@ struct SettingsView: View {
                     }
                     .disabled(scheduledTransactionsCount == 0)
 
+                    NavigationLink {
+                        DatabaseDebugView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "ladybug")
+                                .foregroundStyle(.purple)
+                            Text("Database Debug")
+                            Spacer()
+                        }
+                    }
+
+                    Button {
+                        cleanOrphanNotifications()
+                    } label: {
+                        HStack {
+                            Image(systemName: "bell.slash")
+                                .foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Pulisci Notifiche Orfane")
+                                Text("Rimuovi notifiche per transazioni eliminate")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if let count = orphanNotificationsCount, count > 0 {
+                                Text("\(count)")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.orange))
+                            }
+                        }
+                    }
+
                     Button(role: .destructive) {
                         showingDeleteAllAlert = true
                     } label: {
@@ -345,7 +439,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Zona Pericolosa")
                 } footer: {
-                    Text("Le transazioni ricorrenti includono template e tutte le istanze generate. Le transazioni programmate sono tutte quelle in attesa. 'Elimina Tutti i Dati' rimuoverà conti, transazioni e categorie.")
+                    Text("Le transazioni ricorrenti includono template e tutte le transazioni generate. Le transazioni programmate sono tutte quelle in attesa. 'Elimina Tutti i Dati' rimuoverà conti, transazioni e categorie.")
                 }
             }
             .navigationTitle("Impostazioni")
@@ -356,7 +450,7 @@ struct SettingsView: View {
                     deleteAllRecurringTransactions()
                 }
             } message: {
-                Text("Sei sicuro di voler eliminare tutte le \(recurringTransactionsCount) transazioni ricorrenti (template e istanze)? Questa operazione non può essere annullata.")
+                Text("Sei sicuro di voler eliminare tutte le \(recurringTransactionsCount) transazioni ricorrenti (template e transazioni)? Questa operazione non può essere annullata.")
             }
             .alert("Elimina Transazioni Programmate", isPresented: $showingDeleteScheduledAlert) {
                 Button("Annulla", role: .cancel) { }
@@ -445,8 +539,12 @@ struct SettingsView: View {
 
         // Cancel notifications and delete
         for transaction in recurringTransactions {
-            if transaction.isScheduled {
-                LocalNotificationManager.shared.cancelNotification(for: transaction)
+            // IMPORTANTE: Salva l'ID PRIMA di operare
+            let transactionId = transaction.id
+            let isScheduled = transaction.isScheduled
+
+            if isScheduled {
+                LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
             }
             modelContext.delete(transaction)
         }
@@ -476,7 +574,9 @@ struct SettingsView: View {
 
         // Cancel notifications and delete
         for transaction in scheduledTransactions {
-            LocalNotificationManager.shared.cancelNotification(for: transaction)
+            // IMPORTANTE: Salva l'ID PRIMA di eliminare
+            let transactionId = transaction.id
+            LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
             modelContext.delete(transaction)
         }
 
@@ -494,6 +594,15 @@ struct SettingsView: View {
     }
 
     private func deleteAllData() {
+        // IMPORTANTE: Cancella tutte le notifiche PRIMA di eliminare le transazioni
+        print("🔔 [DEBUG] Cancelling all notifications before deleting data...")
+        for transaction in transactions {
+            if transaction.isScheduled {
+                LocalNotificationManager.shared.cancelNotification(transactionId: transaction.id)
+            }
+        }
+        print("   ✅ All notifications cancelled")
+
         for transaction in transactions {
             modelContext.delete(transaction)
         }
@@ -514,6 +623,15 @@ struct SettingsView: View {
 
         DefaultDataManager.createDefaultCategories(context: modelContext)
         try? modelContext.save()
+    }
+
+    private func cleanOrphanNotifications() {
+        Task {
+            let validIds = Set(transactions.map { $0.id })
+            let count = await LocalNotificationManager.shared.cleanOrphanNotifications(validTransactionIds: validIds)
+            orphanNotificationsCount = count
+            print("🧹 Cleaned \(count) orphan notification(s)")
+        }
     }
 }
 
