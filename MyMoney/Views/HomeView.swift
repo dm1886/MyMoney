@@ -171,9 +171,6 @@ struct HomeView: View {
                                 }
 
                                 Spacer()
-
-                                Image(systemName: "chevron.right")
-                                    .foregroundStyle(.tertiary)
                             }
                             .padding()
                             .background(

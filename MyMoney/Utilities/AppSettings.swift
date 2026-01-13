@@ -77,6 +77,18 @@ final class AppSettings {
         Color(hex: accentColorHex) ?? .blue
     }
 
+    var recurringDetectionEnabled: Bool = false {
+        didSet {
+            UserDefaults.standard.set(recurringDetectionEnabled, forKey: "recurringDetectionEnabled")
+        }
+    }
+
+    var recurringDetectionDays: Int = 5 {
+        didSet {
+            UserDefaults.standard.set(recurringDetectionDays, forKey: "recurringDetectionDays")
+        }
+    }
+
     private init() {
         self.preferredCurrency = UserDefaults.standard.string(forKey: "preferredCurrency") ?? Currency.EUR.rawValue
 
@@ -93,6 +105,11 @@ final class AppSettings {
         self.isDarkMode = (themeMode == .dark)
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         self.accentColorHex = UserDefaults.standard.string(forKey: "accentColorHex") ?? "#007AFF"
+        self.recurringDetectionEnabled = UserDefaults.standard.bool(forKey: "recurringDetectionEnabled")
+        self.recurringDetectionDays = UserDefaults.standard.integer(forKey: "recurringDetectionDays")
+        if self.recurringDetectionDays == 0 {
+            self.recurringDetectionDays = 5  // Default to 5 days
+        }
     }
 
     var preferredCurrencyEnum: Currency {

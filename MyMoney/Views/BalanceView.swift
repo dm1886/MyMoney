@@ -17,6 +17,8 @@ struct BalanceView: View {
     @Query private var transactions: [Transaction]    // Per aggiornamenti reattivi quando transazioni cambiano
 
     @State private var showingAddAccount = false
+    @State private var isEditMode = false
+    @State private var accountOrder: [Account] = []
 
     var preferredCurrencyRecord: CurrencyRecord? {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
@@ -179,7 +181,8 @@ struct BalanceView: View {
                                         total: sectionTotal(for: cashAccounts),
                                         preferredCurrency: appSettings.preferredCurrencyEnum,
                                         preferredCurrencyRecord: preferredCurrencyRecord,
-                                        exchangeRatesCount: exchangeRates.count
+                                        exchangeRatesCount: exchangeRates.count,
+                                        isEditMode: isEditMode
                                     )
                                 }
 
@@ -193,7 +196,8 @@ struct BalanceView: View {
                                         total: sectionTotal(for: paymentAccounts),
                                         preferredCurrency: appSettings.preferredCurrencyEnum,
                                         preferredCurrencyRecord: preferredCurrencyRecord,
-                                        exchangeRatesCount: exchangeRates.count
+                                        exchangeRatesCount: exchangeRates.count,
+                                        isEditMode: isEditMode
                                     )
                                 }
 
@@ -207,7 +211,8 @@ struct BalanceView: View {
                                         total: sectionTotal(for: assetAccounts),
                                         preferredCurrency: appSettings.preferredCurrencyEnum,
                                         preferredCurrencyRecord: preferredCurrencyRecord,
-                                        exchangeRatesCount: exchangeRates.count
+                                        exchangeRatesCount: exchangeRates.count,
+                                        isEditMode: isEditMode
                                     )
                                 }
 
@@ -222,7 +227,8 @@ struct BalanceView: View {
                                         preferredCurrency: appSettings.preferredCurrencyEnum,
                                         preferredCurrencyRecord: preferredCurrencyRecord,
                                         exchangeRatesCount: exchangeRates.count,
-                                        isDebt: true
+                                        isDebt: true,
+                                        isEditMode: isEditMode
                                     )
                                 }
 
@@ -237,7 +243,8 @@ struct BalanceView: View {
                                         preferredCurrency: appSettings.preferredCurrencyEnum,
                                         preferredCurrencyRecord: preferredCurrencyRecord,
                                         exchangeRatesCount: exchangeRates.count,
-                                        isDebt: true
+                                        isDebt: true,
+                                        isEditMode: isEditMode
                                     )
                                 }
                             }
@@ -252,11 +259,22 @@ struct BalanceView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showingAddAccount = true
+                    Menu {
+                        Button {
+                            showingAddAccount = true
+                        } label: {
+                            Label("Aggiungi Conto", systemImage: "plus.circle")
+                        }
+
+                        Button {
+                            isEditMode.toggle()
+                        } label: {
+                            Label(isEditMode ? "Fine" : "Modifica Ordine", systemImage: isEditMode ? "checkmark.circle" : "arrow.up.arrow.down.circle")
+                        }
                     } label: {
-                        Image(systemName: "plus.circle.fill")
+                        Image(systemName: isEditMode ? "checkmark.circle.fill" : "plus.circle.fill")
                             .font(.title3)
+                            .foregroundStyle(isEditMode ? .green : appSettings.accentColor)
                     }
                 }
             }
@@ -273,7 +291,7 @@ struct BalanceView: View {
         formatter.maximumFractionDigits = 2
 
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
-        return "\(appSettings.preferredCurrencyEnum.symbol)\(amountString)"
+        return "\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
     }
 }
 
@@ -289,7 +307,7 @@ struct AccountRow: View {
     private func displayBalance(for accountBalance: Decimal) -> String {
         guard let accountCurrency = account.currencyRecord,
               let preferredCurr = preferredCurrencyRecord else {
-            return "\(preferredCurrency.symbol)0.00"
+            return "\(preferredCurrency.rawValue) 0.00"
         }
 
         let convertedBalance = CurrencyService.shared.convert(
@@ -308,7 +326,7 @@ struct AccountRow: View {
         formatter.maximumFractionDigits = 2
 
         let amountString = formatter.string(from: displayAmount as NSDecimalNumber) ?? "0.00"
-        return "\(preferredCurrency.symbol)\(amountString)"
+        return "\(preferredCurrency.rawValue) \(amountString)"
     }
 
     private func balanceColor(for balance: Decimal) -> Color {
@@ -362,13 +380,13 @@ struct AccountRow: View {
     var body: some View {
         let balance = calculateBalance(for: account)
 
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             // Mostra immagine personalizzata se esiste, altrimenti icona
             if let imageData = account.imageData, let uiImage = UIImage(data: imageData) {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 50, height: 50)
+                    .frame(width: 44, height: 44)
                     .clipShape(Circle())
                     .overlay(
                         Circle()
@@ -378,35 +396,18 @@ struct AccountRow: View {
                 ZStack {
                     Circle()
                         .fill(account.color.opacity(0.2))
-                        .frame(width: 50, height: 50)
+                        .frame(width: 44, height: 44)
 
                     Image(systemName: account.icon)
-                        .font(.title3)
+                        .font(.system(size: 18))
                         .foregroundStyle(account.color)
                 }
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(account.name)
-                        .font(.body.bold())
-                        .foregroundStyle(.primary)
-
-                    // Currency badge
-                    if let accountCurrency = account.currencyRecord {
-                        Text(accountCurrency.flagEmoji)
-                            .font(.caption)
-                        Text(accountCurrency.code)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 2)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color(.systemGray6))
-                            )
-                    }
-                }
+                Text(account.name)
+                    .font(.body)
+                    .foregroundStyle(.primary)
 
                 Text(account.accountType.rawValue)
                     .font(.caption)
@@ -417,27 +418,17 @@ struct AccountRow: View {
 
             VStack(alignment: .trailing, spacing: 4) {
                 Text(displayBalance(for: balance))
-                    .font(.body.bold())
+                    .font(.body)
                     .foregroundStyle(balanceColor(for: balance))
 
                 if account.currency != preferredCurrency {
                     let displayedBalance = (account.accountType == .creditCard || account.accountType == .liability) ? abs(balance) : balance
-                    Text("\(account.currency.symbol)\(formatDecimal(displayedBalance))")
+                    Text("\(account.currency.rawValue) \(formatDecimal(displayedBalance))")
                         .font(.caption)
                         .foregroundStyle(balanceColor(for: balance))
                 }
             }
-
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
-        )
     }
 
     private func formatDecimal(_ amount: Decimal) -> String {
@@ -452,6 +443,8 @@ struct AccountRow: View {
 // MARK: - Account Section View
 
 struct AccountSection: View {
+    @Environment(\.modelContext) private var modelContext
+
     let title: String
     let icon: String
     let color: Color
@@ -461,6 +454,9 @@ struct AccountSection: View {
     let preferredCurrencyRecord: CurrencyRecord?
     let exchangeRatesCount: Int
     var isDebt: Bool = false
+    var isEditMode: Bool = false
+
+    @State private var localAccounts: [Account] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -487,20 +483,50 @@ struct AccountSection: View {
             .padding(.top, 8)
 
             // Accounts in this section
-            ForEach(accounts) { account in
-                NavigationLink(destination: AccountDetailView(account: account)) {
-                    AccountRow(
-                        account: account,
-                        preferredCurrency: preferredCurrency,
-                        preferredCurrencyRecord: preferredCurrencyRecord,
-                        exchangeRatesCount: exchangeRatesCount
-                    )
+            VStack(spacing: 8) {
+                ForEach(localAccounts) { account in
+                    if isEditMode {
+                        HStack {
+                            Image(systemName: "line.3.horizontal")
+                                .foregroundStyle(.secondary)
+                                .padding(.leading)
+
+                            NavigationLink(destination: AccountDetailView(account: account)) {
+                                AccountRow(
+                                    account: account,
+                                    preferredCurrency: preferredCurrency,
+                                    preferredCurrencyRecord: preferredCurrencyRecord,
+                                    exchangeRatesCount: exchangeRatesCount
+                                )
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    } else {
+                        NavigationLink(destination: AccountDetailView(account: account)) {
+                            AccountRow(
+                                account: account,
+                                preferredCurrency: preferredCurrency,
+                                preferredCurrencyRecord: preferredCurrencyRecord,
+                                exchangeRatesCount: exchangeRatesCount
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
                 }
-                .buttonStyle(PlainButtonStyle())
+                .onMove { source, destination in
+                    localAccounts.move(fromOffsets: source, toOffset: destination)
+                }
             }
-            .padding(.horizontal)
         }
         .padding(.vertical, 8)
+        .onAppear {
+            localAccounts = accounts
+        }
+        .onChange(of: accounts) { _, newAccounts in
+            if !isEditMode {
+                localAccounts = newAccounts
+            }
+        }
     }
 
     private func formatSectionTotal(_ amount: Decimal) -> String {
@@ -514,9 +540,9 @@ struct AccountSection: View {
         let amountString = formatter.string(from: displayAmount as NSDecimalNumber) ?? "0.00"
 
         if isDebt {
-            return "-\(preferredCurrency.symbol)\(amountString)"
+            return "-\(preferredCurrency.rawValue) \(amountString)"
         } else {
-            return "\(preferredCurrency.symbol)\(amountString)"
+            return "\(preferredCurrency.rawValue) \(amountString)"
         }
     }
 }

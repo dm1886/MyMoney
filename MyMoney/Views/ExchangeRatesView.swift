@@ -52,10 +52,6 @@ struct ExchangeRatesView: View {
                             Text("Seleziona")
                                 .foregroundStyle(.secondary)
                         }
-
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
                     }
                 }
 
@@ -78,10 +74,6 @@ struct ExchangeRatesView: View {
                             Text("Seleziona")
                                 .foregroundStyle(.secondary)
                         }
-
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
                     }
                 }
             } header: {

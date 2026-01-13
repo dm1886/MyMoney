@@ -17,6 +17,7 @@ struct CategoryPickerView: View {
     let transactionType: TransactionType
 
     @State private var showingNewCategorySheet = false
+    @State private var showingNewGroupSheet = false
     @State private var searchText = ""
     @State private var selectedCategoryForDetail: Category?
 
@@ -101,6 +102,16 @@ struct CategoryPickerView: View {
                             Text("Nuova Categoria")
                         }
                     }
+
+                    Button {
+                        showingNewGroupSheet = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "folder.badge.plus")
+                                .foregroundStyle(.green)
+                            Text("Nuovo Gruppo")
+                        }
+                    }
                 }
             }
             .searchable(text: $searchText, prompt: "Cerca categoria")
@@ -115,6 +126,9 @@ struct CategoryPickerView: View {
             }
             .sheet(isPresented: $showingNewCategorySheet) {
                 AddCategoryView(preselectedGroup: nil)
+            }
+            .sheet(isPresented: $showingNewGroupSheet) {
+                AddCategoryGroupView()
             }
             .sheet(item: $selectedCategoryForDetail) { category in
                 NavigationStack {

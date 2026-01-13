@@ -169,10 +169,6 @@ struct EditTransactionView: View {
                                 Text("Seleziona")
                                     .foregroundStyle(.secondary)
                             }
-
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
                         }
                     }
                 }

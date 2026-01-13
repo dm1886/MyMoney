@@ -33,15 +33,15 @@ struct ContentView: View {
                     }
                     .tag(2)
 
-                CategoriesView()
+                ResocontoView()
                     .tabItem {
-                        Label("Categorie", systemImage: "folder.fill")
+                        Label("Resoconto", systemImage: "chart.bar.doc.horizontal")
                     }
                     .tag(3)
 
                 SettingsView()
                     .tabItem {
-                        Label("Impostazioni", systemImage: "gearshape.fill")
+                        Label("More", systemImage: "ellipsis")
                     }
                     .tag(4)
             }

@@ -22,6 +22,7 @@ struct TodayView: View {
     @State private var showingCalendar = false
     @State private var transactionToDelete: Transaction?
     @State private var showingDeleteRecurringAlert = false
+    @State private var detectedPatterns: [DetectedRecurringPattern] = []
 
     var preferredCurrencyRecord: CurrencyRecord? {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
@@ -159,29 +160,58 @@ struct TodayView: View {
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
-        return "\(appSettings.preferredCurrencyEnum.symbol)\(amountString)"
+        return "\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
+    }
+
+    private func updateDetectedPatterns() {
+        if appSettings.recurringDetectionEnabled {
+            detectedPatterns = RecurringPatternDetector.shared.detectRecurringPatterns(
+                from: transactions,
+                daysThreshold: appSettings.recurringDetectionDays
+            )
+        } else {
+            detectedPatterns = []
+        }
+    }
+
+    private func confirmRecurringPattern(_ pattern: DetectedRecurringPattern) {
+        _ = RecurringPatternDetector.shared.createTransactionFromPattern(
+            pattern,
+            modelContext: modelContext
+        )
+
+        try? modelContext.save()
+
+        // Remove the pattern from the detected list immediately
+        detectedPatterns.removeAll { $0.id == pattern.id }
+
+        // Then update the full list
+        updateDetectedPatterns()
     }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // HEADER CON DATA
-                dateHeader
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                    .padding(.bottom, 12)
-                    .background(Color(.systemBackground))
+                // BOX CONTENENTE DATA E CALENDARIO
+                VStack(spacing: 0) {
+                    // HEADER CON DATA
+                    dateHeader
+                        .padding()
 
-                // CALENDARIO ESPANDIBILE
-                if showingCalendar {
-                    calendarView
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                        .padding(.horizontal)
-                        .padding(.bottom, 12)
-                        .background(Color(.systemBackground))
+                    // CALENDARIO ESPANDIBILE
+                    if showingCalendar {
+                        calendarView
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                            .padding(.horizontal)
+                            .padding(.bottom, 12)
+                    }
                 }
-
-                Divider()
+                .background(Color(.systemBackground))
+                .cornerRadius(16)
+                .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
+                .padding(.horizontal)
+                .padding(.top, 12)
+                .padding(.bottom, 16)
 
                 // LISTA TRANSAZIONI
                 if allTransactions.isEmpty {
@@ -192,6 +222,21 @@ struct TodayView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationBarTitleDisplayMode(.inline)
+
+            
+            //-------------------
+            .onAppear {
+                updateDetectedPatterns()
+            }
+            .onChange(of: transactions) { _, _ in
+                updateDetectedPatterns()
+            }
+            .onChange(of: appSettings.recurringDetectionEnabled) { _, _ in
+                updateDetectedPatterns()
+            }
+            .onChange(of: appSettings.recurringDetectionDays) { _, _ in
+                updateDetectedPatterns()
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -295,7 +340,7 @@ struct TodayView: View {
                         .foregroundStyle(appSettings.accentColor)
                 }
             }
-            .padding(.horizontal)
+//            .padding(.horizontal)
 
             // Grid calendario
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
@@ -338,7 +383,7 @@ struct TodayView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
-            .padding(.horizontal)
+//            .padding(.horizontal)
         }
         .padding(.vertical, 12)
         .background(
@@ -439,6 +484,79 @@ struct TodayView: View {
 
     private var transactionsList: some View {
         List {
+            // Sezione RICORRENTI RILEVATE
+            if !detectedPatterns.isEmpty && appSettings.recurringDetectionEnabled {
+                Section {
+                    ForEach(detectedPatterns) { pattern in
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(pattern.category.color.opacity(0.2))
+                                    .frame(width: 44, height: 44)
+
+                                Image(systemName: pattern.category.icon)
+                                    .foregroundStyle(pattern.category.color)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(pattern.category.name)
+                                    .font(.body)
+
+                                HStack(spacing: 4) {
+                                    Text("Ripetuta \(pattern.occurrences) volte")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text("•")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text(pattern.account.name)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            Spacer()
+
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(formatAmount(pattern.averageAmount))
+                                    .font(.body.bold())
+
+                                Button {
+                                    confirmRecurringPattern(pattern)
+                                } label: {
+                                    Text("Conferma")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(
+                                            Capsule()
+                                                .fill(appSettings.accentColor)
+                                        )
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } header: {
+                    HStack {
+                        HStack(spacing: 6) {
+                            Image(systemName: "repeat.circle.fill")
+                                .foregroundStyle(.purple)
+                            Text("Ricorrenti Suggerite")
+                                .foregroundStyle(.primary)
+                        }
+                        Spacer()
+                    }
+                    .font(.subheadline.bold())
+                    .textCase(nil)
+//                    .padding(.horizontal, 16)
+                } footer: {
+                    Text("Queste transazioni sono state rilevate come ricorrenti negli ultimi \(appSettings.recurringDetectionDays) giorni. Premi 'Conferma' per registrarle.")
+//                        .padding(.horizontal, 16)
+                }
+            }
+
             // Sezione PREVISTE (automatiche)
             if !previsteTransactions.isEmpty {
                 Section {
@@ -456,7 +574,6 @@ struct TodayView: View {
                             }
                         }
                     }
-                    .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16))
                 } header: {
                     HStack {
                         HStack(spacing: 6) {
@@ -471,6 +588,7 @@ struct TodayView: View {
                     }
                     .font(.subheadline.bold())
                     .textCase(nil)
+//                    .padding(.horizontal, 16)
                 }
             }
 
@@ -491,7 +609,6 @@ struct TodayView: View {
                             }
                         }
                     }
-                    .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16))
                 } header: {
                     HStack {
                         HStack(spacing: 6) {
@@ -506,6 +623,7 @@ struct TodayView: View {
                     }
                     .font(.subheadline.bold())
                     .textCase(nil)
+//                    .padding(.horizontal, 16)
                 }
             }
 
@@ -526,7 +644,6 @@ struct TodayView: View {
                             }
                         }
                     }
-                    .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16))
                 } header: {
                     HStack {
                         HStack(spacing: 6) {
@@ -541,10 +658,11 @@ struct TodayView: View {
                     }
                     .font(.subheadline.bold())
                     .textCase(nil)
+//                    .padding(.horizontal, 16)
                 }
             }
         }
-        .listStyle(.plain)
+//        .listStyle(.plain)
     }
 
     // MARK: - Empty State
@@ -666,12 +784,12 @@ struct TransactionRowView: View {
                     .frame(width: 44, height: 44)
 
                 Image(systemName: transaction.category?.icon ?? defaultIcon)
-                    .font(.title3)
+                    .font(.system(size: 18))
                     .foregroundStyle(iconColor)
             }
 
             // Info
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(transaction.category?.name ?? transaction.transactionType.rawValue)
                     .font(.body)
                     .foregroundStyle(.primary)
@@ -699,18 +817,9 @@ struct TransactionRowView: View {
 
             // Amount
             Text(transaction.displayAmount)
-                .font(.body.bold())
-                .foregroundStyle(amountColor)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(amountBackgroundColor)
-                )
+                .font(.body)
+                .foregroundStyle(.primary)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 6)
-        .background(Color(.systemBackground))
     }
 
     private var iconBackgroundColor: Color {
@@ -744,15 +853,28 @@ struct TransactionRowView: View {
     }
 
     private var amountBackgroundColor: Color {
-        if transaction.transactionType == .expense {
-            // Usa un giallo più scuro e meno saturo in dark mode
-            if colorScheme == .dark {
-                return Color(hex: "#8B7508") ?? .yellow.opacity(0.4)
-            } else {
-                return Color(hex: "#FFD60A") ?? .yellow
-            }
-        } else {
-            return Color(.secondarySystemGroupedBackground)
+        switch transaction.transactionType {
+        case .expense:
+            return .red.opacity(0.15)
+        case .income:
+            return .green.opacity(0.15)
+        case .transfer:
+            return .blue.opacity(0.15)
+        case .adjustment:
+            return .orange.opacity(0.15)
+        }
+    }
+
+    private var lineColor: Color {
+        switch transaction.transactionType {
+        case .expense:
+            return .red
+        case .income:
+            return .green
+        case .transfer:
+            return .blue
+        case .adjustment:
+            return .orange
         }
     }
 

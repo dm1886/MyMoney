@@ -22,12 +22,31 @@ final class CurrencyService {
             return amount
         }
 
-        guard let rate = getExchangeRate(from: from, to: to, context: context) else {
-            print("⚠️ [CurrencyService] Missing exchange rate: \(from.code) → \(to.code)")
-            return amount  // Fallback: no conversion
+        // Try direct conversion first
+        if let rate = getExchangeRate(from: from, to: to, context: context) {
+            return amount * rate
         }
 
-        return amount * rate
+        // Try cross-conversion through USD
+        if let usdCurrency = getCurrency(byCode: "USD", context: context) {
+            if let fromToUSD = getExchangeRate(from: from, to: usdCurrency, context: context),
+               let usdToTo = getExchangeRate(from: usdCurrency, to: to, context: context) {
+                print("✓ [CurrencyService] Cross-conversion: \(from.code) → USD → \(to.code)")
+                return amount * fromToUSD * usdToTo
+            }
+        }
+
+        // Try cross-conversion through EUR as fallback
+        if let eurCurrency = getCurrency(byCode: "EUR", context: context) {
+            if let fromToEUR = getExchangeRate(from: from, to: eurCurrency, context: context),
+               let eurToTo = getExchangeRate(from: eurCurrency, to: to, context: context) {
+                print("✓ [CurrencyService] Cross-conversion: \(from.code) → EUR → \(to.code)")
+                return amount * fromToEUR * eurToTo
+            }
+        }
+
+        print("⚠️ [CurrencyService] Missing exchange rate: \(from.code) → \(to.code)")
+        return amount  // Fallback: no conversion
     }
 
     // MARK: - Exchange Rate Queries

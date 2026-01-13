@@ -95,15 +95,35 @@ final class Account {
 
         // Only count EXECUTED transactions (not pending, cancelled, or failed)
         for transaction in transactions where transaction.status == .executed {
+            // Determina l'importo da usare: se c'è destinationAmount (conversione), usalo,
+            // altrimenti converti on-the-fly se necessario, altrimenti usa l'importo originale
+            var amountToUse = transaction.amount
+
+            if let destAmount = transaction.destinationAmount {
+                // Usa l'importo già convertito (salvato durante la creazione)
+                amountToUse = destAmount
+            } else if let ctx = context,
+                      let transactionCurr = transaction.currencyRecord,
+                      let accountCurr = currencyRecord,
+                      transactionCurr.code != accountCurr.code {
+                // Conversione on-the-fly se le valute sono diverse
+                amountToUse = CurrencyService.shared.convert(
+                    amount: transaction.amount,
+                    from: transactionCurr,
+                    to: accountCurr,
+                    context: ctx
+                )
+            }
+
             switch transaction.transactionType {
             case .expense:
-                balance -= transaction.amount
+                balance -= amountToUse
             case .income:
-                balance += transaction.amount
+                balance += amountToUse
             case .transfer:
-                balance -= transaction.amount
+                balance -= amountToUse
             case .adjustment:
-                balance += transaction.amount  // Amount is signed (+ or -)
+                balance += amountToUse  // Amount is signed (+ or -)
             }
         }
 

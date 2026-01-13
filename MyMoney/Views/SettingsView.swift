@@ -60,10 +60,6 @@ struct SettingsView: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
-
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
                         }
                     }
 
@@ -88,7 +84,7 @@ struct SettingsView: View {
                     Text("Valuta")
                 }
 
-                // MARK: - Accent Color Section
+                // MARK: - Customization Section
                 Section {
                     NavigationLink {
                         AccentColorPickerView()
@@ -108,10 +104,23 @@ struct SettingsView: View {
                                 )
                         }
                     }
+
+                    NavigationLink(destination: CategoriesView()) {
+                        HStack {
+                            Image(systemName: "folder.fill")
+                                .foregroundStyle(.blue)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Categorie")
+                                Text("Gestisci le tue categorie e gruppi")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 } header: {
                     Text("Personalizzazione")
                 } footer: {
-                    Text("Scegli il colore principale dell'app. Verrà applicato a tutti gli elementi dell'interfaccia.")
+                    Text("Scegli il colore principale dell'app e gestisci le tue categorie di spesa.")
                 }
 
                 Section {
@@ -140,10 +149,37 @@ struct SettingsView: View {
                             }
                         }
                     }
+
+                    Toggle(isOn: $settings.recurringDetectionEnabled) {
+                        HStack {
+                            Image(systemName: "repeat.circle.fill")
+                                .foregroundStyle(.purple)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Rilevamento Ricorrenti")
+                                Text("Rileva automaticamente transazioni ripetitive")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
+                    if settings.recurringDetectionEnabled {
+                        Picker("Soglia Giorni", selection: $settings.recurringDetectionDays) {
+                            Text("3 giorni").tag(3)
+                            Text("5 giorni").tag(5)
+                            Text("8 giorni").tag(8)
+                            Text("10 giorni").tag(10)
+                        }
+                        .pickerStyle(.menu)
+                    }
                 } header: {
                     Text("Monitoraggio Spese")
                 } footer: {
-                    Text("Imposta budget per le categorie e monitora le spese ricorrenti per un migliore controllo delle tue finanze.")
+                    if settings.recurringDetectionEnabled {
+                        Text("Imposta budget per le categorie e monitora le spese ricorrenti. Se una transazione viene ripetuta 3 volte negli ultimi \(settings.recurringDetectionDays) giorni, verrà suggerita automaticamente nella pagina Oggi.")
+                    } else {
+                        Text("Imposta budget per le categorie e monitora le spese ricorrenti per un migliore controllo delle tue finanze.")
+                    }
                 }
 
                 Section {

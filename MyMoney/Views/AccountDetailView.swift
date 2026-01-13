@@ -30,6 +30,8 @@ struct AccountDetailView: View {
     @State private var showingFilters = false
     @State private var transactionToDelete: Transaction?
     @State private var showingDeleteRecurringAlert = false
+    @State private var showingAddTransaction = false
+    @State private var selectedTransactionType: TransactionType = .expense
 
     var filteredTransactions: [Transaction] {
         var transactions = (account.transactions ?? [])
@@ -131,9 +133,9 @@ struct AccountDetailView: View {
         if account.accountType == .creditCard || account.accountType == .liability {
             // For debts, show absolute value (debts are stored as negative)
             let debtAmount = abs(amount)
-            return "\(account.currency.symbol)\(formatDecimal(debtAmount))"
+            return "\(account.currency.rawValue) \(formatDecimal(debtAmount))"
         } else {
-            return "\(account.currency.symbol)\(formatDecimal(amount))"
+            return "\(account.currency.rawValue) \(formatDecimal(amount))"
         }
     }
 
@@ -189,7 +191,7 @@ struct AccountDetailView: View {
                             Text("Limite:")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            Text("\(account.currency.symbol)\(formatDecimal(limit))")
+                            Text("\(account.currency.rawValue) \(formatDecimal(limit))")
                                 .font(.caption.bold())
                                 .foregroundStyle(.secondary)
 
@@ -198,7 +200,7 @@ struct AccountDetailView: View {
                             Text("• Disponibile:")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            Text("\(account.currency.symbol)\(formatDecimal(availableCredit))")
+                            Text("\(account.currency.rawValue) \(formatDecimal(availableCredit))")
                                 .font(.caption.bold())
                                 .foregroundStyle(availableCredit > 0 ? .green : .red)
                         }
@@ -366,6 +368,15 @@ struct AccountDetailView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
                     Button {
+                        selectedTransactionType = .expense
+                        showingAddTransaction = true
+                    } label: {
+                        Label("Nuova Transazione", systemImage: "plus.circle")
+                    }
+
+                    Divider()
+
+                    Button {
                         showingBalanceAdjustment = true
                     } label: {
                         Label("Aggiusta Saldo", systemImage: "slider.horizontal.3")
@@ -394,6 +405,9 @@ struct AccountDetailView: View {
         }
         .sheet(isPresented: $showingBalanceAdjustment) {
             BalanceAdjustmentView(account: account)
+        }
+        .sheet(isPresented: $showingAddTransaction) {
+            AddTransactionView(transactionType: selectedTransactionType)
         }
         .alert("Elimina Conto", isPresented: $showingDeleteAlert) {
             Button("Annulla", role: .cancel) { }
@@ -536,52 +550,61 @@ struct AccountTransactionRow: View {
     let account: Account
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(iconBackgroundColor)
-                    .frame(width: 44, height: 44)
+        VStack(spacing: 0) {
+            HStack(spacing: 16) {
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(iconBackgroundColor)
+                        .frame(width: 50, height: 50)
 
-                Image(systemName: transaction.category?.icon ?? defaultIcon)
-                    .font(.title3)
-                    .foregroundStyle(iconColor)
-            }
-
-            // Info
-            VStack(alignment: .leading, spacing: 2) {
-                Text(transaction.category?.name ?? transaction.transactionType.rawValue)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-
-                HStack(spacing: 4) {
-                    Text(transaction.date.formatted(date: .omitted, time: .shortened))
-                        .font(.caption)
-
-                    if transaction.isScheduled && transaction.status == .executed {
-                        Image(systemName: "bolt.fill")
-                            .font(.caption2)
-                    }
+                    Image(systemName: transaction.category?.icon ?? defaultIcon)
+                        .font(.title3)
+                        .foregroundStyle(iconColor)
                 }
-                .foregroundStyle(.secondary)
+
+                // Info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(transaction.category?.name ?? transaction.transactionType.rawValue)
+                        .font(.body.bold())
+                        .foregroundStyle(.primary)
+
+                    HStack(spacing: 4) {
+                        Text(transaction.date.formatted(date: .omitted, time: .shortened))
+                            .font(.caption)
+
+                        if transaction.isScheduled && transaction.status == .executed {
+                            Image(systemName: "bolt.fill")
+                                .font(.caption2)
+                        }
+                    }
+                    .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                // Amount
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(transaction.displayAmount)
+                        .font(.body.bold())
+                        .foregroundStyle(.primary)
+                }
             }
+            .padding()
 
-            Spacer()
-
-            // Amount
-            Text(transaction.displayAmount)
-                .font(.body.bold())
-                .foregroundStyle(amountColor)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(amountBackgroundColor)
-                )
+            // Color line at the bottom
+            UnevenRoundedRectangle(
+                bottomLeadingRadius: 12,
+                bottomTrailingRadius: 12
+            )
+            .fill(lineColor)
+            .frame(height: 3)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 6)
-        .background(Color(.systemBackground))
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
+        )
     }
 
     private var iconBackgroundColor: Color {
@@ -606,15 +629,28 @@ struct AccountTransactionRow: View {
     }
 
     private var amountBackgroundColor: Color {
-        if transaction.transactionType == .expense {
-            // Usa un giallo più scuro e meno saturo in dark mode
-            if colorScheme == .dark {
-                return Color(hex: "#8B7508") ?? .yellow.opacity(0.4)
-            } else {
-                return Color(hex: "#FFD60A") ?? .yellow
-            }
-        } else {
-            return Color(.secondarySystemGroupedBackground)
+        switch transaction.transactionType {
+        case .expense:
+            return .red.opacity(0.15)
+        case .income:
+            return .green.opacity(0.15)
+        case .transfer:
+            return .blue.opacity(0.15)
+        case .adjustment:
+            return .orange.opacity(0.15)
+        }
+    }
+
+    private var lineColor: Color {
+        switch transaction.transactionType {
+        case .expense:
+            return .red
+        case .income:
+            return .green
+        case .transfer:
+            return .blue
+        case .adjustment:
+            return .orange
         }
     }
 }

@@ -17,6 +17,8 @@ struct AddTransactionView: View {
 
     let transactionType: TransactionType
 
+    @State private var showingAddAccountAlert = false
+    @State private var showingAddAccountSheet = false
     @State private var amount = ""
     @State private var selectedAccount: Account?
     @State private var selectedDestinationAccount: Account?
@@ -270,10 +272,6 @@ struct AddTransactionView: View {
                                     Text("Seleziona")
                                         .foregroundStyle(.secondary)
                                 }
-
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
                             }
                         }
 
@@ -607,6 +605,12 @@ struct AddTransactionView: View {
                 }
             }
             .onAppear {
+                // Check if there are no accounts
+                if accounts.isEmpty {
+                    showingAddAccountAlert = true
+                    return
+                }
+
                 // Setta default account SOLO la prima volta
                 if !hasSetDefaultAccount {
                     if let firstAccount = accounts.first {
@@ -618,6 +622,19 @@ struct AddTransactionView: View {
                 if transactionType == .income {
                     selectedCategory = categories.first { $0.categoryGroup?.name == "Entrate" }
                 }
+            }
+            .alert("Nessun Conto Disponibile", isPresented: $showingAddAccountAlert) {
+                Button("Annulla", role: .cancel) {
+                    dismiss()
+                }
+                Button("Crea Conto") {
+                    showingAddAccountSheet = true
+                }
+            } message: {
+                Text("Devi creare almeno un conto prima di poter aggiungere una transazione.")
+            }
+            .sheet(isPresented: $showingAddAccountSheet) {
+                AddAccountView()
             }
         }
     }
@@ -663,6 +680,11 @@ struct AddTransactionView: View {
         // Set destination amount for transfers with currency conversion
         if transactionType == .transfer && transferNeedsConversion {
             transaction.destinationAmount = finalDestinationAmount
+        }
+
+        // Set converted amount for expense/income with currency conversion
+        if transactionType != .transfer && needsConversion {
+            transaction.destinationAmount = convertedAmount
         }
 
         // Set scheduled transaction fields
@@ -765,10 +787,6 @@ struct AddTransactionView: View {
                 Text("Seleziona")
                     .foregroundStyle(.secondary)
             }
-
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
         }
     }
 }
