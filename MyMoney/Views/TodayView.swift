@@ -815,10 +815,16 @@ struct TransactionRowView: View {
 
             Spacer()
 
-            // Amount
+            // Amount with colored background
             Text(transaction.displayAmount)
-                .font(.body)
-                .foregroundStyle(.primary)
+                .font(.body.bold())
+                .foregroundStyle(amountTextColor)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(amountBackgroundColor)
+                )
         }
     }
 
@@ -848,10 +854,7 @@ struct TransactionRowView: View {
         }
     }
 
-    private var amountColor: Color {
-        transaction.transactionType == .expense ? .primary : .primary
-    }
-
+    // Background color for amount based on transaction type
     private var amountBackgroundColor: Color {
         switch transaction.transactionType {
         case .expense:
@@ -862,6 +865,20 @@ struct TransactionRowView: View {
             return .blue.opacity(0.15)
         case .adjustment:
             return .orange.opacity(0.15)
+        }
+    }
+
+    // Text color for amount based on transaction type
+    private var amountTextColor: Color {
+        switch transaction.transactionType {
+        case .expense:
+            return .red
+        case .income:
+            return .green
+        case .transfer:
+            return .blue
+        case .adjustment:
+            return .orange
         }
     }
 
