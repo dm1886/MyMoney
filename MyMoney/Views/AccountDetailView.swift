@@ -74,15 +74,34 @@ struct AccountDetailView: View {
 
         if let accountTransactions = account.transactions {
             for transaction in accountTransactions where transaction.status == .executed {
+                // Determina l'importo da usare: se c'è destinationAmount (conversione), usalo,
+                // altrimenti converti on-the-fly se necessario, altrimenti usa l'importo originale
+                var amountToUse = transaction.amount
+
+                if let destAmount = transaction.destinationAmount {
+                    // Usa l'importo già convertito (salvato durante la creazione)
+                    amountToUse = destAmount
+                } else if let transactionCurr = transaction.currencyRecord,
+                          let accountCurr = account.currencyRecord,
+                          transactionCurr.code != accountCurr.code {
+                    // Conversione on-the-fly se le valute sono diverse
+                    amountToUse = CurrencyService.shared.convert(
+                        amount: transaction.amount,
+                        from: transactionCurr,
+                        to: accountCurr,
+                        context: modelContext
+                    )
+                }
+
                 switch transaction.transactionType {
                 case .expense:
-                    balance -= transaction.amount
+                    balance -= amountToUse
                 case .income:
-                    balance += transaction.amount
+                    balance += amountToUse
                 case .transfer:
-                    balance -= transaction.amount
+                    balance -= amountToUse
                 case .adjustment:
-                    balance += transaction.amount
+                    balance += amountToUse
                 }
             }
         }
@@ -140,8 +159,9 @@ struct AccountDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
+        List {
+            // Header Section
+            Section {
                 VStack(spacing: 16) {
                     // Mostra immagine personalizzata se esiste, altrimenti icona
                     if let imageData = account.imageData, let uiImage = UIImage(data: imageData) {
@@ -211,160 +231,128 @@ struct AccountDetailView: View {
                             .font(.body)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal)
                     }
                 }
-                .padding()
                 .frame(maxWidth: .infinity)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(.systemBackground))
-                        .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
-                )
-                .padding(.horizontal)
-                .padding(.top, 8)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
 
-                VStack(alignment: .leading, spacing: 12) {
+            // Filtri Section
+            if showingFilters {
+                Section {
+                    // Filtro data
                     HStack {
-                        Text("Transazioni")
-                            .font(.title2.bold())
+                        Image(systemName: "calendar")
+                            .foregroundStyle(appSettings.accentColor)
 
-                        Spacer()
-
-                        Button {
-                            showingFilters.toggle()
-                        } label: {
-                            Image(systemName: "line.3.horizontal.decrease.circle\(showingFilters ? ".fill" : "")")
-                                .font(.title3)
-                                .foregroundStyle(appSettings.accentColor)
-                        }
-                    }
-                    .padding(.horizontal)
-
-                    // Filtri
-                    if showingFilters {
-                        VStack(spacing: 12) {
-                            // Filtro data
-                            HStack {
-                                Image(systemName: "calendar")
-                                    .foregroundStyle(appSettings.accentColor)
-
-                                if let selectedDate = selectedDate {
-                                    DatePicker(
-                                        "Data",
-                                        selection: Binding(
-                                            get: { selectedDate },
-                                            set: { self.selectedDate = $0 }
-                                        ),
-                                        displayedComponents: .date
-                                    )
-                                    .labelsHidden()
-
-                                    Button {
-                                        self.selectedDate = nil
-                                    } label: {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundStyle(.secondary)
-                                    }
-                                } else {
-                                    Text("Filtra per data")
-                                        .foregroundStyle(.secondary)
-
-                                    Spacer()
-
-                                    Button {
-                                        self.selectedDate = Date()
-                                    } label: {
-                                        Text("Seleziona")
-                                            .font(.subheadline)
-                                            .foregroundStyle(appSettings.accentColor)
-                                    }
-                                }
-                            }
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color(.secondarySystemGroupedBackground))
+                        if let selectedDate = selectedDate {
+                            DatePicker(
+                                "Data",
+                                selection: Binding(
+                                    get: { selectedDate },
+                                    set: { self.selectedDate = $0 }
+                                ),
+                                displayedComponents: .date
                             )
+                            .labelsHidden()
 
-                            // Ordinamento
-                            HStack {
-                                Image(systemName: "arrow.up.arrow.down")
-                                    .foregroundStyle(appSettings.accentColor)
-
-                                Picker("Ordina", selection: $sortOption) {
-                                    ForEach(SortOption.allCases, id: \.self) { option in
-                                        Text(option.rawValue).tag(option)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                            }
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color(.secondarySystemGroupedBackground))
-                            )
-                        }
-                        .padding(.horizontal)
-                    }
-
-                    if sortedTransactions.isEmpty {
-                        VStack(spacing: 16) {
-                            Image(systemName: "list.bullet.clipboard")
-                                .font(.system(size: 50))
-                                .foregroundStyle(.secondary)
-
-                            Text(selectedDate == nil ? "Nessuna transazione" : "Nessuna transazione per questa data")
-                                .font(.headline)
-
-                            Text(selectedDate == nil ? "Le transazioni per questo conto appariranno qui" : "Prova a selezionare un'altra data")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding(.vertical, 40)
-                        .frame(maxWidth: .infinity)
-                    } else {
-                        // Lista con intestazioni di data
-                        ForEach(groupedTransactions, id: \.0) { date, transactions in
-                            VStack(alignment: .leading, spacing: 8) {
-                                // Intestazione data
-                                Text(formatDateHeader(date))
-                                    .font(.subheadline.bold())
+                            Button {
+                                self.selectedDate = nil
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
                                     .foregroundStyle(.secondary)
-                                    .padding(.horizontal)
-                                    .padding(.top, 8)
+                            }
+                        } else {
+                            Text("Filtra per data")
+                                .foregroundStyle(.secondary)
 
-                                // Transazioni del giorno
-                                ForEach(transactions) { transaction in
-                                    NavigationLink {
-                                        EditTransactionView(transaction: transaction)
-                                    } label: {
-                                        AccountTransactionRow(transaction: transaction, account: account)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                        Button(role: .destructive) {
-                                            handleDeleteTransaction(transaction)
-                                        } label: {
-                                            Label("Elimina", systemImage: "trash")
-                                        }
-                                    }
-                                    .padding(.horizontal)
+                            Spacer()
+
+                            Button {
+                                self.selectedDate = Date()
+                            } label: {
+                                Text("Seleziona")
+                                    .font(.subheadline)
+                                    .foregroundStyle(appSettings.accentColor)
+                            }
+                        }
+                    }
+
+                    // Ordinamento
+                    HStack {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .foregroundStyle(appSettings.accentColor)
+
+                        Picker("Ordina", selection: $sortOption) {
+                            ForEach(SortOption.allCases, id: \.self) { option in
+                                Text(option.rawValue).tag(option)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                } header: {
+                    Text("Filtri")
+                }
+            }
+
+            // Transactions Sections
+            if sortedTransactions.isEmpty {
+                Section {
+                    VStack(spacing: 16) {
+                        Image(systemName: "list.bullet.clipboard")
+                            .font(.system(size: 50))
+                            .foregroundStyle(.secondary)
+
+                        Text(selectedDate == nil ? "Nessuna transazione" : "Nessuna transazione per questa data")
+                            .font(.headline)
+
+                        Text(selectedDate == nil ? "Le transazioni per questo conto appariranno qui" : "Prova a selezionare un'altra data")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                    .listRowBackground(Color.clear)
+                }
+            } else {
+                ForEach(groupedTransactions, id: \.0) { date, transactions in
+                    Section {
+                        ForEach(transactions) { transaction in
+                            NavigationLink {
+                                EditTransactionView(transaction: transaction)
+                            } label: {
+                                TransactionRowView(transaction: transaction, isCompact: true)
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    handleDeleteTransaction(transaction)
+                                } label: {
+                                    Label("Elimina", systemImage: "trash")
                                 }
                             }
                         }
+                    } header: {
+                        Text(formatDateHeader(date))
+                            .font(.subheadline.bold())
+                            .textCase(nil)
                     }
                 }
-
-                Spacer(minLength: 40)
             }
-            .padding(.vertical)
         }
-        .background(Color(.systemGroupedBackground))
         .navigationTitle("Dettagli Conto")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    showingFilters.toggle()
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease.circle\(showingFilters ? ".fill" : "")")
+                        .foregroundStyle(appSettings.accentColor)
+                }
+            }
+
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
                     Button {

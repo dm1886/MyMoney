@@ -23,6 +23,8 @@ struct SettingsView: View {
     @State private var updateManager = CurrencyUpdateManager()
     @State private var selectedPreferredCurrency: CurrencyRecord?
     @State private var orphanNotificationsCount: Int?
+    @State private var iCloudManager = ICloudSyncManager.shared
+    @State private var iCloudStatus: String = "Controllo..."
 
     var pendingTransactionsCount: Int {
         transactions.filter { $0.status == .pending && $0.isScheduled }.count
@@ -313,6 +315,21 @@ struct SettingsView: View {
                 Section {
                     BiometricAuthToggle()
 
+                    if BiometricAuthManager.shared.isBiometricEnabled {
+                        Toggle(isOn: $settings.superSecure) {
+                            HStack {
+                                Image(systemName: "shield.lefthalf.filled")
+                                    .foregroundStyle(.purple)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Super Secure")
+                                    Text(settings.superSecure ? "Blocca in background" : "Blocca solo alla chiusura")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+
                     NavigationLink(destination: BackupView()) {
                         HStack {
                             Image(systemName: "lock.shield.fill")
@@ -329,9 +346,84 @@ struct SettingsView: View {
                     Text("Sicurezza")
                 } footer: {
                     if BiometricAuthManager.shared.biometricAvailable {
-                        Text("Richiedi \(BiometricAuthManager.shared.biometricName) ogni volta che apri l'app per proteggere i tuoi dati finanziari.")
+                        if BiometricAuthManager.shared.isBiometricEnabled {
+                            Text("Richiedi \(BiometricAuthManager.shared.biometricName) ogni volta che apri l'app. Super Secure controlla quando richiedere l'autenticazione: ON blocca anche quando vai in background, OFF blocca solo quando chiudi completamente l'app.")
+                        } else {
+                            Text("Richiedi \(BiometricAuthManager.shared.biometricName) ogni volta che apri l'app per proteggere i tuoi dati finanziari.")
+                        }
                     } else {
                         Text("Configura Face ID o Touch ID nelle impostazioni del dispositivo per abilitare questa funzione.")
+                    }
+                }
+
+                Section {
+                    HStack {
+                        Image(systemName: "icloud.fill")
+                            .foregroundStyle(.blue)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Stato iCloud")
+                            Text(iCloudStatus)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if iCloudStatus.contains("✓") {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        } else if iCloudStatus.contains("⚠️") || iCloudStatus.contains("❌") {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                        }
+                    }
+
+                    Button {
+                        Task {
+                            await iCloudManager.forceSyncIfNeeded(container: modelContext.container)
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                                .foregroundStyle(.blue)
+
+                            if iCloudManager.isSyncing {
+                                ProgressView()
+                                    .padding(.leading, 8)
+                                Text("Sincronizzazione...")
+                                    .foregroundStyle(.primary)
+                            } else {
+                                Text("Forza Sincronizzazione")
+                                    .foregroundStyle(.primary)
+                            }
+
+                            Spacer()
+                        }
+                    }
+                    .disabled(iCloudManager.isSyncing || !iCloudStatus.contains("✓"))
+
+                    if let lastSync = iCloudManager.lastSyncDate {
+                        HStack {
+                            Text("Ultima Sincronizzazione")
+                            Spacer()
+                            Text(lastSync.formatted(date: .abbreviated, time: .shortened))
+                                .foregroundStyle(.secondary)
+                        }
+                        .font(.caption)
+                    }
+                } header: {
+                    Text("iCloud Sync")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("I tuoi dati vengono sincronizzati automaticamente con iCloud quando disponibile. La sincronizzazione avviene in background e mantiene tutti i tuoi dispositivi aggiornati.")
+
+                        if let error = iCloudManager.syncError {
+                            Text("⚠️ Errore: \(error)")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+
+                        Text("Nota: Assicurati di aver configurato iCloud nelle Capabilities del progetto Xcode.")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
                     }
                 }
 
@@ -439,6 +531,17 @@ struct SettingsView: View {
                         }
                     }
 
+                    NavigationLink {
+                        LogsView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "doc.text.magnifyingglass")
+                                .foregroundStyle(.blue)
+                            Text("Log Sistema")
+                            Spacer()
+                        }
+                    }
+
                     Button {
                         cleanOrphanNotifications()
                     } label: {
@@ -521,6 +624,14 @@ struct SettingsView: View {
                 if selectedPreferredCurrency == nil {
                     selectedPreferredCurrency = allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
                 }
+
+                // Set default iCloud status (disabled to avoid crash without dev account)
+                iCloudStatus = "⚠️ iCloud non configurato"
+
+                // Uncomment when iCloud is properly configured in Xcode:
+                // Task {
+                //     iCloudStatus = await iCloudManager.getICloudStatusMessage()
+                // }
             }
             .onChange(of: selectedPreferredCurrency) { oldValue, newValue in
                 // Update AppSettings when currency changes

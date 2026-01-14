@@ -201,14 +201,24 @@ struct AddTransactionView: View {
                 if transactionType == .transfer {
                     Section {
                         NavigationLink {
-                            AccountSelectionView(selectedAccount: $selectedAccount, showNavigationBar: false)
+                            AccountSelectionView(
+                                selectedAccount: $selectedAccount,
+                                showNavigationBar: false,
+                                transactionType: transactionType,
+                                title: "Da Conto"
+                            )
                         } label: {
                             accountRowLabel(title: "Da Conto", account: selectedAccount)
                         }
                         .id(selectedAccount?.id)  // Forza re-rendering quando account cambia
 
                         NavigationLink {
-                            AccountSelectionView(selectedAccount: $selectedDestinationAccount, showNavigationBar: false)
+                            AccountSelectionView(
+                                selectedAccount: $selectedDestinationAccount,
+                                showNavigationBar: false,
+                                transactionType: transactionType,
+                                title: "A Conto"
+                            )
                         } label: {
                             accountRowLabel(title: "A Conto", account: selectedDestinationAccount)
                         }
@@ -358,7 +368,13 @@ struct AddTransactionView: View {
                 if transactionType != .transfer {
                     Section {
                         NavigationLink {
-                            AccountSelectionView(selectedAccount: $selectedAccount, showNavigationBar: false)
+                            AccountSelectionView(
+                                selectedAccount: $selectedAccount,
+                                showNavigationBar: false,
+                                transactionType: transactionType,
+                                selectedCategory: selectedCategory,
+                                title: "Conto"
+                            )
                         } label: {
                             accountRowLabel(title: "Conto", account: selectedAccount)
                         }

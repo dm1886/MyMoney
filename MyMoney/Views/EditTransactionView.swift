@@ -88,6 +88,42 @@ struct EditTransactionView: View {
         selectedTransactionCurrencyRecord ?? selectedAccount?.currencyRecord
     }
 
+    var accountCurrencyRecord: CurrencyRecord? {
+        selectedAccount?.currencyRecord
+    }
+
+    var needsConversion: Bool {
+        guard let transCurr = transactionCurrencyRecord,
+              let accCurr = accountCurrencyRecord else {
+            return false
+        }
+        return transCurr.code != accCurr.code
+    }
+
+    var convertedAmount: Decimal? {
+        guard needsConversion,
+              let amountDecimal = Decimal(string: amount.replacingOccurrences(of: ",", with: ".")),
+              let transCurr = transactionCurrencyRecord,
+              let accCurr = accountCurrencyRecord else {
+            return nil
+        }
+
+        return CurrencyService.shared.convert(
+            amount: amountDecimal,
+            from: transCurr,
+            to: accCurr,
+            context: modelContext
+        )
+    }
+
+    private func formatDecimal(_ amount: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -136,7 +172,13 @@ struct EditTransactionView: View {
                 // Account Section
                 Section {
                     NavigationLink {
-                        AccountSelectionView(selectedAccount: $selectedAccount, showNavigationBar: false)
+                        AccountSelectionView(
+                            selectedAccount: $selectedAccount,
+                            showNavigationBar: false,
+                            transactionType: transactionType,
+                            selectedCategory: selectedCategory,
+                            title: "Conto"
+                        )
                     } label: {
                         HStack {
                             Text("Conto")
@@ -169,6 +211,61 @@ struct EditTransactionView: View {
                                 Text("Seleziona")
                                     .foregroundStyle(.secondary)
                             }
+                        }
+                    }
+                }
+
+                // Currency Section (solo per expense/income)
+                if transactionType != .transfer {
+                    Section {
+                        NavigationLink {
+                            CurrencySelectionView(selectedCurrency: $selectedTransactionCurrencyRecord)
+                        } label: {
+                            HStack {
+                                Text("Valuta")
+                                    .foregroundStyle(.primary)
+
+                                Spacer()
+
+                                if let currency = selectedTransactionCurrencyRecord {
+                                    HStack(spacing: 8) {
+                                        Text(currency.flagEmoji)
+                                        Text(currency.code)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                } else if let accountCurr = accountCurrencyRecord {
+                                    HStack(spacing: 8) {
+                                        Text(accountCurr.flagEmoji)
+                                        Text("Valuta del conto (\(accountCurr.code))")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                } else {
+                                    Text("Seleziona")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+
+                        // Mostra conversione se necessaria
+                        if needsConversion, let converted = convertedAmount {
+                            HStack {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .foregroundStyle(.blue)
+                                Text("Convertito")
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                if let accCurr = accountCurrencyRecord {
+                                    Text("\(accCurr.symbol)\(formatDecimal(converted))")
+                                        .font(.headline)
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+                        }
+                    } footer: {
+                        if needsConversion,
+                           let transCurr = transactionCurrencyRecord,
+                           let accCurr = accountCurrencyRecord {
+                            Text("L'importo verrà convertito da \(transCurr.code) a \(accCurr.code) usando il tasso di cambio corrente.")
                         }
                     }
                 }
@@ -538,6 +635,14 @@ struct EditTransactionView: View {
         }
 
         transaction.currencyRecord = selectedTransactionCurrencyRecord
+
+        // Set converted amount if currency conversion is needed
+        if transactionType != .transfer && needsConversion {
+            transaction.destinationAmount = convertedAmount
+        } else {
+            // Clear destinationAmount if no conversion needed
+            transaction.destinationAmount = nil
+        }
 
         // Update scheduling fields
         transaction.isScheduled = isScheduled

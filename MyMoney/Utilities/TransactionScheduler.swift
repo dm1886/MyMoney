@@ -56,7 +56,7 @@ class TransactionScheduler {
     /// Returns the number of automatic transactions executed
     func checkScheduledTransactionsInBackground(modelContext: ModelContext) async -> Int {
         let now = Date()
-        print("📅 Checking scheduled transactions at \(now.formatted(date: .abbreviated, time: .shortened))")
+        LogManager.shared.info("Checking scheduled transactions at \(now.formatted(date: .abbreviated, time: .shortened))", category: "TransactionScheduler")
 
         var automaticExecutionCount = 0
 
@@ -73,38 +73,33 @@ class TransactionScheduler {
                 transaction.scheduledDate != nil
             }
 
-            print("📊 Found \(scheduledTransactions.count) pending scheduled transactions")
+            LogManager.shared.info("Found \(scheduledTransactions.count) pending scheduled transactions", category: "TransactionScheduler")
 
             for transaction in scheduledTransactions {
                 guard let scheduledDate = transaction.scheduledDate else { continue }
 
-                print("⏰ Transaction scheduled for: \(scheduledDate.formatted(date: .abbreviated, time: .shortened))")
-
                 // Check if scheduled time has passed
                 if scheduledDate <= now {
-                    print("✅ Time has passed! Scheduled: \(scheduledDate), Now: \(now)")
+                    LogManager.shared.info("Time has passed for transaction \(transaction.id). Scheduled: \(scheduledDate), Now: \(now)", category: "TransactionScheduler")
 
                     if transaction.isAutomatic {
                         // Execute automatically
-                        print("⚡️ Executing automatically...")
+                        LogManager.shared.info("Executing automatic transaction \(transaction.id)", category: "TransactionScheduler")
                         await executeTransaction(transaction, modelContext: modelContext)
                         automaticExecutionCount += 1
                     } else {
                         // Send notification for manual confirmation
-                        print("🔔 Sending notification for manual confirmation...")
+                        LogManager.shared.info("Sending notification for manual confirmation of transaction \(transaction.id)", category: "TransactionScheduler")
                         await sendNotification(for: transaction)
                     }
-                } else {
-                    let timeRemaining = scheduledDate.timeIntervalSince(now)
-                    print("⏳ Not yet time. Remaining: \(Int(timeRemaining / 60)) minutes")
                 }
             }
 
             if scheduledTransactions.isEmpty {
-                print("📭 No pending scheduled transactions found")
+                LogManager.shared.debug("No pending scheduled transactions found", category: "TransactionScheduler")
             }
         } catch {
-            print("❌ Error checking scheduled transactions: \(error)")
+            LogManager.shared.error("Error checking scheduled transactions: \(error.localizedDescription)", category: "TransactionScheduler")
         }
 
         return automaticExecutionCount
@@ -113,10 +108,7 @@ class TransactionScheduler {
     // MARK: - Execute Transaction
 
     func executeTransaction(_ transaction: Transaction, modelContext: ModelContext) async {
-        print("⚡️ Executing scheduled transaction: \(transaction.id)")
-        print("   Type: \(transaction.transactionType.rawValue)")
-        print("   Amount: \(transaction.amount)")
-        print("   Current status: \(transaction.status.rawValue)")
+        LogManager.shared.info("Executing scheduled transaction: \(transaction.id) - Type: \(transaction.transactionType.rawValue), Amount: \(transaction.amount)", category: "TransactionScheduler")
 
         // Update status
         transaction.status = .executed
@@ -128,8 +120,7 @@ class TransactionScheduler {
             transaction.date = Date()
         }
 
-        print("   ✏️ Status updated to: \(transaction.status.rawValue)")
-        print("   ✏️ Date updated to: \(transaction.date.formatted(date: .abbreviated, time: .shortened))")
+        LogManager.shared.debug("Status updated to: \(transaction.status.rawValue), Date: \(transaction.date.formatted(date: .abbreviated, time: .shortened))", category: "TransactionScheduler")
 
         // Update account balance
         if let account = transaction.account {
@@ -153,11 +144,9 @@ class TransactionScheduler {
         // Save
         do {
             try modelContext.save()
-            print("✅ Transaction executed and saved successfully")
-            print("   Final status: \(transaction.status.rawValue)")
+            LogManager.shared.success("Transaction \(transaction.id) executed and saved successfully. Final status: \(transaction.status.rawValue)", category: "TransactionScheduler")
         } catch {
-            print("❌ Failed to execute transaction: \(error)")
-            print("   Error details: \(error.localizedDescription)")
+            LogManager.shared.error("Failed to execute transaction \(transaction.id): \(error.localizedDescription)", category: "TransactionScheduler")
             transaction.status = .failed
             try? modelContext.save()
         }

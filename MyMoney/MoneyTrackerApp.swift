@@ -35,7 +35,13 @@ struct MoneyTrackerApp: App {
             ExchangeRate.self,      // Modello tassi di cambio
             Budget.self             // Modello budget
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+
+        // Enable iCloud sync with CloudKit
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false,
+            cloudKitDatabase: .automatic
+        )
 
         do {
             let container = try ModelContainer(for: schema, configurations: [modelConfiguration])

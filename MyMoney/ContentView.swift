@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var selectedTab = 0
     @State private var biometricManager = BiometricAuthManager.shared
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.appSettings) private var appSettings
 
     var body: some View {
         ZStack {
@@ -67,9 +68,13 @@ struct ContentView: View {
     private func handleScenePhaseChange(_ phase: ScenePhase) {
         switch phase {
         case .background, .inactive:
-            // When app goes to background, require re-authentication
+            // When app goes to background, require re-authentication based on superSecure setting
             if biometricManager.isBiometricEnabled {
-                biometricManager.resetAuthenticationState()
+                // If superSecure is ON, lock immediately when going to background
+                // If superSecure is OFF, don't lock (authentication will only be required on fresh app launch)
+                if appSettings.superSecure {
+                    biometricManager.resetAuthenticationState()
+                }
             }
         case .active:
             // App became active - authentication screen will show if needed

@@ -16,9 +16,21 @@ class RecurringTransactionManager {
 
     // MARK: - Generate Recurring Instances
 
+    // Lock per evitare chiamate sovrapposte
+    private var isGenerating = false
+
     /// Genera le prossime transazione per tutte le transazioni ricorrenti
     func generateRecurringInstances(modelContext: ModelContext, monthsAhead: Int = 3) async {
-        print("🔄 Generating recurring transaction instances...")
+        // Evita chiamate sovrapposte che creerebbero duplicati
+        guard !isGenerating else {
+            LogManager.shared.warning("Already generating recurring instances, skipping...", category: "RecurringTransactions")
+            return
+        }
+
+        isGenerating = true
+        defer { isGenerating = false }
+
+        LogManager.shared.info("Generating recurring transaction instances...", category: "RecurringTransactions")
 
         let descriptor = FetchDescriptor<Transaction>()
 
@@ -31,17 +43,18 @@ class RecurringTransactionManager {
                 transaction.parentRecurringTransactionId == nil  // Solo template, non transazione
             }
 
-            print("📊 Found \(recurringTemplates.count) recurring transaction templates")
+            LogManager.shared.info("Found \(recurringTemplates.count) recurring transaction templates", category: "RecurringTransactions")
 
             for template in recurringTemplates {
                 await generateInstances(for: template, monthsAhead: monthsAhead, modelContext: modelContext)
+                // Salva dopo ogni template per evitare duplicati da chiamate sovrapposte
+                try modelContext.save()
             }
 
-            try modelContext.save()
-            print("✅ Recurring instances generated successfully")
+            LogManager.shared.success("Recurring instances generated successfully", category: "RecurringTransactions")
 
         } catch {
-            print("❌ Error generating recurring instances: \(error)")
+            LogManager.shared.error("Error generating recurring instances: \(error.localizedDescription)", category: "RecurringTransactions")
         }
     }
 
@@ -64,13 +77,16 @@ class RecurringTransactionManager {
             to: Date()
         ) ?? Date()
 
-        // Trova l'ultima transaziona già generata
+        // Trova l'ultima transaziona già generata (incluse quelle già eseguite)
         let descriptor = FetchDescriptor<Transaction>()
         let allTransactions = try? modelContext.fetch(descriptor)
 
+        // Include TUTTE le istanze: pending, executed, failed, cancelled
         let existingInstances = allTransactions?.filter {
             $0.parentRecurringTransactionId == template.id
         }.sorted { ($0.scheduledDate ?? Date()) < ($1.scheduledDate ?? Date()) } ?? []
+
+        print("   Found \(existingInstances.count) existing instances for template \(template.id)")
 
         // Determina da quale data iniziare a generare
         let lastInstanceDate = existingInstances.last?.scheduledDate
@@ -87,6 +103,8 @@ class RecurringTransactionManager {
             if !alreadyExists && firstScheduledDate <= endDate {
                 createInstance(from: template, scheduledDate: firstScheduledDate, modelContext: modelContext)
                 generatedCount += 1
+            } else if alreadyExists {
+                print("   ⏭️ First instance already exists for \(firstScheduledDate.formatted(date: .abbreviated, time: .shortened)), skipping")
             }
         }
 
@@ -104,6 +122,8 @@ class RecurringTransactionManager {
             if !alreadyExists {
                 createInstance(from: template, scheduledDate: nextDate, modelContext: modelContext)
                 generatedCount += 1
+            } else {
+                print("   ⏭️ Instance already exists for \(nextDate.formatted(date: .abbreviated, time: .shortened)), skipping")
             }
 
             currentDate = nextDate

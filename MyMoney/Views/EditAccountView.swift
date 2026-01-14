@@ -27,6 +27,7 @@ struct EditAccountView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var photoData: Data?
     @State private var showingIconPicker = false
+    @State private var initialBalance: String
 
     init(account: Account) {
         self.account = account
@@ -38,6 +39,14 @@ struct EditAccountView: View {
         _selectedColor = State(initialValue: account.color)
         _accountDescription = State(initialValue: account.accountDescription)
         _photoData = State(initialValue: account.imageData)
+
+        // Convert Decimal to String properly
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 2
+        let balanceString = formatter.string(from: account.initialBalance as NSDecimalNumber) ?? "0"
+        _initialBalance = State(initialValue: balanceString)
     }
 
     var body: some View {
@@ -73,6 +82,20 @@ struct EditAccountView: View {
                             }
                         }
                     }
+                }
+
+                Section {
+                    HStack {
+                        Text(selectedCurrencyRecord?.symbol ?? selectedCurrency.symbol)
+                            .foregroundStyle(.secondary)
+                        TextField("0.00", text: $initialBalance)
+                            .keyboardType(.decimalPad)
+                            .font(.title3.bold())
+                    }
+                } header: {
+                    Text("Saldo Iniziale")
+                } footer: {
+                    Text("Modifica il saldo iniziale del conto. Attenzione: questo modificherà la base di calcolo del saldo corrente.")
                 }
 
                 Section("Personalizzazione") {
@@ -156,6 +179,11 @@ struct EditAccountView: View {
         account.colorHex = selectedColor.toHex() ?? "#007AFF"
         account.accountDescription = accountDescription
         account.imageData = photoData
+
+        // Update initial balance
+        if let balanceDecimal = Decimal(string: initialBalance.replacingOccurrences(of: ",", with: ".")) {
+            account.initialBalance = balanceDecimal
+        }
 
         try? modelContext.save()
         dismiss()

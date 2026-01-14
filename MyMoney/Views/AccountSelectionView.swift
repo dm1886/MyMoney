@@ -12,26 +12,96 @@ struct AccountSelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Account.name) private var accounts: [Account]
+    @Query private var transactions: [Transaction]
 
     @Binding var selectedAccount: Account?
     let showNavigationBar: Bool
+    let transactionType: TransactionType?
+    let selectedCategory: Category?
+    let title: String
 
-    init(selectedAccount: Binding<Account?>, showNavigationBar: Bool = true) {
+    init(
+        selectedAccount: Binding<Account?>,
+        showNavigationBar: Bool = true,
+        transactionType: TransactionType? = nil,
+        selectedCategory: Category? = nil,
+        title: String = "Seleziona Conto"
+    ) {
         self._selectedAccount = selectedAccount
         self.showNavigationBar = showNavigationBar
+        self.transactionType = transactionType
+        self.selectedCategory = selectedCategory
+        self.title = title
     }
 
-    let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12)
-    ]
+    // Filtra i conti in base al tipo di transazione
+    var filteredAccounts: [Account] {
+        guard let type = transactionType else { return accounts }
+
+        switch type {
+        case .expense, .income:
+            // Per spese ed entrate, escludi passività e attività
+            return accounts.filter { account in
+                account.accountType != .liability && account.accountType != .asset
+            }
+        case .transfer, .adjustment:
+            // Per trasferimenti e aggiustamenti, mostra tutti i conti
+            return accounts
+        }
+    }
+
+    // Ordina i conti: prima il più usato o predefinito, poi gli altri
+    var sortedAccounts: [Account] {
+        let filtered = filteredAccounts
+
+        // Se c'è una categoria con conto predefinito, mettilo primo
+        if let defaultAccount = selectedCategory?.defaultAccount,
+           filtered.contains(where: { $0.id == defaultAccount.id }) {
+            var sorted = filtered.filter { $0.id != defaultAccount.id }
+            sorted.insert(defaultAccount, at: 0)
+            return sorted
+        }
+
+        // Altrimenti ordina per uso recente
+        let recentTransactions = transactions
+            .filter { $0.status == .executed }
+            .sorted { $0.date > $1.date }
+            .prefix(5)
+
+        // Conta l'uso di ogni conto nelle ultime 5 transazioni
+        var accountUsage: [UUID: Int] = [:]
+        for transaction in recentTransactions {
+            if let accountId = transaction.account?.id {
+                accountUsage[accountId, default: 0] += 1
+            }
+        }
+
+        // Ordina per uso (decrescente), poi per nome
+        return filtered.sorted { account1, account2 in
+            let usage1 = accountUsage[account1.id] ?? 0
+            let usage2 = accountUsage[account2.id] ?? 0
+
+            if usage1 != usage2 {
+                return usage1 > usage2
+            }
+            return account1.name < account2.name
+        }
+    }
+
+    // Raggruppa conti per valuta
+    var groupedAccounts: [(String, [Account])] {
+        let grouped = Dictionary(grouping: sortedAccounts) { account in
+            account.currencyRecord?.code ?? account.currency.rawValue
+        }
+        return grouped.sorted { $0.key < $1.key }
+    }
 
     var body: some View {
         Group {
             if showNavigationBar {
                 NavigationStack {
                     content
-                        .navigationTitle("Seleziona Conto")
+                        .navigationTitle(title)
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) {
@@ -43,32 +113,46 @@ struct AccountSelectionView: View {
                 }
             } else {
                 content
+                    .navigationTitle(title)
             }
         }
     }
 
     var content: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(accounts) { account in
-                    AccountGridCard(
-                        account: account,
-                        isSelected: selectedAccount?.id == account.id,
-                        modelContext: modelContext
-                    )
-                    .onTapGesture {
-                        selectedAccount = account
-                        dismiss()
+        List {
+            ForEach(groupedAccounts, id: \.0) { currencyCode, currencyAccounts in
+                Section {
+                    ForEach(currencyAccounts) { account in
+                        Button {
+                            selectedAccount = account
+                            dismiss()
+                        } label: {
+                            AccountListRow(
+                                account: account,
+                                isSelected: selectedAccount?.id == account.id,
+                                modelContext: modelContext
+                            )
+                        }
                     }
+                } header: {
+                    HStack(spacing: 6) {
+                        if let currency = currencyAccounts.first?.currencyRecord {
+                            Text(currency.flagEmoji)
+                            Text(currency.code)
+                        } else if let currency = currencyAccounts.first?.currency {
+                            Text(currency.flag)
+                            Text(currency.rawValue)
+                        }
+                    }
+                    .font(.subheadline.bold())
+                    .textCase(nil)
                 }
             }
-            .padding()
         }
-        .background(Color(.systemGroupedBackground))
     }
 }
 
-struct AccountGridCard: View {
+struct AccountListRow: View {
     let account: Account
     let isSelected: Bool
     let modelContext: ModelContext
@@ -113,96 +197,60 @@ struct AccountGridCard: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            // Account Image or Icon
-            ZStack {
-                if let imageData = account.imageData, let uiImage = UIImage(data: imageData) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 80, height: 80)
-                        .clipShape(Circle())
-                        .overlay(
-                            Circle()
-                                .stroke(isSelected ? account.color : Color.clear, lineWidth: 3)
-                        )
-                } else {
-                    ZStack {
-                        Circle()
-                            .fill(account.color.opacity(0.2))
-                            .frame(width: 80, height: 80)
-
-                        Image(systemName: account.icon)
-                            .font(.system(size: 32))
-                            .foregroundStyle(account.color)
-                    }
+        HStack(spacing: 12) {
+            // Account Icon
+            if let imageData = account.imageData, let uiImage = UIImage(data: imageData) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 44, height: 44)
+                    .clipShape(Circle())
                     .overlay(
                         Circle()
-                            .stroke(isSelected ? account.color : Color.clear, lineWidth: 3)
+                            .stroke(account.color, lineWidth: 2)
                     )
-                }
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(account.color.opacity(0.15))
+                        .frame(width: 44, height: 44)
 
-                // Checkmark for selected account
-                if isSelected {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(.white)
-                                .background(
-                                    Circle()
-                                        .fill(account.color)
-                                        .frame(width: 28, height: 28)
-                                )
-                        }
-                        Spacer()
-                    }
-                    .frame(width: 80, height: 80)
+                    Image(systemName: account.icon)
+                        .font(.system(size: 18))
+                        .foregroundStyle(account.color)
                 }
             }
 
-            // Account Name
-            Text(account.name)
-                .font(.subheadline.bold())
-                .foregroundStyle(.primary)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .frame(height: 34)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(account.name)
+                    .font(.body)
+                    .foregroundStyle(.primary)
 
-            // Currency Badge
-            if let currencyRecord = account.currencyRecord {
                 HStack(spacing: 4) {
-                    Text(currencyRecord.flagEmoji)
-                        .font(.caption)
-                    Text(currencyRecord.code)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    if let currencyRecord = account.currencyRecord {
+                        Text(currencyRecord.flagEmoji)
+                            .font(.caption2)
+                        Text(currencyRecord.code)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color(.systemGray6))
-                )
             }
 
-            // Account Balance
-            Text(formatAmount(calculatedBalance, currency: account.currencyRecord))
-                .font(.caption)
-                .foregroundStyle(calculatedBalance < 0 ? .red : .secondary)
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(formatAmount(calculatedBalance, currency: account.currencyRecord))
+                    .font(.body)
+                    .foregroundStyle(calculatedBalance < 0 ? .red : .primary)
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(account.color)
+                        .font(.caption)
+                }
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(isSelected ? 0.15 : 0.05), radius: isSelected ? 8 : 5, y: 2)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(isSelected ? account.color.opacity(0.5) : Color.clear, lineWidth: 2)
-        )
     }
 
     private func formatAmount(_ amount: Decimal, currency: CurrencyRecord?) -> String {
@@ -212,7 +260,7 @@ struct AccountGridCard: View {
         formatter.maximumFractionDigits = 2
 
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
-        return "\(currency?.symbol ?? "€")\(amountString)"
+        return "\(currency?.code ?? "EUR") \(amountString)"
     }
 }
 

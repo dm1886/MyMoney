@@ -18,7 +18,7 @@ class MissedTransactionManager {
 
     func checkMissedTransactions(modelContext: ModelContext) async -> (automatic: Int, manual: Int) {
         let now = Date()
-        print("🔍 Checking for missed transactions at app launch...")
+        LogManager.shared.info("Checking for missed transactions at app launch...", category: "MissedTransactions")
 
         let descriptor = FetchDescriptor<Transaction>()
 
@@ -33,7 +33,7 @@ class MissedTransactionManager {
                        scheduledDate < now
             }
 
-            print("📊 Found \(missedTransactions.count) missed transactions")
+            LogManager.shared.info("Found \(missedTransactions.count) missed transactions", category: "MissedTransactions")
 
             var automaticCount = 0
             var manualCount = 0
@@ -41,7 +41,7 @@ class MissedTransactionManager {
             for transaction in missedTransactions {
                 if transaction.isAutomatic {
                     // Execute automatic transactions immediately
-                    print("⚡️ Auto-executing missed automatic transaction: \(transaction.id)")
+                    LogManager.shared.info("Auto-executing missed automatic transaction: \(transaction.id)", category: "MissedTransactions")
                     await TransactionScheduler.shared.executeTransaction(transaction, modelContext: modelContext)
                     automaticCount += 1
                 } else {
@@ -51,17 +51,17 @@ class MissedTransactionManager {
             }
 
             if automaticCount > 0 {
-                print("✅ Auto-executed \(automaticCount) missed automatic transactions")
+                LogManager.shared.success("Auto-executed \(automaticCount) missed automatic transactions", category: "MissedTransactions")
             }
 
             if manualCount > 0 {
-                print("⏳ Found \(manualCount) missed manual transactions requiring confirmation")
+                LogManager.shared.warning("Found \(manualCount) missed manual transactions requiring confirmation", category: "MissedTransactions")
             }
 
             return (automatic: automaticCount, manual: manualCount)
 
         } catch {
-            print("❌ Error checking missed transactions: \(error)")
+            LogManager.shared.error("Error checking missed transactions: \(error.localizedDescription)", category: "MissedTransactions")
             return (0, 0)
         }
     }

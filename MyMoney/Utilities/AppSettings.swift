@@ -89,6 +89,28 @@ final class AppSettings {
         }
     }
 
+    var superSecure: Bool = true {
+        didSet {
+            UserDefaults.standard.set(superSecure, forKey: "superSecure")
+        }
+    }
+
+    var iCloudSyncEnabled: Bool = false {
+        didSet {
+            UserDefaults.standard.set(iCloudSyncEnabled, forKey: "iCloudSyncEnabled")
+        }
+    }
+
+    // iCloud sync status (read-only, just for display)
+    var lastICloudSync: Date? {
+        get {
+            UserDefaults.standard.object(forKey: "lastICloudSync") as? Date
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "lastICloudSync")
+        }
+    }
+
     private init() {
         self.preferredCurrency = UserDefaults.standard.string(forKey: "preferredCurrency") ?? Currency.EUR.rawValue
 
@@ -109,6 +131,13 @@ final class AppSettings {
         self.recurringDetectionDays = UserDefaults.standard.integer(forKey: "recurringDetectionDays")
         if self.recurringDetectionDays == 0 {
             self.recurringDetectionDays = 5  // Default to 5 days
+        }
+
+        // Load superSecure, default to true (most secure behavior)
+        if UserDefaults.standard.object(forKey: "superSecure") != nil {
+            self.superSecure = UserDefaults.standard.bool(forKey: "superSecure")
+        } else {
+            self.superSecure = true  // Default to true for existing users
         }
     }
 

@@ -17,8 +17,6 @@ struct BalanceView: View {
     @Query private var transactions: [Transaction]    // Per aggiornamenti reattivi quando transazioni cambiano
 
     @State private var showingAddAccount = false
-    @State private var isEditMode = false
-    @State private var accountOrder: [Account] = []
 
     var preferredCurrencyRecord: CurrencyRecord? {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
@@ -124,163 +122,218 @@ struct BalanceView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color(.systemGroupedBackground).ignoresSafeArea()
+            VStack(spacing: 0) {
+                // Header con saldo totale
+                VStack(spacing: 8) {
+                    Text("Saldo Totale")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        VStack(spacing: 8) {
-                            Text("Saldo Totale")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                    Text(formatAmount(totalBalance))
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
+                )
+                .padding(.horizontal)
+                .padding(.top, 12)
+                .padding(.bottom, 16)
 
-                            Text(formatAmount(totalBalance))
-                                .font(.system(size: 42, weight: .bold, design: .rounded))
-                                .foregroundStyle(.primary)
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color(.systemBackground))
-                                .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
-                        )
-                        .padding(.horizontal)
-                        .padding(.top, 8)
+                // Lista conti
+                if accounts.isEmpty {
+                    VStack(spacing: 16) {
+                        Spacer()
 
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("I Miei Conti")
-                                .font(.title2.bold())
-                                .padding(.horizontal)
+                        Image(systemName: "wallet.pass")
+                            .font(.system(size: 60))
+                            .foregroundStyle(.secondary)
 
-                            if accounts.isEmpty {
-                                VStack(spacing: 16) {
-                                    Image(systemName: "wallet.pass")
-                                        .font(.system(size: 60))
-                                        .foregroundStyle(.secondary)
+                        Text("Nessun conto")
+                            .font(.title3.bold())
 
-                                    Text("Nessun conto")
-                                        .font(.title3.bold())
+                        Text("Aggiungi il tuo primo conto per iniziare a tracciare le tue finanze")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
 
-                                    Text("Aggiungi il tuo primo conto per iniziare a tracciare le tue finanze")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 40)
+                        Spacer()
+                    }
+                } else {
+                    List {
+                        // Contanti Section
+                        if !cashAccounts.isEmpty {
+                            Section {
+                                ForEach(cashAccounts) { account in
+                                    NavigationLink(destination: AccountDetailView(account: account)) {
+                                        AccountRow(
+                                            account: account,
+                                            preferredCurrency: appSettings.preferredCurrencyEnum,
+                                            preferredCurrencyRecord: preferredCurrencyRecord,
+                                            exchangeRatesCount: exchangeRates.count
+                                        )
+                                    }
                                 }
-                                .padding(.vertical, 60)
-                                .frame(maxWidth: .infinity)
-                            } else {
-                                // Contanti Section
-                                if !cashAccounts.isEmpty {
-                                    AccountSection(
-                                        title: "Contanti",
-                                        icon: "banknote.fill",
-                                        color: .green,
-                                        accounts: cashAccounts,
-                                        total: sectionTotal(for: cashAccounts),
-                                        preferredCurrency: appSettings.preferredCurrencyEnum,
-                                        preferredCurrencyRecord: preferredCurrencyRecord,
-                                        exchangeRatesCount: exchangeRates.count,
-                                        isEditMode: isEditMode
-                                    )
-                                }
-
-                                // Pagamento Section
-                                if !paymentAccounts.isEmpty {
-                                    AccountSection(
-                                        title: "Pagamento",
-                                        icon: "creditcard.fill",
-                                        color: .blue,
-                                        accounts: paymentAccounts,
-                                        total: sectionTotal(for: paymentAccounts),
-                                        preferredCurrency: appSettings.preferredCurrencyEnum,
-                                        preferredCurrencyRecord: preferredCurrencyRecord,
-                                        exchangeRatesCount: exchangeRates.count,
-                                        isEditMode: isEditMode
-                                    )
-                                }
-
-                                // Attività Section
-                                if !assetAccounts.isEmpty {
-                                    AccountSection(
-                                        title: "Attività",
-                                        icon: "building.columns.fill",
-                                        color: .purple,
-                                        accounts: assetAccounts,
-                                        total: sectionTotal(for: assetAccounts),
-                                        preferredCurrency: appSettings.preferredCurrencyEnum,
-                                        preferredCurrencyRecord: preferredCurrencyRecord,
-                                        exchangeRatesCount: exchangeRates.count,
-                                        isEditMode: isEditMode
-                                    )
-                                }
-
-                                // Carta di Credito Section
-                                if !creditCardAccounts.isEmpty {
-                                    AccountSection(
-                                        title: "Carta di Credito",
-                                        icon: "creditcard.fill",
-                                        color: .orange,
-                                        accounts: creditCardAccounts,
-                                        total: sectionTotal(for: creditCardAccounts),
-                                        preferredCurrency: appSettings.preferredCurrencyEnum,
-                                        preferredCurrencyRecord: preferredCurrencyRecord,
-                                        exchangeRatesCount: exchangeRates.count,
-                                        isDebt: true,
-                                        isEditMode: isEditMode
-                                    )
-                                }
-
-                                // Passività Section
-                                if !liabilityAccounts.isEmpty {
-                                    AccountSection(
-                                        title: "Passività",
-                                        icon: "chart.line.downtrend.xyaxis",
-                                        color: .red,
-                                        accounts: liabilityAccounts,
-                                        total: sectionTotal(for: liabilityAccounts),
-                                        preferredCurrency: appSettings.preferredCurrencyEnum,
-                                        preferredCurrencyRecord: preferredCurrencyRecord,
-                                        exchangeRatesCount: exchangeRates.count,
-                                        isDebt: true,
-                                        isEditMode: isEditMode
-                                    )
-                                }
+                            } header: {
+                                sectionHeader(
+                                    title: "Contanti",
+                                    icon: "banknote.fill",
+                                    color: .green,
+                                    total: sectionTotal(for: cashAccounts)
+                                )
                             }
                         }
 
-                        Spacer(minLength: 100)
+                        // Pagamento Section
+                        if !paymentAccounts.isEmpty {
+                            Section {
+                                ForEach(paymentAccounts) { account in
+                                    NavigationLink(destination: AccountDetailView(account: account)) {
+                                        AccountRow(
+                                            account: account,
+                                            preferredCurrency: appSettings.preferredCurrencyEnum,
+                                            preferredCurrencyRecord: preferredCurrencyRecord,
+                                            exchangeRatesCount: exchangeRates.count
+                                        )
+                                    }
+                                }
+                            } header: {
+                                sectionHeader(
+                                    title: "Pagamento",
+                                    icon: "creditcard.fill",
+                                    color: .blue,
+                                    total: sectionTotal(for: paymentAccounts)
+                                )
+                            }
+                        }
+
+                        // Attività Section
+                        if !assetAccounts.isEmpty {
+                            Section {
+                                ForEach(assetAccounts) { account in
+                                    NavigationLink(destination: AccountDetailView(account: account)) {
+                                        AccountRow(
+                                            account: account,
+                                            preferredCurrency: appSettings.preferredCurrencyEnum,
+                                            preferredCurrencyRecord: preferredCurrencyRecord,
+                                            exchangeRatesCount: exchangeRates.count
+                                        )
+                                    }
+                                }
+                            } header: {
+                                sectionHeader(
+                                    title: "Attività",
+                                    icon: "building.columns.fill",
+                                    color: .purple,
+                                    total: sectionTotal(for: assetAccounts)
+                                )
+                            }
+                        }
+
+                        // Carta di Credito Section
+                        if !creditCardAccounts.isEmpty {
+                            Section {
+                                ForEach(creditCardAccounts) { account in
+                                    NavigationLink(destination: AccountDetailView(account: account)) {
+                                        AccountRow(
+                                            account: account,
+                                            preferredCurrency: appSettings.preferredCurrencyEnum,
+                                            preferredCurrencyRecord: preferredCurrencyRecord,
+                                            exchangeRatesCount: exchangeRates.count
+                                        )
+                                    }
+                                }
+                            } header: {
+                                sectionHeader(
+                                    title: "Carta di Credito",
+                                    icon: "creditcard.fill",
+                                    color: .orange,
+                                    total: sectionTotal(for: creditCardAccounts),
+                                    isDebt: true
+                                )
+                            }
+                        }
+
+                        // Passività Section
+                        if !liabilityAccounts.isEmpty {
+                            Section {
+                                ForEach(liabilityAccounts) { account in
+                                    NavigationLink(destination: AccountDetailView(account: account)) {
+                                        AccountRow(
+                                            account: account,
+                                            preferredCurrency: appSettings.preferredCurrencyEnum,
+                                            preferredCurrencyRecord: preferredCurrencyRecord,
+                                            exchangeRatesCount: exchangeRates.count
+                                        )
+                                    }
+                                }
+                            } header: {
+                                sectionHeader(
+                                    title: "Passività",
+                                    icon: "chart.line.downtrend.xyaxis",
+                                    color: .red,
+                                    total: sectionTotal(for: liabilityAccounts),
+                                    isDebt: true
+                                )
+                            }
+                        }
                     }
-                    .padding(.vertical)
                 }
             }
+            .background(Color(.systemGroupedBackground))
             .navigationTitle("Bilancio")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button {
-                            showingAddAccount = true
-                        } label: {
-                            Label("Aggiungi Conto", systemImage: "plus.circle")
-                        }
-
-                        Button {
-                            isEditMode.toggle()
-                        } label: {
-                            Label(isEditMode ? "Fine" : "Modifica Ordine", systemImage: isEditMode ? "checkmark.circle" : "arrow.up.arrow.down.circle")
-                        }
+                    Button {
+                        showingAddAccount = true
                     } label: {
-                        Image(systemName: isEditMode ? "checkmark.circle.fill" : "plus.circle.fill")
+                        Image(systemName: "plus.circle.fill")
                             .font(.title3)
-                            .foregroundStyle(isEditMode ? .green : appSettings.accentColor)
+                            .foregroundStyle(appSettings.accentColor)
                     }
                 }
             }
             .sheet(isPresented: $showingAddAccount) {
                 AddAccountView()
             }
+        }
+    }
+
+    private func sectionHeader(title: String, icon: String, color: Color, total: Decimal, isDebt: Bool = false) -> some View {
+        HStack {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .foregroundStyle(color)
+                Text(title)
+                    .foregroundStyle(.primary)
+            }
+            Spacer()
+            Text(formatSectionTotal(total, isDebt: isDebt))
+                .foregroundStyle(.secondary)
+        }
+        .font(.subheadline.bold())
+        .textCase(nil)
+    }
+
+    private func formatSectionTotal(_ amount: Decimal, isDebt: Bool) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+
+        let displayAmount = isDebt ? abs(amount) : amount
+        let amountString = formatter.string(from: displayAmount as NSDecimalNumber) ?? "0.00"
+
+        if isDebt {
+            return "-\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
+        } else {
+            return "\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
         }
     }
 
@@ -344,15 +397,34 @@ struct AccountRow: View {
 
         if let accountTransactions = account.transactions {
             for transaction in accountTransactions where transaction.status == .executed {
+                // Determina l'importo da usare: se c'è destinationAmount (conversione), usalo,
+                // altrimenti converti on-the-fly se necessario, altrimenti usa l'importo originale
+                var amountToUse = transaction.amount
+
+                if let destAmount = transaction.destinationAmount {
+                    // Usa l'importo già convertito (salvato durante la creazione)
+                    amountToUse = destAmount
+                } else if let transactionCurr = transaction.currencyRecord,
+                          let accountCurr = account.currencyRecord,
+                          transactionCurr.code != accountCurr.code {
+                    // Conversione on-the-fly se le valute sono diverse
+                    amountToUse = CurrencyService.shared.convert(
+                        amount: transaction.amount,
+                        from: transactionCurr,
+                        to: accountCurr,
+                        context: modelContext
+                    )
+                }
+
                 switch transaction.transactionType {
                 case .expense:
-                    balance -= transaction.amount
+                    balance -= amountToUse
                 case .income:
-                    balance += transaction.amount
+                    balance += amountToUse
                 case .transfer:
-                    balance -= transaction.amount
+                    balance -= amountToUse
                 case .adjustment:
-                    balance += transaction.amount
+                    balance += amountToUse
                 }
             }
         }
@@ -395,7 +467,7 @@ struct AccountRow: View {
             } else {
                 ZStack {
                     Circle()
-                        .fill(account.color.opacity(0.2))
+                        .fill(account.color.opacity(0.15))
                         .frame(width: 44, height: 44)
 
                     Image(systemName: account.icon)
@@ -440,112 +512,6 @@ struct AccountRow: View {
     }
 }
 
-// MARK: - Account Section View
-
-struct AccountSection: View {
-    @Environment(\.modelContext) private var modelContext
-
-    let title: String
-    let icon: String
-    let color: Color
-    let accounts: [Account]
-    let total: Decimal
-    let preferredCurrency: Currency
-    let preferredCurrencyRecord: CurrencyRecord?
-    let exchangeRatesCount: Int
-    var isDebt: Bool = false
-    var isEditMode: Bool = false
-
-    @State private var localAccounts: [Account] = []
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Section Header with Total
-            HStack {
-                HStack(spacing: 8) {
-                    Image(systemName: icon)
-                        .foregroundStyle(color)
-                        .font(.title3)
-
-                    Text(title)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                }
-
-                Spacer()
-
-                // Section Total
-                Text(formatSectionTotal(total))
-                    .font(.subheadline.bold())
-                    .foregroundStyle(total < 0 ? .red : color)
-            }
-            .padding(.horizontal)
-            .padding(.top, 8)
-
-            // Accounts in this section
-            VStack(spacing: 8) {
-                ForEach(localAccounts) { account in
-                    if isEditMode {
-                        HStack {
-                            Image(systemName: "line.3.horizontal")
-                                .foregroundStyle(.secondary)
-                                .padding(.leading)
-
-                            NavigationLink(destination: AccountDetailView(account: account)) {
-                                AccountRow(
-                                    account: account,
-                                    preferredCurrency: preferredCurrency,
-                                    preferredCurrencyRecord: preferredCurrencyRecord,
-                                    exchangeRatesCount: exchangeRatesCount
-                                )
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                        }
-                    } else {
-                        NavigationLink(destination: AccountDetailView(account: account)) {
-                            AccountRow(
-                                account: account,
-                                preferredCurrency: preferredCurrency,
-                                preferredCurrencyRecord: preferredCurrencyRecord,
-                                exchangeRatesCount: exchangeRatesCount
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
-                }
-                .onMove { source, destination in
-                    localAccounts.move(fromOffsets: source, toOffset: destination)
-                }
-            }
-        }
-        .padding(.vertical, 8)
-        .onAppear {
-            localAccounts = accounts
-        }
-        .onChange(of: accounts) { _, newAccounts in
-            if !isEditMode {
-                localAccounts = newAccounts
-            }
-        }
-    }
-
-    private func formatSectionTotal(_ amount: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-
-        // For debts, show as positive in UI but with indicator
-        let displayAmount = isDebt ? abs(amount) : amount
-        let amountString = formatter.string(from: displayAmount as NSDecimalNumber) ?? "0.00"
-
-        if isDebt {
-            return "-\(preferredCurrency.rawValue) \(amountString)"
-        } else {
-            return "\(preferredCurrency.rawValue) \(amountString)"
-        }
-    }
-}
 
 #Preview {
     BalanceView()

@@ -340,7 +340,7 @@ struct TodayView: View {
                         .foregroundStyle(appSettings.accentColor)
                 }
             }
-//            .padding(.horizontal)
+            .padding(.horizontal)
 
             // Grid calendario
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
@@ -383,7 +383,7 @@ struct TodayView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
-//            .padding(.horizontal)
+            .padding(.horizontal)
         }
         .padding(.vertical, 12)
         .background(

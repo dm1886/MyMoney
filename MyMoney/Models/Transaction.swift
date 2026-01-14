@@ -62,9 +62,9 @@ final class Transaction {
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
 
-        let symbol = currencyRecord?.symbol ?? currency.symbol
+        let code = currencyRecord?.code ?? currency.rawValue
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
-        return "\(symbol)\(amountString)"
+        return "\(code) \(amountString)"
     }
 
     var isToday: Bool {
