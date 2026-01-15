@@ -28,6 +28,7 @@ struct EditAccountView: View {
     @State private var photoData: Data?
     @State private var showingIconPicker = false
     @State private var initialBalance: String
+    @State private var isPositiveBalance: Bool
 
     init(account: Account) {
         self.account = account
@@ -40,13 +41,17 @@ struct EditAccountView: View {
         _accountDescription = State(initialValue: account.accountDescription)
         _photoData = State(initialValue: account.imageData)
 
-        // Convert Decimal to String properly
+        // Convert Decimal to String properly (use absolute value for display)
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 2
-        let balanceString = formatter.string(from: account.initialBalance as NSDecimalNumber) ?? "0"
+        let absBalance = abs(account.initialBalance)
+        let balanceString = formatter.string(from: absBalance as NSDecimalNumber) ?? "0"
         _initialBalance = State(initialValue: balanceString)
+
+        // Determine if balance is positive (for credit cards)
+        _isPositiveBalance = State(initialValue: account.initialBalance >= 0)
     }
 
     var body: some View {
@@ -92,10 +97,25 @@ struct EditAccountView: View {
                             .keyboardType(.decimalPad)
                             .font(.title3.bold())
                     }
+
+                    // Toggle for positive balance (only for credit cards)
+                    if selectedType == .creditCard {
+                        Toggle(isOn: $isPositiveBalance) {
+                            HStack {
+                                Image(systemName: isPositiveBalance ? "plus.circle.fill" : "minus.circle.fill")
+                                    .foregroundStyle(isPositiveBalance ? .green : .red)
+                                Text("Saldo in Positivo")
+                            }
+                        }
+                    }
                 } header: {
-                    Text("Saldo Iniziale")
+                    Text(selectedType == .creditCard ? (isPositiveBalance ? "Credito Iniziale" : "Debito Iniziale") : "Saldo Iniziale")
                 } footer: {
-                    Text("Modifica il saldo iniziale del conto. Attenzione: questo modificherà il saldo base prima di sommare le transazioni.")
+                    if selectedType == .creditCard {
+                        Text("Attiva 'Saldo in Positivo' se la carta ha un credito invece di un debito. Questo modificherà il saldo base prima di sommare le transazioni.")
+                    } else {
+                        Text("Modifica il saldo iniziale del conto. Attenzione: questo modificherà il saldo base prima di sommare le transazioni.")
+                    }
                 }
 
                 Section("Personalizzazione") {
@@ -217,7 +237,21 @@ struct EditAccountView: View {
             .replacingOccurrences(of: ",", with: ".")
             .trimmingCharacters(in: .whitespaces)
 
-        if let balanceDecimal = Decimal(string: cleanedBalance) {
+        if var balanceDecimal = Decimal(string: cleanedBalance) {
+            // For credit cards: respect the isPositiveBalance toggle
+            if selectedType == .creditCard {
+                if isPositiveBalance {
+                    // Saldo in positivo = credito
+                    balanceDecimal = abs(balanceDecimal)
+                } else {
+                    // Saldo in negativo = debito
+                    balanceDecimal = -abs(balanceDecimal)
+                }
+            } else if selectedType == .liability {
+                // Liabilities always stored as negative (debt)
+                balanceDecimal = -abs(balanceDecimal)
+            }
+
             let oldBalance = account.initialBalance
             if oldBalance != balanceDecimal {
                 changes.append("initialBalance: \(oldBalance) → \(balanceDecimal)")

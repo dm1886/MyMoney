@@ -40,10 +40,17 @@ struct CategoriesView: View {
                             }
                         }
                     } header: {
-                        HStack {
-                            Image(systemName: group.icon)
-                                .foregroundStyle(group.color)
-                            Text(group.name)
+                        // Gruppo cliccabile per modificarlo
+                        NavigationLink(destination: EditCategoryGroupView(group: group)) {
+                            HStack {
+                                Image(systemName: group.icon)
+                                    .foregroundStyle(group.color)
+                                Text(group.name)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }

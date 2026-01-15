@@ -22,10 +22,16 @@ struct CategoryPickerView: View {
     @State private var selectedCategoryForDetail: Category?
 
     var filteredGroups: [CategoryGroup] {
+        // Prima filtra per applicabilità al tipo di transazione
+        let applicableGroups = categoryGroups.filter { group in
+            group.applicability.isApplicable(to: transactionType)
+        }
+
+        // Poi filtra per ricerca testuale
         if searchText.isEmpty {
-            return categoryGroups
+            return applicableGroups
         } else {
-            return categoryGroups.compactMap { group in
+            return applicableGroups.compactMap { group in
                 let filteredCategories = group.sortedCategories.filter {
                     $0.name.localizedCaseInsensitiveContains(searchText)
                 }

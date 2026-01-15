@@ -16,6 +16,7 @@ struct AddCategoryGroupView: View {
     @State private var name = ""
     @State private var selectedIcon = "folder.fill"
     @State private var selectedColor = Color.blue
+    @State private var selectedApplicability = TransactionTypeScope.all
     @State private var showingIconPicker = false
 
     var body: some View {
@@ -37,6 +38,23 @@ struct AddCategoryGroupView: View {
                     }
 
                     ColorPicker("Colore", selection: $selectedColor)
+                }
+
+                Section {
+                    Picker("Applicabilità", selection: $selectedApplicability) {
+                        ForEach(TransactionTypeScope.allCases, id: \.self) { scope in
+                            HStack {
+                                Image(systemName: scope.icon)
+                                Text(scope.rawValue)
+                            }
+                            .tag(scope)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                } header: {
+                    Text("Visibilità")
+                } footer: {
+                    Text("Scegli in quali tipi di transazione questo gruppo e le sue categorie saranno visibili")
                 }
             }
             .navigationTitle("Nuovo Gruppo")
@@ -68,12 +86,14 @@ struct AddCategoryGroupView: View {
             name: name,
             icon: selectedIcon,
             colorHex: selectedColor.toHex() ?? "#007AFF",
-            sortOrder: maxSortOrder + 1
+            sortOrder: maxSortOrder + 1,
+            applicability: selectedApplicability
         )
 
         modelContext.insert(group)
         try? modelContext.save()
 
+        LogManager.shared.success("Created category group '\(name)' with applicability: \(selectedApplicability.rawValue)", category: "CategoryGroup")
         dismiss()
     }
 }

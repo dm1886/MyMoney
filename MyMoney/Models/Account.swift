@@ -160,6 +160,7 @@ final class Account {
 enum AccountType: String, Codable, CaseIterable {
     case payment = "Pagamento"
     case cash = "Contanti"
+    case prepaidCard = "Carta Prepagata"
     case creditCard = "Carta di Credito"
     case asset = "Attività"
     case liability = "Passività"
@@ -168,6 +169,7 @@ enum AccountType: String, Codable, CaseIterable {
         switch self {
         case .payment: return "creditcard.fill"
         case .cash: return "banknote.fill"
+        case .prepaidCard: return "creditcard.fill"
         case .creditCard: return "creditcard.fill"
         case .asset: return "building.columns.fill"
         case .liability: return "chart.line.downtrend.xyaxis"

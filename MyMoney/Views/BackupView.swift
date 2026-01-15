@@ -16,6 +16,8 @@ struct BackupView: View {
     @Query private var transactions: [Transaction]
     @Query private var categories: [Category]
     @Query private var categoryGroups: [CategoryGroup]
+    @Query private var currencyRecords: [CurrencyRecord]
+    @Query private var exchangeRates: [ExchangeRate]
 
     @State private var authManager = AuthenticationManager.shared
 
@@ -144,6 +146,20 @@ struct BackupView: View {
                     Text("\(categories.count)")
                         .foregroundStyle(.secondary)
                 }
+
+                HStack {
+                    Text("Valute")
+                    Spacer()
+                    Text("\(currencyRecords.count)")
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Text("Tassi di Cambio")
+                    Spacer()
+                    Text("\(exchangeRates.count)")
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .navigationTitle("Backup & Sicurezza")
@@ -187,7 +203,9 @@ struct BackupView: View {
                     accounts: accounts,
                     transactions: transactions,
                     categories: categories,
-                    categoryGroups: categoryGroups
+                    categoryGroups: categoryGroups,
+                    currencyRecords: currencyRecords,
+                    exchangeRates: exchangeRates
                 )
 
                 // Salva temporaneamente
@@ -270,6 +288,8 @@ struct BackupView: View {
                         Conti: \(result.accounts)
                         Transazioni: \(result.transactions)
                         Categorie: \(result.categories)
+                        Valute: \(result.currencies)
+                        Tassi di Cambio: \(result.rates)
                         """
                         showingAlert = true
 

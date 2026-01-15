@@ -29,6 +29,7 @@ struct AddAccountView: View {
     @State private var photoData: Data?
     @State private var showingIconPicker = false
     @State private var showingCurrencyPicker = false
+    @State private var isPositiveBalance = false  // Per carte di credito in positivo
 
     let accountIcons = [
         "creditcard.fill", "banknote.fill", "dollarsign.circle.fill",
@@ -39,11 +40,13 @@ struct AddAccountView: View {
 
     var balanceLabel: String {
         switch selectedType {
-        case .creditCard, .liability:
+        case .creditCard:
+            return isPositiveBalance ? "Credito Iniziale" : "Debito Iniziale"
+        case .liability:
             return "Debito Iniziale"
         case .asset:
             return "Bilancio Iniziale"
-        case .payment, .cash:
+        case .payment, .cash, .prepaidCard:
             return "Saldo Iniziale"
         }
     }
@@ -90,6 +93,17 @@ struct AddAccountView: View {
                             .multilineTextAlignment(.trailing)
                         Text(selectedCurrencyRecord?.symbol ?? "€")
                             .foregroundStyle(.secondary)
+                    }
+
+                    // Toggle for positive balance (only for credit cards)
+                    if selectedType == .creditCard {
+                        Toggle(isOn: $isPositiveBalance) {
+                            HStack {
+                                Image(systemName: isPositiveBalance ? "plus.circle.fill" : "minus.circle.fill")
+                                    .foregroundStyle(isPositiveBalance ? .green : .red)
+                                Text("Saldo in Positivo")
+                            }
+                        }
                     }
 
                     // Credit limit field (only for credit cards)
@@ -182,8 +196,19 @@ struct AddAccountView: View {
     private func saveAccount() {
         var balance = Decimal(string: initialBalance.replacingOccurrences(of: ",", with: ".")) ?? 0
 
-        // For credit cards and liabilities, debt is stored as negative
-        if selectedType == .creditCard || selectedType == .liability {
+        // For credit cards: respect the isPositiveBalance toggle
+        // For liabilities: always store as negative (debt)
+        if selectedType == .creditCard {
+            if isPositiveBalance {
+                // Saldo in positivo = credito
+                balance = abs(balance)
+                LogManager.shared.info("Creating credit card '\(name)' with positive balance (credit): \(balance)", category: "Account")
+            } else {
+                // Saldo in negativo = debito
+                balance = -abs(balance)
+                LogManager.shared.info("Creating credit card '\(name)' with negative balance (debt): \(balance)", category: "Account")
+            }
+        } else if selectedType == .liability {
             balance = -abs(balance)
         }
 

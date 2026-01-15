@@ -31,6 +31,10 @@ struct BalanceView: View {
         accounts.filter { $0.accountType == .payment }
     }
 
+    var prepaidCardAccounts: [Account] {
+        accounts.filter { $0.accountType == .prepaidCard }
+    }
+
     var creditCardAccounts: [Account] {
         accounts.filter { $0.accountType == .creditCard }
     }
@@ -212,6 +216,29 @@ struct BalanceView: View {
                             }
                         }
 
+                        // Carte Prepagate Section
+                        if !prepaidCardAccounts.isEmpty {
+                            Section {
+                                ForEach(prepaidCardAccounts) { account in
+                                    NavigationLink(destination: AccountDetailView(account: account)) {
+                                        AccountRow(
+                                            account: account,
+                                            preferredCurrency: appSettings.preferredCurrencyEnum,
+                                            preferredCurrencyRecord: preferredCurrencyRecord,
+                                            exchangeRatesCount: exchangeRates.count
+                                        )
+                                    }
+                                }
+                            } header: {
+                                sectionHeader(
+                                    title: "Carte Prepagate",
+                                    icon: "creditcard.fill",
+                                    color: .cyan,
+                                    total: sectionTotal(for: prepaidCardAccounts)
+                                )
+                            }
+                        }
+
                         // Attività Section
                         if !assetAccounts.isEmpty {
                             Section {
@@ -327,11 +354,21 @@ struct BalanceView: View {
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
 
-        let displayAmount = isDebt ? abs(amount) : amount
+        let displayAmount = abs(amount)
         let amountString = formatter.string(from: displayAmount as NSDecimalNumber) ?? "0.00"
 
+        // Per debiti (carte di credito, passività), mostra + o - in base al segno effettivo
         if isDebt {
-            return "-\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
+            if amount < 0 {
+                // Negativo = debito
+                return "-\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
+            } else if amount > 0 {
+                // Positivo = credito
+                return "+\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
+            } else {
+                // Zero
+                return "\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
+            }
         } else {
             return "\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
         }
