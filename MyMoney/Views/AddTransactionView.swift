@@ -195,9 +195,25 @@ struct AddTransactionView: View {
                             }
                         }
                     }
+
+                    // CONTO - Subito dopo categoria per expense/income
+                    Section {
+                        NavigationLink {
+                            AccountSelectionView(
+                                selectedAccount: $selectedAccount,
+                                showNavigationBar: false,
+                                transactionType: transactionType,
+                                selectedCategory: selectedCategory,
+                                title: "Conto"
+                            )
+                        } label: {
+                            accountRowLabel(title: "Conto", account: selectedAccount)
+                        }
+                        .id(selectedAccount?.id)  // Forza re-rendering quando account cambia
+                    }
                 }
 
-                // CONTI - Prima per i trasferimenti
+                // CONTI - Per i trasferimenti
                 if transactionType == .transfer {
                     Section {
                         NavigationLink {
@@ -205,7 +221,8 @@ struct AddTransactionView: View {
                                 selectedAccount: $selectedAccount,
                                 showNavigationBar: false,
                                 transactionType: transactionType,
-                                title: "Da Conto"
+                                title: "Da Conto",
+                                excludedAccount: selectedDestinationAccount  // Escludi il conto destinazione
                             )
                         } label: {
                             accountRowLabel(title: "Da Conto", account: selectedAccount)
@@ -217,7 +234,8 @@ struct AddTransactionView: View {
                                 selectedAccount: $selectedDestinationAccount,
                                 showNavigationBar: false,
                                 transactionType: transactionType,
-                                title: "A Conto"
+                                title: "A Conto",
+                                excludedAccount: selectedAccount  // Escludi il conto origine
                             )
                         } label: {
                             accountRowLabel(title: "A Conto", account: selectedDestinationAccount)
@@ -361,24 +379,6 @@ struct AddTransactionView: View {
                            let destCurr = selectedDestinationAccount?.currencyRecord {
                             Text("L'importo verrà convertito automaticamente da \(sourceCurr.code) a \(destCurr.code). Puoi modificare l'importo di destinazione se necessario.")
                         }
-                    }
-                }
-
-                // CONTO (solo per expense/income)
-                if transactionType != .transfer {
-                    Section {
-                        NavigationLink {
-                            AccountSelectionView(
-                                selectedAccount: $selectedAccount,
-                                showNavigationBar: false,
-                                transactionType: transactionType,
-                                selectedCategory: selectedCategory,
-                                title: "Conto"
-                            )
-                        } label: {
-                            accountRowLabel(title: "Conto", account: selectedAccount)
-                        }
-                        .id(selectedAccount?.id)  // Forza re-rendering quando account cambia
                     }
                 }
 
@@ -613,11 +613,29 @@ struct AddTransactionView: View {
                 CategoryPickerView(selectedCategory: $selectedCategory, transactionType: transactionType)
             }
             .onChange(of: selectedCategory) { oldValue, newValue in
-                // Auto-seleziona il conto predefinito della categoria SOLO se non c'è già un account selezionato dall'utente
+                // Auto-seleziona il conto predefinito della categoria
                 if let category = newValue,
-                   let defaultAccount = category.defaultAccount,
-                   selectedAccount == nil {
+                   let defaultAccount = category.defaultAccount {
                     selectedAccount = defaultAccount
+                    LogManager.shared.info("Auto-selected default account '\(defaultAccount.name)' for category '\(category.name)'", category: "AddTransaction")
+                }
+            }
+            .onChange(of: selectedAccount) { oldValue, newValue in
+                // Per trasferimenti: resetta il conto di destinazione se diventa uguale all'origine
+                if transactionType == .transfer,
+                   let origin = newValue,
+                   let destination = selectedDestinationAccount,
+                   origin.id == destination.id {
+                    selectedDestinationAccount = nil
+                }
+            }
+            .onChange(of: selectedDestinationAccount) { oldValue, newValue in
+                // Per trasferimenti: resetta il conto di origine se diventa uguale alla destinazione
+                if transactionType == .transfer,
+                   let destination = newValue,
+                   let origin = selectedAccount,
+                   origin.id == destination.id {
+                    selectedAccount = nil
                 }
             }
             .onAppear {

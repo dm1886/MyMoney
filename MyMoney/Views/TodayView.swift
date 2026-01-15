@@ -149,7 +149,24 @@ struct TodayView: View {
                 to: preferredCurrency,
                 context: modelContext
             )
-            let signedAmount = transaction.transactionType == .expense ? -convertedAmount : convertedAmount
+
+            // Applica il segno corretto in base al tipo di transazione
+            let signedAmount: Decimal
+            switch transaction.transactionType {
+            case .expense:
+                // Uscite: negative
+                signedAmount = -convertedAmount
+            case .income:
+                // Entrate: positive
+                signedAmount = convertedAmount
+            case .transfer:
+                // Trasferimenti: negativi (esce dal conto)
+                signedAmount = -convertedAmount
+            case .adjustment:
+                // Aggiustamenti: già hanno il segno corretto nell'amount
+                signedAmount = convertedAmount
+            }
+
             return sum + signedAmount
         }
     }
@@ -161,6 +178,17 @@ struct TodayView: View {
         formatter.maximumFractionDigits = 2
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
         return "\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
+    }
+
+    // Colore del totale basato sul segno
+    private var totalColor: Color {
+        if dayTransactionsTotal > 0 {
+            return .green
+        } else if dayTransactionsTotal < 0 {
+            return .red
+        } else {
+            return .secondary
+        }
     }
 
     private func updateDetectedPatterns() {
@@ -654,7 +682,7 @@ struct TodayView: View {
                         }
                         Spacer()
                         Text(formatAmount(dayTransactionsTotal))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(totalColor)
                     }
                     .font(.subheadline.bold())
                     .textCase(nil)

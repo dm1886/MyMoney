@@ -19,35 +19,49 @@ struct AccountSelectionView: View {
     let transactionType: TransactionType?
     let selectedCategory: Category?
     let title: String
+    let excludedAccount: Account?  // Conto da escludere (es. conto origine nei trasferimenti)
 
     init(
         selectedAccount: Binding<Account?>,
         showNavigationBar: Bool = true,
         transactionType: TransactionType? = nil,
         selectedCategory: Category? = nil,
-        title: String = "Seleziona Conto"
+        title: String = "Seleziona Conto",
+        excludedAccount: Account? = nil
     ) {
         self._selectedAccount = selectedAccount
         self.showNavigationBar = showNavigationBar
         self.transactionType = transactionType
         self.selectedCategory = selectedCategory
         self.title = title
+        self.excludedAccount = excludedAccount
     }
 
     // Filtra i conti in base al tipo di transazione
     var filteredAccounts: [Account] {
-        guard let type = transactionType else { return accounts }
+        var filtered: [Account]
 
-        switch type {
-        case .expense, .income:
-            // Per spese ed entrate, escludi passività e attività
-            return accounts.filter { account in
-                account.accountType != .liability && account.accountType != .asset
+        if let type = transactionType {
+            switch type {
+            case .expense, .income:
+                // Per spese ed entrate, escludi passività e attività
+                filtered = accounts.filter { account in
+                    account.accountType != .liability && account.accountType != .asset
+                }
+            case .transfer, .adjustment:
+                // Per trasferimenti e aggiustamenti, mostra tutti i conti
+                filtered = accounts
             }
-        case .transfer, .adjustment:
-            // Per trasferimenti e aggiustamenti, mostra tutti i conti
-            return accounts
+        } else {
+            filtered = accounts
         }
+
+        // Escludi il conto specificato (es. conto origine nei trasferimenti)
+        if let excluded = excludedAccount {
+            filtered = filtered.filter { $0.id != excluded.id }
+        }
+
+        return filtered
     }
 
     // Ordina i conti: prima il più usato o predefinito, poi gli altri

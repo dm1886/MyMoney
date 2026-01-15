@@ -125,7 +125,12 @@ struct BalanceAdjustmentView: View {
     }
 
     private func saveAdjustment() {
-        guard let diff = difference, diff != 0 else { return }
+        guard let diff = difference, diff != 0 else {
+            LogManager.shared.warning("Balance adjustment attempted with zero or invalid difference", category: "BalanceAdjustment")
+            return
+        }
+
+        LogManager.shared.info("Creating balance adjustment for account '\(account.name)': Current: \(currentBalance), New: \(newBalance ?? 0), Diff: \(diff)", category: "BalanceAdjustment")
 
         // Create adjustment transaction with signed amount
         // Positive diff = balance increase, negative diff = balance decrease
@@ -147,7 +152,12 @@ struct BalanceAdjustmentView: View {
         // Update account balance
         account.updateBalance(context: modelContext)
 
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+            LogManager.shared.success("Balance adjustment saved for account '\(account.name)'. Amount: \(diff)", category: "BalanceAdjustment")
+        } catch {
+            LogManager.shared.error("Failed to save balance adjustment: \(error.localizedDescription)", category: "BalanceAdjustment")
+        }
 
         dismiss()
     }

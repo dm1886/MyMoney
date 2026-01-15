@@ -154,11 +154,31 @@ struct MoneyTrackerApp: App {
                         )
 
                         if missed.automatic > 0 {
-                            print("✅ Executed \(missed.automatic) missed automatic transaction(s) on app launch")
+                            LogManager.shared.success("Executed \(missed.automatic) missed automatic transaction(s) on app launch", category: "AppLaunch")
                         }
 
                         if missed.manual > 0 {
-                            print("⏳ \(missed.manual) manual transaction(s) are waiting for confirmation")
+                            LogManager.shared.warning("\(missed.manual) manual transaction(s) are waiting for confirmation", category: "AppLaunch")
+
+                            // Set badge to notify user
+                            try? await UNUserNotificationCenter.current().setBadgeCount(missed.manual)
+
+                            // Send local notification to alert user
+                            let content = UNMutableNotificationContent()
+                            content.title = "Transazioni in Attesa"
+                            content.body = missed.manual == 1
+                                ? "1 transazione programmata è in attesa di conferma"
+                                : "\(missed.manual) transazioni programmate sono in attesa di conferma"
+                            content.sound = .default
+                            content.badge = NSNumber(value: missed.manual)
+
+                            let request = UNNotificationRequest(
+                                identifier: "missed-transactions-\(Date().timeIntervalSince1970)",
+                                content: content,
+                                trigger: nil  // Deliver immediately
+                            )
+
+                            try? await UNUserNotificationCenter.current().add(request)
                         }
 
                         // Generate recurring transaction instances

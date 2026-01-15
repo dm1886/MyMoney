@@ -86,7 +86,7 @@ struct EditAccountView: View {
 
                 Section {
                     HStack {
-                        Text(selectedCurrencyRecord?.symbol ?? selectedCurrency.symbol)
+                        Text(selectedCurrencyRecord?.code ?? selectedCurrency.rawValue)
                             .foregroundStyle(.secondary)
                         TextField("0.00", text: $initialBalance)
                             .keyboardType(.decimalPad)
@@ -95,7 +95,7 @@ struct EditAccountView: View {
                 } header: {
                     Text("Saldo Iniziale")
                 } footer: {
-                    Text("Modifica il saldo iniziale del conto. Attenzione: questo modificherà la base di calcolo del saldo corrente.")
+                    Text("Modifica il saldo iniziale del conto. Attenzione: questo modificherà il saldo base prima di sommare le transazioni.")
                 }
 
                 Section("Personalizzazione") {
@@ -166,26 +166,85 @@ struct EditAccountView: View {
     }
 
     private func saveChanges() {
-        account.name = name
-        account.accountType = selectedType
+        LogManager.shared.info("Saving account changes for: \(account.name)", category: "AccountEdit")
+
+        // Track what changed
+        var changes: [String] = []
+
+        if account.name != name {
+            changes.append("name: '\(account.name)' → '\(name)'")
+            account.name = name
+        }
+
+        if account.accountType != selectedType {
+            changes.append("type: '\(account.accountType.rawValue)' → '\(selectedType.rawValue)'")
+            account.accountType = selectedType
+        }
 
         // Update both currency properties
         if let currencyRecord = selectedCurrencyRecord {
-            account.currency = Currency(rawValue: currencyRecord.code) ?? .EUR
+            let newCurrency = Currency(rawValue: currencyRecord.code) ?? .EUR
+            if account.currency != newCurrency {
+                changes.append("currency: '\(account.currency.rawValue)' → '\(newCurrency.rawValue)'")
+            }
+            account.currency = newCurrency
             account.currencyRecord = currencyRecord
         }
 
-        account.icon = selectedIcon
-        account.colorHex = selectedColor.toHex() ?? "#007AFF"
-        account.accountDescription = accountDescription
-        account.imageData = photoData
-
-        // Update initial balance
-        if let balanceDecimal = Decimal(string: initialBalance.replacingOccurrences(of: ",", with: ".")) {
-            account.initialBalance = balanceDecimal
+        if account.icon != selectedIcon {
+            changes.append("icon: '\(account.icon)' → '\(selectedIcon)'")
+            account.icon = selectedIcon
         }
 
-        try? modelContext.save()
+        let newColorHex = selectedColor.toHex() ?? "#007AFF"
+        if account.colorHex != newColorHex {
+            changes.append("color: '\(account.colorHex)' → '\(newColorHex)'")
+            account.colorHex = newColorHex
+        }
+
+        if account.accountDescription != accountDescription {
+            changes.append("description updated")
+            account.accountDescription = accountDescription
+        }
+
+        if account.imageData != photoData {
+            changes.append("image updated")
+            account.imageData = photoData
+        }
+
+        // Update initial balance - CRITICAL: parse correctly and update balance
+        let cleanedBalance = initialBalance
+            .replacingOccurrences(of: ",", with: ".")
+            .trimmingCharacters(in: .whitespaces)
+
+        if let balanceDecimal = Decimal(string: cleanedBalance) {
+            let oldBalance = account.initialBalance
+            if oldBalance != balanceDecimal {
+                changes.append("initialBalance: \(oldBalance) → \(balanceDecimal)")
+                account.initialBalance = balanceDecimal
+
+                // IMPORTANT: Recalculate the account balance with new initial balance
+                account.updateBalance(context: modelContext)
+
+                LogManager.shared.info("Initial balance changed from \(oldBalance) to \(balanceDecimal). Balance recalculated.", category: "AccountEdit")
+            }
+        } else {
+            LogManager.shared.error("Failed to parse initial balance: '\(initialBalance)' (cleaned: '\(cleanedBalance)')", category: "AccountEdit")
+        }
+
+        if changes.isEmpty {
+            LogManager.shared.debug("No changes detected for account: \(account.name)", category: "AccountEdit")
+        } else {
+            LogManager.shared.success("Account '\(account.name)' updated. Changes: \(changes.joined(separator: ", "))", category: "AccountEdit")
+        }
+
+        do {
+            try modelContext.save()
+            LogManager.shared.success("Account '\(account.name)' saved successfully", category: "AccountEdit")
+        } catch {
+            LogManager.shared.error("Failed to save account '\(account.name)': \(error.localizedDescription)", category: "AccountEdit")
+        }
+
         dismiss()
     }
 }

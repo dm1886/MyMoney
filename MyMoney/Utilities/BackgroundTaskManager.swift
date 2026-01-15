@@ -53,7 +53,7 @@ class BackgroundTaskManager {
     // MARK: - Handle Background Task
 
     private func handleScheduledTransactionCheck(task: BGAppRefreshTask) async {
-        print("🔄 Background task started")
+        LogManager.shared.info("Background task started", category: "BackgroundTask")
 
         // Schedule the next background task
         scheduleBackgroundTask()
@@ -64,23 +64,27 @@ class BackgroundTaskManager {
 
         // Set up task expiration handler
         task.expirationHandler = {
-            print("⏰ Background task expired")
+            LogManager.shared.warning("Background task expired before completion", category: "BackgroundTask")
         }
 
         // Check and execute scheduled transactions
         let executedCount = await TransactionScheduler.shared.checkScheduledTransactionsInBackground(modelContext: context)
 
         if executedCount > 0 {
+            LogManager.shared.success("Executed \(executedCount) transaction(s) in background", category: "BackgroundTask")
+
             // Update badge count
             await updateBadgeCount(executedCount)
 
             // Send notification
             await sendBackgroundExecutionNotification(count: executedCount)
+        } else {
+            LogManager.shared.debug("No transactions executed in background", category: "BackgroundTask")
         }
 
         // Mark task as completed
         task.setTaskCompleted(success: true)
-        print("✅ Background task completed. Executed \(executedCount) transactions")
+        LogManager.shared.info("Background task completed. Executed \(executedCount) transactions", category: "BackgroundTask")
     }
 
     // MARK: - Badge Management
