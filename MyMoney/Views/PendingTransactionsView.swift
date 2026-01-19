@@ -10,7 +10,7 @@ import SwiftData
 
 struct PendingTransactionsView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Transaction.scheduledDate) private var allTransactions: [Transaction]
+    @Query(sort: \Transaction.date) private var allTransactions: [Transaction]
 
     private var pendingTransactions: [Transaction] {
         allTransactions.filter { $0.status == .pending && $0.isScheduled }
@@ -67,8 +67,7 @@ struct PendingTransactionCard: View {
 
     var isOverdue: Bool {
         guard !isDeleted else { return false }
-        guard let scheduledDate = transaction.scheduledDate else { return false }
-        return scheduledDate < Date()
+        return transaction.date < Date()
     }
 
     var body: some View {
@@ -84,29 +83,38 @@ struct PendingTransactionCard: View {
         VStack(spacing: 16) {
             // Header
             HStack {
-                ZStack {
-                    Circle()
-                        .fill(Color(hex: transaction.transactionType.color)?.opacity(0.2) ?? .orange.opacity(0.2))
+                // Category icon (custom image or SF Symbol)
+                if let category = transaction.category,
+                   let imageData = category.imageData,
+                   let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
                         .frame(width: 50, height: 50)
+                        .clipShape(Circle())
+                } else {
+                    ZStack {
+                        Circle()
+                            .fill(Color(hex: transaction.transactionType.color)?.opacity(0.2) ?? .orange.opacity(0.2))
+                            .frame(width: 50, height: 50)
 
-                    Image(systemName: transaction.category?.icon ?? transaction.transactionType.icon)
-                        .font(.title3)
-                        .foregroundStyle(Color(hex: transaction.transactionType.color) ?? .orange)
+                        Image(systemName: transaction.category?.icon ?? transaction.transactionType.icon)
+                            .font(.title3)
+                            .foregroundStyle(Color(hex: transaction.transactionType.color) ?? .orange)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(transaction.category?.name ?? transaction.transactionType.rawValue)
                         .font(.headline)
 
-                    if let scheduledDate = transaction.scheduledDate {
-                        HStack(spacing: 4) {
-                            Image(systemName: "clock")
-                                .font(.caption)
-                            Text(scheduledDate.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption)
-                        }
-                        .foregroundStyle(isOverdue ? .red : .secondary)
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.caption)
+                        Text(transaction.date.formatted(date: .abbreviated, time: .shortened))
+                            .font(.caption)
                     }
+                    .foregroundStyle(isOverdue ? .red : .secondary)
                 }
 
                 Spacer()

@@ -121,12 +121,21 @@ struct BudgetListView: View {
         VStack(alignment: .leading, spacing: 12) {
             // Header
             HStack {
-                // Category icon and name
+                // Category icon and name (custom image or SF Symbol)
                 if let category = budget.category {
                     HStack(spacing: 8) {
-                        Image(systemName: category.icon)
-                            .foregroundStyle(category.color)
-                            .font(.title3)
+                        if let imageData = category.imageData,
+                           let uiImage = UIImage(data: imageData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 28, height: 28)
+                                .clipShape(Circle())
+                        } else {
+                            Image(systemName: category.icon)
+                                .foregroundStyle(category.color)
+                                .font(.title3)
+                        }
 
                         Text(category.name)
                             .font(.headline)

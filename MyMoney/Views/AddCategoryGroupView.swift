@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 struct AddCategoryGroupView: View {
     @Environment(\.modelContext) private var modelContext
@@ -18,6 +19,8 @@ struct AddCategoryGroupView: View {
     @State private var selectedColor = Color.blue
     @State private var selectedApplicability = TransactionTypeScope.all
     @State private var showingIconPicker = false
+    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var photoData: Data?
 
     var body: some View {
         NavigationStack {
@@ -31,9 +34,37 @@ struct AddCategoryGroupView: View {
                         HStack {
                             Text("Icona")
                             Spacer()
-                            Image(systemName: selectedIcon)
-                                .font(.title2)
-                                .foregroundStyle(selectedColor)
+                            if let photoData, let uiImage = UIImage(data: photoData) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 32, height: 32)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                            } else {
+                                Image(systemName: selectedIcon)
+                                    .font(.title2)
+                                    .foregroundStyle(selectedColor)
+                            }
+                        }
+                    }
+
+                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                        HStack {
+                            Text("Immagine Personalizzata")
+                            Spacer()
+                            if photoData != nil {
+                                Button {
+                                    photoData = nil
+                                    selectedPhoto = nil
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                Image(systemName: "photo")
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
 
@@ -76,6 +107,13 @@ struct AddCategoryGroupView: View {
             .sheet(isPresented: $showingIconPicker) {
                 IconPickerView(selectedIcon: $selectedIcon)
             }
+            .onChange(of: selectedPhoto) { _, newValue in
+                Task {
+                    if let data = try? await newValue?.loadTransferable(type: Data.self) {
+                        photoData = data
+                    }
+                }
+            }
         }
     }
 
@@ -89,6 +127,7 @@ struct AddCategoryGroupView: View {
             sortOrder: maxSortOrder + 1,
             applicability: selectedApplicability
         )
+        group.imageData = photoData
 
         modelContext.insert(group)
         try? modelContext.save()

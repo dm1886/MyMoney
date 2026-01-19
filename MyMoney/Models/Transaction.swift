@@ -25,7 +25,7 @@ final class Transaction {
 
     // MARK: - Scheduled Transaction Fields
     var isScheduled: Bool = false
-    var scheduledDate: Date?            // Data di esecuzione programmata
+    // scheduledDate removed - use 'date' field for all date purposes
     var isAutomatic: Bool = false       // Se true, esegue automaticamente; se false, richiede conferma
     var status: TransactionStatus = TransactionStatus.executed  // Stato della transazione
 
@@ -34,6 +34,7 @@ final class Transaction {
     var recurrenceRule: RecurrenceRule?
     var recurrenceEndDate: Date?        // Data fine ripetizione (opzionale)
     var parentRecurringTransactionId: UUID?  // Link alla transazione template se questa è una transazione generata
+    var adjustToWorkingDay: Bool = false  // If true, adjust to next working day (Mon-Fri) when date falls on weekend
 
     init(
         transactionType: TransactionType,

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 struct EditCategoryView: View {
     @Environment(\.modelContext) private var modelContext
@@ -23,6 +24,8 @@ struct EditCategoryView: View {
     @State private var selectedDefaultAccount: Account?
     @State private var showingIconPicker = false
     @State private var showingDeleteAlert = false
+    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var photoData: Data?
 
     init(category: Category) {
         self.category = category
@@ -31,10 +34,48 @@ struct EditCategoryView: View {
         _selectedColor = State(initialValue: category.color)
         _selectedGroup = State(initialValue: category.categoryGroup)
         _selectedDefaultAccount = State(initialValue: category.defaultAccount)
+        _photoData = State(initialValue: category.imageData)
     }
 
     var body: some View {
         Form {
+            // MARK: - Group Selection (First)
+            Section {
+                NavigationLink {
+                    GroupSelectionView(selectedGroup: $selectedGroup)
+                } label: {
+                    HStack {
+                        Text("Gruppo")
+                        Spacer()
+                        if let group = selectedGroup {
+                            HStack(spacing: 8) {
+                                if let imageData = group.imageData,
+                                   let uiImage = UIImage(data: imageData) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 24, height: 24)
+                                        .clipShape(Circle())
+                                } else {
+                                    Image(systemName: group.icon)
+                                        .foregroundStyle(group.color)
+                                }
+                                Text(group.name)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            Text("Nessun Gruppo")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            } header: {
+                Text("Gruppo")
+            } footer: {
+                Text("Seleziona il gruppo a cui appartiene questa categoria")
+            }
+
+            // MARK: - Category Info
             Section("Informazioni") {
                 TextField("Nome Categoria", text: $name)
 
@@ -44,39 +85,78 @@ struct EditCategoryView: View {
                     HStack {
                         Text("Icona")
                         Spacer()
-                        Image(systemName: selectedIcon)
-                            .font(.title2)
-                            .foregroundStyle(selectedColor)
+                        if let photoData, let uiImage = UIImage(data: photoData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 32, height: 32)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                        } else {
+                            Image(systemName: selectedIcon)
+                                .font(.title2)
+                                .foregroundStyle(selectedColor)
+                        }
+                    }
+                }
+
+                PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                    HStack {
+                        Text("Immagine Personalizzata")
+                        Spacer()
+                        if photoData != nil {
+                            Button {
+                                photoData = nil
+                                selectedPhoto = nil
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Image(systemName: "photo")
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
                 ColorPicker("Colore", selection: $selectedColor)
             }
 
-            Section("Organizzazione") {
-                Picker("Gruppo", selection: $selectedGroup) {
-                    Text("Nessun Gruppo").tag(nil as CategoryGroup?)
-                    ForEach(categoryGroups) { group in
-                        HStack {
-                            Image(systemName: group.icon)
-                            Text(group.name)
+            // MARK: - Default Account
+            Section {
+                NavigationLink {
+                    DefaultAccountSelectionView(selectedAccount: $selectedDefaultAccount)
+                } label: {
+                    HStack {
+                        Text("Conto Predefinito")
+                        Spacer()
+                        if let account = selectedDefaultAccount {
+                            HStack(spacing: 8) {
+                                if let imageData = account.imageData,
+                                   let uiImage = UIImage(data: imageData) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 24, height: 24)
+                                        .clipShape(Circle())
+                                } else {
+                                    Image(systemName: account.icon)
+                                        .foregroundStyle(Color(hex: account.colorHex) ?? .gray)
+                                }
+                                Text(account.name)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            Text("Nessuno")
+                                .foregroundStyle(.secondary)
                         }
-                        .tag(group as CategoryGroup?)
                     }
                 }
-
-                Picker("Conto Predefinito", selection: $selectedDefaultAccount) {
-                    Text("Nessuno").tag(nil as Account?)
-                    ForEach(accounts) { account in
-                        HStack {
-                            Image(systemName: account.icon)
-                            Text(account.name)
-                        }
-                        .tag(account as Account?)
-                    }
-                }
+            } footer: {
+                Text("Il conto selezionato automaticamente quando usi questa categoria")
             }
 
+            // MARK: - Delete
             Section {
                 Button(role: .destructive) {
                     showingDeleteAlert = true
@@ -102,6 +182,13 @@ struct EditCategoryView: View {
         .sheet(isPresented: $showingIconPicker) {
             IconPickerView(selectedIcon: $selectedIcon)
         }
+        .onChange(of: selectedPhoto) { _, newValue in
+            Task {
+                if let data = try? await newValue?.loadTransferable(type: Data.self) {
+                    photoData = data
+                }
+            }
+        }
         .alert("Elimina Categoria", isPresented: $showingDeleteAlert) {
             Button("Annulla", role: .cancel) { }
             Button("Elimina", role: .destructive) {
@@ -118,6 +205,7 @@ struct EditCategoryView: View {
         category.colorHex = selectedColor.toHex() ?? "#007AFF"
         category.categoryGroup = selectedGroup
         category.defaultAccount = selectedDefaultAccount
+        category.imageData = photoData
 
         try? modelContext.save()
         dismiss()

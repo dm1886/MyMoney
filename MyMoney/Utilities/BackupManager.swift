@@ -63,6 +63,7 @@ struct TransactionBackup: Codable {
     let recurrenceUnit: String?
     let recurrenceEndDate: Date?
     let parentRecurringTransactionId: String?
+    let adjustToWorkingDay: Bool?  // If true, adjust recurring dates to next working day
 }
 
 struct CategoryBackup: Codable {
@@ -311,7 +312,10 @@ final class BackupManager {
 
             // Scheduled transaction fields
             transaction.isScheduled = transactionBackup.isScheduled
-            transaction.scheduledDate = transactionBackup.scheduledDate
+            // For backward compatibility: if old backup has scheduledDate, use it as the date
+            if transactionBackup.isScheduled, let oldScheduledDate = transactionBackup.scheduledDate {
+                transaction.date = oldScheduledDate
+            }
             transaction.isAutomatic = transactionBackup.isAutomatic
             transaction.status = TransactionStatus(rawValue: transactionBackup.status) ?? .executed
 
@@ -326,6 +330,7 @@ final class BackupManager {
             if let parentId = transactionBackup.parentRecurringTransactionId {
                 transaction.parentRecurringTransactionId = UUID(uuidString: parentId)
             }
+            transaction.adjustToWorkingDay = transactionBackup.adjustToWorkingDay ?? false
 
             modelContext.insert(transaction)
         }
@@ -400,14 +405,15 @@ final class BackupManager {
             destinationAccountId: transaction.destinationAccount?.id.uuidString,
             destinationAmount: transaction.destinationAmount.map { "\($0)" },
             isScheduled: transaction.isScheduled,
-            scheduledDate: transaction.scheduledDate,
+            scheduledDate: nil,  // Deprecated: kept for backward compatibility
             isAutomatic: transaction.isAutomatic,
             status: transaction.status.rawValue,
             isRecurring: transaction.isRecurring,
             recurrenceInterval: transaction.recurrenceRule?.interval,
             recurrenceUnit: transaction.recurrenceRule?.unit.rawValue,
             recurrenceEndDate: transaction.recurrenceEndDate,
-            parentRecurringTransactionId: transaction.parentRecurringTransactionId?.uuidString
+            parentRecurringTransactionId: transaction.parentRecurringTransactionId?.uuidString,
+            adjustToWorkingDay: transaction.adjustToWorkingDay
         )
     }
 

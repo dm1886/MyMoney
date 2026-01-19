@@ -17,10 +17,12 @@ struct AddTransactionView: View {
 
     let transactionType: TransactionType
     let initialDate: Date
+    let defaultAccount: Account?
 
-    init(transactionType: TransactionType, initialDate: Date = Date()) {
+    init(transactionType: TransactionType, initialDate: Date = Date(), defaultAccount: Account? = nil) {
         self.transactionType = transactionType
         self.initialDate = initialDate
+        self.defaultAccount = defaultAccount
     }
 
     @State private var showingAddAccountAlert = false
@@ -40,7 +42,6 @@ struct AddTransactionView: View {
 
     // MARK: - Scheduled Transaction States
     @State private var isScheduled = false
-    @State private var scheduledDate = Date()
     @State private var isAutomatic = false
 
     // MARK: - Recurring Transaction States
@@ -49,6 +50,7 @@ struct AddTransactionView: View {
     @State private var recurrenceUnit: RecurrenceUnit = .month
     @State private var hasEndDate = false
     @State private var recurrenceEndDate = Date()
+    @State private var adjustToWorkingDay = false
 
     // MARK: - UI State
     @State private var hasSetDefaultAccount = false
@@ -133,7 +135,7 @@ struct AddTransactionView: View {
 
         let maxOccurrences = 5
         var occurrences: [Date] = []
-        var currentDate = scheduledDate
+        var currentDate = selectedDate
 
         for _ in 0..<maxOccurrences {
             guard let nextDate = currentRecurrenceRule.nextOccurrence(from: currentDate) else {
@@ -156,7 +158,7 @@ struct AddTransactionView: View {
         guard isRecurring, hasEndDate else { return 0 }
 
         var count = 0
-        var currentDate = scheduledDate
+        var currentDate = selectedDate
         let endDate = recurrenceEndDate
 
         while let nextDate = currentRecurrenceRule.nextOccurrence(from: currentDate), nextDate <= endDate {
@@ -185,8 +187,17 @@ struct AddTransactionView: View {
 
                                 if let category = selectedCategory {
                                     HStack(spacing: 8) {
-                                        Image(systemName: category.icon)
-                                            .foregroundStyle(category.color)
+                                        if let imageData = category.imageData,
+                                           let uiImage = UIImage(data: imageData) {
+                                            Image(uiImage: uiImage)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 24, height: 24)
+                                                .clipShape(Circle())
+                                        } else {
+                                            Image(systemName: category.icon)
+                                                .foregroundStyle(category.color)
+                                        }
                                         Text(category.name)
                                             .foregroundStyle(.secondary)
                                     }
@@ -401,17 +412,8 @@ struct AddTransactionView: View {
                             Text("Programma Transazione")
                         }
                     }
-                    .onChange(of: isScheduled) { _, newValue in
-                        if newValue {
-                            // Imposta data programmata a ora corrente (modificabile dall'utente)
-                            scheduledDate = Date()
-                        }
-                    }
 
                     if isScheduled {
-                        DatePicker("Data Programmata", selection: $scheduledDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
-                            .datePickerStyle(.compact)
-
                         Toggle(isOn: $isAutomatic) {
                             HStack {
                                 Image(systemName: isAutomatic ? "bolt.fill" : "hand.tap.fill")
@@ -425,7 +427,7 @@ struct AddTransactionView: View {
                                 Image(systemName: "info.circle")
                                     .foregroundStyle(.blue)
                                     .font(.caption)
-                                Text("La transazione verrà eseguita automaticamente alla data programmata")
+                                Text("La transazione verrà eseguita automaticamente alla data selezionata")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -448,7 +450,7 @@ struct AddTransactionView: View {
                     }
                 } footer: {
                     if isScheduled {
-                        Text("Le transazioni programmate possono essere gestite dalla sezione Impostazioni")
+                        Text("La data della transazione sopra sarà usata come data di esecuzione programmata")
                     }
                 }
 
@@ -465,7 +467,7 @@ struct AddTransactionView: View {
                         .onChange(of: isRecurring) { _, newValue in
                             if newValue {
                                 // Set end date a 1 anno nel futuro di default
-                                recurrenceEndDate = Calendar.current.date(byAdding: .year, value: 1, to: scheduledDate) ?? scheduledDate
+                                recurrenceEndDate = Calendar.current.date(byAdding: .year, value: 1, to: selectedDate) ?? selectedDate
                             }
                         }
 
@@ -504,13 +506,34 @@ struct AddTransactionView: View {
                             }
 
                             if hasEndDate {
-                                DatePicker("Fino a", selection: $recurrenceEndDate, in: scheduledDate..., displayedComponents: [.date])
+                                DatePicker("Fino a", selection: $recurrenceEndDate, in: selectedDate..., displayedComponents: [.date])
                                     .datePickerStyle(.compact)
+                            }
+
+                            // Working day adjustment toggle
+                            Toggle(isOn: $adjustToWorkingDay) {
+                                HStack {
+                                    Image(systemName: "briefcase.fill")
+                                        .foregroundStyle(.blue)
+                                    Text("Giorno Lavorativo")
+                                }
+                            }
+
+                            if adjustToWorkingDay {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "info.circle")
+                                        .foregroundStyle(.blue)
+                                        .font(.caption)
+                                    Text("Se la data cade di sabato o domenica, la transazione verrà spostata al lunedì successivo")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.vertical, 4)
                             }
 
                             // Preview delle prossime occorrenze
                             VStack(alignment: .leading, spacing: 8) {
-                                // Prima transazione (la data programmata)
+                                // Prima transazione (la data selezionata)
                                 HStack {
                                     Image(systemName: "1.circle.fill")
                                         .foregroundStyle(.green)
@@ -523,7 +546,7 @@ struct AddTransactionView: View {
                                     Image(systemName: "arrow.right")
                                         .font(.caption)
                                         .foregroundStyle(.green)
-                                    Text(scheduledDate.formatted(date: .abbreviated, time: .shortened))
+                                    Text(selectedDate.formatted(date: .abbreviated, time: .shortened))
                                         .font(.caption)
                                         .foregroundStyle(.primary)
                                         .bold()
@@ -679,7 +702,10 @@ struct AddTransactionView: View {
 
                 // Setta default account SOLO la prima volta
                 if !hasSetDefaultAccount {
-                    if let firstAccount = accounts.first {
+                    // Use provided defaultAccount if available, otherwise first account
+                    if let providedDefault = defaultAccount {
+                        selectedAccount = providedDefault
+                    } else if let firstAccount = accounts.first {
                         selectedAccount = firstAccount
                     }
                     hasSetDefaultAccount = true
@@ -758,7 +784,6 @@ struct AddTransactionView: View {
         // Set scheduled transaction fields
         if isScheduled {
             transaction.isScheduled = true
-            transaction.scheduledDate = scheduledDate
             transaction.isAutomatic = isAutomatic
             transaction.status = .pending
         } else {
@@ -770,6 +795,7 @@ struct AddTransactionView: View {
             transaction.isRecurring = true
             transaction.recurrenceRule = currentRecurrenceRule
             transaction.recurrenceEndDate = hasEndDate ? recurrenceEndDate : nil
+            transaction.adjustToWorkingDay = adjustToWorkingDay
         }
 
         modelContext.insert(transaction)

@@ -54,6 +54,7 @@ final class CategoryGroup {
     var name: String
     var icon: String
     var colorHex: String
+    var imageData: Data?  // Custom image instead of icon
     var sortOrder: Int
     var createdAt: Date
 

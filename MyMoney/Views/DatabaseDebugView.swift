@@ -62,7 +62,7 @@ struct DatabaseDebugView: View {
                                 Text("⏰ SCHEDULED:")
                                     .foregroundStyle(.orange)
                                     .bold()
-                                Text(transaction.scheduledDate?.formatted() ?? "nil")
+                                Text(transaction.date.formatted())
                             }
                             .font(.caption)
 
@@ -301,7 +301,7 @@ struct DatabaseDebugView: View {
             print("  Notes: \(transaction.notes)")
             print("  IsScheduled: \(transaction.isScheduled)")
             if transaction.isScheduled {
-                print("  ScheduledDate: \(transaction.scheduledDate?.description ?? "nil")")
+                print("  Date (scheduled): \(transaction.date.description)")
                 print("  IsAutomatic: \(transaction.isAutomatic)")
             }
             print("  IsRecurring: \(transaction.isRecurring)")
@@ -347,7 +347,7 @@ struct DatabaseDebugView: View {
         for (index, transaction) in scheduled.enumerated() {
             print("\n[\(index)] ID: \(transaction.id.uuidString.prefix(8))...")
             print("  Amount: \(transaction.amount)")
-            print("  ScheduledDate: \(transaction.scheduledDate?.description ?? "nil")")
+            print("  Date: \(transaction.date.description)")
             print("  Status: \(transaction.status.rawValue)")
             print("  IsAutomatic: \(transaction.isAutomatic)")
             print("  IsRecurring: \(transaction.isRecurring)")
@@ -382,7 +382,7 @@ struct DatabaseDebugView: View {
             let children = instances.filter { $0.parentRecurringTransactionId == template.id }
             print("  Children: \(children.count)")
             for child in children.prefix(5) {
-                print("    - \(child.id.uuidString.prefix(8))... @ \(child.scheduledDate?.description ?? "nil")")
+                print("    - \(child.id.uuidString.prefix(8))... @ \(child.date.description)")
             }
             if children.count > 5 {
                 print("    ... and \(children.count - 5) more")

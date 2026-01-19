@@ -27,10 +27,9 @@ class MissedTransactionManager {
 
             // Filter for pending scheduled transactions that are overdue
             let missedTransactions = allTransactions.filter { transaction in
-                guard let scheduledDate = transaction.scheduledDate else { return false }
                 return transaction.isScheduled &&
                        transaction.status == .pending &&
-                       scheduledDate < now
+                       transaction.date < now
             }
 
             LogManager.shared.info("Found \(missedTransactions.count) missed transactions", category: "MissedTransactions")
@@ -76,11 +75,10 @@ class MissedTransactionManager {
             let allTransactions = try modelContext.fetch(descriptor)
 
             return allTransactions.filter { transaction in
-                guard let scheduledDate = transaction.scheduledDate else { return false }
                 return transaction.isScheduled &&
                        transaction.status == .pending &&
                        !transaction.isAutomatic &&
-                       scheduledDate < now
+                       transaction.date < now
             }
         } catch {
             print("❌ Error fetching overdue manual transactions: \(error)")

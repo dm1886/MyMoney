@@ -11,7 +11,7 @@ import SwiftData
 struct ScheduledTransactionsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(filter: #Predicate<Transaction> { $0.isScheduled == true },
-           sort: [SortDescriptor(\Transaction.scheduledDate, order: .reverse)])
+           sort: [SortDescriptor(\Transaction.date, order: .reverse)])
     private var scheduledTransactions: [Transaction]
 
     @State private var selectedFilter: TransactionStatusFilter = .all
@@ -167,11 +167,9 @@ struct ScheduledTransactionRow: View {
                 Text(transaction.category?.name ?? transaction.transactionType.rawValue)
                     .font(.body.bold())
 
-                if let scheduledDate = transaction.scheduledDate {
-                    Text(scheduledDate.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text(transaction.date.formatted(date: .abbreviated, time: .shortened))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 HStack(spacing: 4) {
                     Image(systemName: executionTypeIcon)

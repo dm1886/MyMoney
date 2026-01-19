@@ -29,7 +29,6 @@ struct EditTransactionView: View {
 
     // Scheduling fields
     @State private var isScheduled: Bool
-    @State private var scheduledDate: Date
     @State private var isAutomatic: Bool
 
     // Recurring fields (salvate per evitare crash dopo eliminazione)
@@ -80,7 +79,6 @@ struct EditTransactionView: View {
 
         // Initialize scheduling fields
         _isScheduled = State(initialValue: transaction.isScheduled)
-        _scheduledDate = State(initialValue: transaction.scheduledDate ?? Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date())
         _isAutomatic = State(initialValue: transaction.isAutomatic)
 
         // Initialize recurring fields
@@ -170,8 +168,17 @@ struct EditTransactionView: View {
 
                                 if let category = selectedCategory {
                                     HStack(spacing: 8) {
-                                        Image(systemName: category.icon)
-                                            .foregroundStyle(category.color)
+                                        if let imageData = category.imageData,
+                                           let uiImage = UIImage(data: imageData) {
+                                            Image(uiImage: uiImage)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 24, height: 24)
+                                                .clipShape(Circle())
+                                        } else {
+                                            Image(systemName: category.icon)
+                                                .foregroundStyle(category.color)
+                                        }
                                         Text(category.name)
                                             .foregroundStyle(.secondary)
                                     }
@@ -495,16 +502,8 @@ struct EditTransactionView: View {
                     Text("Programma Transazione")
                 }
             }
-            .onChange(of: isScheduled) { _, newValue in
-                if newValue && transactionStatus != .pending {
-                    scheduledDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-                }
-            }
 
             if isScheduled {
-                DatePicker("Data Programmata", selection: $scheduledDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
-                    .datePickerStyle(.compact)
-
                 Toggle(isOn: $isAutomatic) {
                     HStack {
                         Image(systemName: isAutomatic ? "bolt.fill" : "hand.tap.fill")
@@ -514,7 +513,7 @@ struct EditTransactionView: View {
                 }
 
                 if isAutomatic {
-                    Text("La transazione sarà eseguita automaticamente alla data impostata.")
+                    Text("La transazione sarà eseguita automaticamente alla data selezionata.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
@@ -539,7 +538,7 @@ struct EditTransactionView: View {
             Text("Programmazione")
         } footer: {
             if isScheduled {
-                Text("Le transazioni programmate vengono eseguite alla data impostata e non influenzano il saldo fino all'esecuzione.")
+                Text("La data sopra sarà usata come data di esecuzione programmata.")
             }
         }
     }
@@ -809,7 +808,6 @@ struct EditTransactionView: View {
         transaction.isAutomatic = isAutomatic
 
         if isScheduled {
-            transaction.scheduledDate = scheduledDate
             // If enabling scheduling for an executed transaction, set to pending
             if !wasScheduled {
                 transaction.status = .pending
@@ -818,15 +816,12 @@ struct EditTransactionView: View {
             // If disabling scheduling, mark as executed
             if wasScheduled && wasPending {
                 transaction.status = .executed
-                // Use scheduled date if available, otherwise use now
-                transaction.date = transaction.scheduledDate ?? Date()
 
                 // Record category usage when converting from scheduled to executed
                 if let category = selectedCategory {
                     category.recordUsage()
                 }
             }
-            transaction.scheduledDate = nil
         }
 
         // Se applyToAll è true, applica le modifiche anche a tutte le transazioni future della serie
@@ -922,7 +917,7 @@ struct EditTransactionView: View {
         let accountToUpdate = selectedAccount
         let destinationAccountToUpdate = selectedDestinationAccount
         let templateId = parentRecurringTransactionId ?? transactionId
-        let thisScheduledDate = scheduledDate
+        let thisDate = selectedDate
 
         let tracker = DeletedTransactionTracker.shared
 
@@ -934,9 +929,8 @@ struct EditTransactionView: View {
             let descriptor = FetchDescriptor<Transaction>()
             if let allTransactions = try? modelContext.fetch(descriptor) {
                 let futureIds = allTransactions.filter { t in
-                    guard t.parentRecurringTransactionId == templateId,
-                          let tDate = t.scheduledDate else { return false }
-                    return tDate >= thisScheduledDate
+                    guard t.parentRecurringTransactionId == templateId else { return false }
+                    return t.date >= thisDate
                 }.map { $0.id }
                 tracker.markAsDeleted(futureIds)
             }
@@ -972,11 +966,10 @@ struct EditTransactionView: View {
 
             case .thisAndFuture:
                 let transactionsToDelete = allTransactions.filter { t in
-                    guard t.parentRecurringTransactionId == templateId,
-                          let tDate = t.scheduledDate else {
+                    guard t.parentRecurringTransactionId == templateId else {
                         return false
                     }
-                    return tDate >= thisScheduledDate
+                    return t.date >= thisDate
                 }
 
                 withAnimation {
@@ -1022,10 +1015,10 @@ struct EditTransactionView: View {
     }
 
     private func stopRecurrenceFromHere() {
-        guard let templateId = transaction.parentRecurringTransactionId,
-              let thisScheduledDate = transaction.scheduledDate else {
+        guard let templateId = transaction.parentRecurringTransactionId else {
             return
         }
+        let thisDate = transaction.date
 
         dismiss()
 
@@ -1038,17 +1031,16 @@ struct EditTransactionView: View {
                 return
             }
 
-            if let dayBefore = Calendar.current.date(byAdding: .day, value: -1, to: thisScheduledDate) {
+            if let dayBefore = Calendar.current.date(byAdding: .day, value: -1, to: thisDate) {
                 template.recurrenceEndDate = dayBefore
             }
 
             // Elimina tutte le transazioni future (dopo questa, escludendo questa)
             let futureTransactions = allTransactions.filter { t in
-                guard t.parentRecurringTransactionId == templateId,
-                      let tDate = t.scheduledDate else {
+                guard t.parentRecurringTransactionId == templateId else {
                     return false
                 }
-                return tDate > thisScheduledDate
+                return t.date > thisDate
             }
 
             for transaction in futureTransactions {
@@ -1064,7 +1056,7 @@ struct EditTransactionView: View {
     }
 
     private func applyChangesToFutureTransactions(templateId: UUID, amount: Decimal, convertedAmount: Decimal?) {
-        let thisScheduledDate = transaction.scheduledDate ?? Date()
+        let thisDate = transaction.date
 
         let descriptor = FetchDescriptor<Transaction>()
         guard let allTransactions = try? modelContext.fetch(descriptor) else { return }
@@ -1072,11 +1064,10 @@ struct EditTransactionView: View {
         // Trova tutte le transazioni future della stessa serie
         let futureTransactions = allTransactions.filter { t in
             guard t.parentRecurringTransactionId == templateId,
-                  t.id != transaction.id,
-                  let tDate = t.scheduledDate else {
+                  t.id != transaction.id else {
                 return false
             }
-            return tDate > thisScheduledDate && t.status == .pending
+            return t.date > thisDate && t.status == .pending
         }
 
         // Applica le stesse modifiche a tutte le transazioni future

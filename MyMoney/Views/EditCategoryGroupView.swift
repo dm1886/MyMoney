@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 struct EditCategoryGroupView: View {
     @Environment(\.modelContext) private var modelContext
@@ -19,6 +20,8 @@ struct EditCategoryGroupView: View {
     @State private var selectedColor: Color
     @State private var selectedApplicability: TransactionTypeScope
     @State private var showingIconPicker = false
+    @State private var selectedPhoto: PhotosPickerItem?
+    @State private var photoData: Data?
 
     init(group: CategoryGroup) {
         self.group = group
@@ -26,6 +29,7 @@ struct EditCategoryGroupView: View {
         _selectedIcon = State(initialValue: group.icon)
         _selectedColor = State(initialValue: group.color)
         _selectedApplicability = State(initialValue: group.applicability)
+        _photoData = State(initialValue: group.imageData)
     }
 
     var body: some View {
@@ -40,9 +44,37 @@ struct EditCategoryGroupView: View {
                         HStack {
                             Text("Icona")
                             Spacer()
-                            Image(systemName: selectedIcon)
-                                .font(.title2)
-                                .foregroundStyle(selectedColor)
+                            if let photoData, let uiImage = UIImage(data: photoData) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 32, height: 32)
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                            } else {
+                                Image(systemName: selectedIcon)
+                                    .font(.title2)
+                                    .foregroundStyle(selectedColor)
+                            }
+                        }
+                    }
+
+                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                        HStack {
+                            Text("Immagine Personalizzata")
+                            Spacer()
+                            if photoData != nil {
+                                Button {
+                                    photoData = nil
+                                    selectedPhoto = nil
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                Image(systemName: "photo")
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
 
@@ -71,8 +103,17 @@ struct EditCategoryGroupView: View {
                     Section {
                         ForEach(categories.sorted(by: { $0.name < $1.name })) { category in
                             HStack {
-                                Image(systemName: category.icon)
-                                    .foregroundStyle(category.color)
+                                if let imageData = category.imageData,
+                                   let uiImage = UIImage(data: imageData) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 24, height: 24)
+                                        .clipShape(Circle())
+                                } else {
+                                    Image(systemName: category.icon)
+                                        .foregroundStyle(category.color)
+                                }
                                 Text(category.name)
                             }
                         }
@@ -100,6 +141,13 @@ struct EditCategoryGroupView: View {
             .sheet(isPresented: $showingIconPicker) {
                 IconPickerView(selectedIcon: $selectedIcon)
             }
+            .onChange(of: selectedPhoto) { _, newValue in
+                Task {
+                    if let data = try? await newValue?.loadTransferable(type: Data.self) {
+                        photoData = data
+                    }
+                }
+            }
         }
     }
 
@@ -125,6 +173,11 @@ struct EditCategoryGroupView: View {
         if group.applicability != selectedApplicability {
             changes.append("applicability: '\(group.applicability.rawValue)' → '\(selectedApplicability.rawValue)'")
             group.applicability = selectedApplicability
+        }
+
+        if group.imageData != photoData {
+            changes.append("image updated")
+            group.imageData = photoData
         }
 
         do {

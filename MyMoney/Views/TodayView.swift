@@ -71,8 +71,7 @@ struct TodayView: View {
     var previsteTransactions: [Transaction] {
         validTransactions
             .filter { transaction in
-                guard let scheduledDate = transaction.scheduledDate else { return false }
-                let isSameDay = Calendar.current.isDate(scheduledDate, inSameDayAs: selectedDate)
+                let isSameDay = Calendar.current.isDate(transaction.date, inSameDayAs: selectedDate)
                 let isRecurringTemplate = transaction.isRecurring && transaction.parentRecurringTransactionId == nil
 
                 return transaction.isScheduled &&
@@ -81,15 +80,14 @@ struct TodayView: View {
                        isSameDay &&
                        !isRecurringTemplate
             }
-            .sorted { ($0.scheduledDate ?? Date()) < ($1.scheduledDate ?? Date()) }
+            .sorted { $0.date < $1.date }
     }
 
     // Transazioni DA CONFERMARE (solo manuali, MAI automatiche)
     var daConfermare: [Transaction] {
         return validTransactions
             .filter { transaction in
-                guard let scheduledDate = transaction.scheduledDate else { return false }
-                let isSameDay = Calendar.current.isDate(scheduledDate, inSameDayAs: selectedDate)
+                let isSameDay = Calendar.current.isDate(transaction.date, inSameDayAs: selectedDate)
                 let isRecurringTemplate = transaction.isRecurring && transaction.parentRecurringTransactionId == nil
 
                 // Solo transazioni MANUALI (mai automatiche)
@@ -101,7 +99,7 @@ struct TodayView: View {
                        isSameDay &&
                        !isRecurringTemplate
             }
-            .sorted { ($0.scheduledDate ?? Date()) < ($1.scheduledDate ?? Date()) }
+            .sorted { $0.date < $1.date }
     }
 
     var allTransactions: [Transaction] {
@@ -111,7 +109,7 @@ struct TodayView: View {
             } else if !t1.isScheduled && t2.isScheduled {
                 return false
             }
-            return (t1.scheduledDate ?? t1.date) > (t2.scheduledDate ?? t2.date)
+            return t1.date > t2.date
         }
     }
 
@@ -603,11 +601,10 @@ struct TodayView: View {
 
         // Controlla se ci sono transazioni programmate per questo giorno
         let hasScheduledTransactions = validTransactions.contains { transaction in
-            guard let scheduledDate = transaction.scheduledDate,
-                  transaction.status == .pending else {
+            guard transaction.status == .pending else {
                 return false
             }
-            return Calendar.current.isDate(scheduledDate, inSameDayAs: date)
+            return transaction.isScheduled && Calendar.current.isDate(transaction.date, inSameDayAs: date)
         }
 
         return Button {
@@ -693,13 +690,23 @@ struct TodayView: View {
                 Section {
                     ForEach(detectedPatterns) { pattern in
                         HStack(spacing: 12) {
-                            ZStack {
-                                Circle()
-                                    .fill(pattern.category.color.opacity(0.2))
+                            // Category icon (custom image or SF Symbol)
+                            if let imageData = pattern.category.imageData,
+                               let uiImage = UIImage(data: imageData) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
                                     .frame(width: 44, height: 44)
+                                    .clipShape(Circle())
+                            } else {
+                                ZStack {
+                                    Circle()
+                                        .fill(pattern.category.color.opacity(0.2))
+                                        .frame(width: 44, height: 44)
 
-                                Image(systemName: pattern.category.icon)
-                                    .foregroundStyle(pattern.category.color)
+                                    Image(systemName: pattern.category.icon)
+                                        .foregroundStyle(pattern.category.color)
+                                }
                             }
 
                             VStack(alignment: .leading, spacing: 2) {
@@ -1053,15 +1060,25 @@ struct TransactionRowView: View {
             EmptyView()
         } else {
             HStack(spacing: 12) {
-                // Icon
-                ZStack {
-                    Circle()
-                        .fill(iconBackgroundColor)
+                // Icon (custom image or SF Symbol)
+                if let category = transaction.category,
+                   let imageData = category.imageData,
+                   let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
                         .frame(width: 44, height: 44)
+                        .clipShape(Circle())
+                } else {
+                    ZStack {
+                        Circle()
+                            .fill(iconBackgroundColor)
+                            .frame(width: 44, height: 44)
 
-                    Image(systemName: transaction.category?.icon ?? defaultIcon)
-                        .font(.system(size: 18))
-                        .foregroundStyle(iconColor)
+                        Image(systemName: transaction.category?.icon ?? defaultIcon)
+                            .font(.system(size: 18))
+                            .foregroundStyle(iconColor)
+                    }
                 }
 
                 // Info
@@ -1074,7 +1091,7 @@ struct TransactionRowView: View {
                         if transaction.modelContext != nil && transaction.isScheduled {
                             Image(systemName: "clock")
                                 .font(.caption2)
-                            Text(transaction.scheduledDate?.formatted(date: .omitted, time: .shortened) ?? "")
+                            Text(transaction.date.formatted(date: .omitted, time: .shortened))
                                 .font(.caption)
                         } else if transaction.modelContext != nil {
                             Text(transaction.date.formatted(date: .omitted, time: .shortened))

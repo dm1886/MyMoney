@@ -409,7 +409,7 @@ struct AccountDetailView: View {
             BalanceAdjustmentView(account: account)
         }
         .sheet(isPresented: $showingAddTransaction) {
-            AddTransactionView(transactionType: selectedTransactionType)
+            AddTransactionView(transactionType: selectedTransactionType, defaultAccount: account)
         }
         .alert("Elimina Conto", isPresented: $showingDeleteAlert) {
             Button("Annulla", role: .cancel) { }
@@ -535,15 +535,25 @@ struct AccountTransactionRow: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 16) {
-                // Icon
-                ZStack {
-                    Circle()
-                        .fill(iconBackgroundColor)
+                // Icon (custom image or SF Symbol)
+                if let category = transaction.category,
+                   let imageData = category.imageData,
+                   let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
                         .frame(width: 50, height: 50)
+                        .clipShape(Circle())
+                } else {
+                    ZStack {
+                        Circle()
+                            .fill(iconBackgroundColor)
+                            .frame(width: 50, height: 50)
 
-                    Image(systemName: transaction.category?.icon ?? defaultIcon)
-                        .font(.title3)
-                        .foregroundStyle(iconColor)
+                        Image(systemName: transaction.category?.icon ?? defaultIcon)
+                            .font(.title3)
+                            .foregroundStyle(iconColor)
+                    }
                 }
 
                 // Info
@@ -678,13 +688,24 @@ struct TransactionRow: View {
 
     var body: some View {
         HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(Color(hex: transaction.transactionType.color)?.opacity(0.2) ?? .blue.opacity(0.2))
+            // Category icon (custom image or SF Symbol)
+            if let category = transaction.category,
+               let imageData = category.imageData,
+               let uiImage = UIImage(data: imageData) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
                     .frame(width: 44, height: 44)
+                    .clipShape(Circle())
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: transaction.transactionType.color)?.opacity(0.2) ?? .blue.opacity(0.2))
+                        .frame(width: 44, height: 44)
 
-                Image(systemName: transaction.category?.icon ?? transaction.transactionType.icon)
-                    .foregroundStyle(Color(hex: transaction.transactionType.color) ?? .blue)
+                    Image(systemName: transaction.category?.icon ?? transaction.transactionType.icon)
+                        .foregroundStyle(Color(hex: transaction.transactionType.color) ?? .blue)
+                }
             }
 
             VStack(alignment: .leading, spacing: 4) {

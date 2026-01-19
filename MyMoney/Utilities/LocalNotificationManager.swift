@@ -58,12 +58,12 @@ class LocalNotificationManager: NSObject {
 
     func scheduleNotification(for transaction: Transaction) async {
         guard transaction.isScheduled,
-              let scheduledDate = transaction.scheduledDate,
-              scheduledDate > Date() else {
+              transaction.date > Date() else {
             print("⚠️ Cannot schedule notification: invalid date or already passed")
             return
         }
 
+        let transactionDate = transaction.date
         let content = UNMutableNotificationContent()
 
         if transaction.isAutomatic {
@@ -89,7 +89,7 @@ class LocalNotificationManager: NSObject {
         // Create trigger for specific date/time
         let dateComponents = Calendar.current.dateComponents(
             [.year, .month, .day, .hour, .minute],
-            from: scheduledDate
+            from: transactionDate
         )
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
 
@@ -102,7 +102,7 @@ class LocalNotificationManager: NSObject {
 
         do {
             try await UNUserNotificationCenter.current().add(request)
-            print("🔔 Local notification scheduled for \(scheduledDate.formatted(date: .abbreviated, time: .shortened))")
+            print("🔔 Local notification scheduled for \(transactionDate.formatted(date: .abbreviated, time: .shortened))")
             print("   Transaction: \(transaction.category?.name ?? transaction.transactionType.rawValue)")
             print("   Amount: \(transaction.displayAmount)")
         } catch {

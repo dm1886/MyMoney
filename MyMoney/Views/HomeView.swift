@@ -137,11 +137,10 @@ struct HomeView: View {
     var overdueManualTransactions: [Transaction] {
         let now = Date()
         return transactions.filter { transaction in
-            guard let scheduledDate = transaction.scheduledDate else { return false }
             return transaction.isScheduled &&
                    transaction.status == .pending &&
                    !transaction.isAutomatic &&
-                   scheduledDate < now
+                   transaction.date < now
         }
     }
 

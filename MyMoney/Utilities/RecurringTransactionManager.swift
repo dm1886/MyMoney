@@ -64,10 +64,11 @@ class RecurringTransactionManager {
         monthsAhead: Int,
         modelContext: ModelContext
     ) async {
-        guard let rule = template.recurrenceRule,
-              let firstScheduledDate = template.scheduledDate else {
+        guard let rule = template.recurrenceRule else {
             return
         }
+
+        let firstDate = template.date
 
         // Calcola fino a quale data generare transazione
         let endDate = template.recurrenceEndDate ?? Calendar.current.date(
@@ -83,39 +84,37 @@ class RecurringTransactionManager {
         // Include TUTTE le istanze: pending, executed, failed, cancelled
         let existingInstances = allTransactions?.filter {
             $0.parentRecurringTransactionId == template.id
-        }.sorted { ($0.scheduledDate ?? Date()) < ($1.scheduledDate ?? Date()) } ?? []
+        }.sorted { $0.date < $1.date } ?? []
 
         // Determina da quale data iniziare a generare
-        let lastInstanceDate = existingInstances.last?.scheduledDate
+        let lastInstanceDate = existingInstances.last?.date
 
         var generatedCount = 0
 
         if lastInstanceDate == nil {
             // Prima volta - genera anche l'transaziona iniziale (quella di oggi/prima data)
             let alreadyExists = existingInstances.contains { instance in
-                guard let instanceDate = instance.scheduledDate else { return false }
-                return Calendar.current.isDate(instanceDate, inSameDayAs: firstScheduledDate)
+                return Calendar.current.isDate(instance.date, inSameDayAs: firstDate)
             }
 
-            if !alreadyExists && firstScheduledDate <= endDate {
-                createInstance(from: template, scheduledDate: firstScheduledDate, modelContext: modelContext)
+            if !alreadyExists && firstDate <= endDate {
+                createInstance(from: template, forDate: firstDate, modelContext: modelContext)
                 generatedCount += 1
             }
         }
 
         // Genera le prossime occorrenze
-        let startDate = lastInstanceDate ?? firstScheduledDate
+        let startDate = lastInstanceDate ?? firstDate
         var currentDate = startDate
 
         while let nextDate = rule.nextOccurrence(from: currentDate), nextDate <= endDate {
             // Controlla se esiste già un'transaziona per questa data
             let alreadyExists = existingInstances.contains { instance in
-                guard let instanceDate = instance.scheduledDate else { return false }
-                return Calendar.current.isDate(instanceDate, inSameDayAs: nextDate)
+                return Calendar.current.isDate(instance.date, inSameDayAs: nextDate)
             }
 
             if !alreadyExists {
-                createInstance(from: template, scheduledDate: nextDate, modelContext: modelContext)
+                createInstance(from: template, forDate: nextDate, modelContext: modelContext)
                 generatedCount += 1
             }
 
@@ -130,14 +129,20 @@ class RecurringTransactionManager {
     /// Crea una singola transaziona da un template
     private func createInstance(
         from template: Transaction,
-        scheduledDate: Date,
+        forDate instanceDate: Date,
         modelContext: ModelContext
     ) {
+        // Adjust to working day if needed
+        var finalDate = instanceDate
+        if template.adjustToWorkingDay {
+            finalDate = adjustToNextWorkingDay(instanceDate)
+        }
+
         let instance = Transaction(
             transactionType: template.transactionType,
             amount: template.amount,
             currency: template.currency,
-            date: scheduledDate,
+            date: finalDate,
             notes: template.notes,
             account: template.account,
             category: template.category,
@@ -149,7 +154,6 @@ class RecurringTransactionManager {
 
         // Copia impostazioni programmazione
         instance.isScheduled = true
-        instance.scheduledDate = scheduledDate
         instance.isAutomatic = template.isAutomatic
         instance.status = .pending
 
@@ -158,6 +162,9 @@ class RecurringTransactionManager {
 
         // Link al parent
         instance.parentRecurringTransactionId = template.id
+
+        // Copy working day adjustment setting
+        instance.adjustToWorkingDay = template.adjustToWorkingDay
 
         // Copia destinationAmount per trasferimenti
         if template.transactionType == .transfer {
@@ -169,6 +176,22 @@ class RecurringTransactionManager {
         // Schedula notifica locale
         Task {
             await LocalNotificationManager.shared.scheduleNotification(for: instance)
+        }
+    }
+
+    /// Adjusts a date to the next working day (Monday-Friday) if it falls on a weekend
+    private func adjustToNextWorkingDay(_ date: Date) -> Date {
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: date)
+
+        // In Calendar: 1 = Sunday, 7 = Saturday
+        switch weekday {
+        case 1:  // Sunday -> Monday (+1 day)
+            return calendar.date(byAdding: .day, value: 1, to: date) ?? date
+        case 7:  // Saturday -> Monday (+2 days)
+            return calendar.date(byAdding: .day, value: 2, to: date) ?? date
+        default:
+            return date  // Already a weekday
         }
     }
 
@@ -191,13 +214,12 @@ class RecurringTransactionManager {
             modelContext.delete(transaction)
 
         case .thisAndFuture:
+            let thisDate = transaction.date
             let transactionsToDelete = allTransactions.filter { t in
-                guard t.parentRecurringTransactionId == templateId,
-                      let tDate = t.scheduledDate,
-                      let thisDate = transaction.scheduledDate else {
+                guard t.parentRecurringTransactionId == templateId else {
                     return false
                 }
-                return tDate >= thisDate
+                return t.date >= thisDate
             }
 
             for t in transactionsToDelete {

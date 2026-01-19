@@ -42,14 +42,24 @@ struct CategoryDetailView: View {
             // Category Info Section
             Section {
                 HStack {
-                    ZStack {
-                        Circle()
-                            .fill(category.color.opacity(0.15))
+                    // Category icon (custom image or SF Symbol)
+                    if let imageData = category.imageData,
+                       let uiImage = UIImage(data: imageData) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
                             .frame(width: 60, height: 60)
+                            .clipShape(Circle())
+                    } else {
+                        ZStack {
+                            Circle()
+                                .fill(category.color.opacity(0.15))
+                                .frame(width: 60, height: 60)
 
-                        Image(systemName: category.icon)
-                            .font(.title)
-                            .foregroundStyle(category.color)
+                            Image(systemName: category.icon)
+                                .font(.title)
+                                .foregroundStyle(category.color)
+                        }
                     }
 
                     VStack(alignment: .leading, spacing: 4) {

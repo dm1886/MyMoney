@@ -15,6 +15,7 @@ final class Category {
     var name: String
     var icon: String
     var colorHex: String
+    var imageData: Data?  // Custom image instead of icon
     var createdAt: Date
 
     // Usage tracking per spese ricorrenti

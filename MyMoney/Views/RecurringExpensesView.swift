@@ -60,15 +60,24 @@ struct RecurringExpensesView: View {
     private func categoryRow(_ category: Category) -> some View {
         VStack(spacing: 12) {
             HStack(spacing: 12) {
-                // Icon
-                ZStack {
-                    Circle()
-                        .fill(category.color.opacity(0.15))
+                // Category icon (custom image or SF Symbol)
+                if let imageData = category.imageData,
+                   let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
                         .frame(width: 48, height: 48)
+                        .clipShape(Circle())
+                } else {
+                    ZStack {
+                        Circle()
+                            .fill(category.color.opacity(0.15))
+                            .frame(width: 48, height: 48)
 
-                    Image(systemName: category.icon)
-                        .font(.title3)
-                        .foregroundStyle(category.color)
+                        Image(systemName: category.icon)
+                            .font(.title3)
+                            .foregroundStyle(category.color)
+                    }
                 }
 
                 // Info
@@ -204,9 +213,18 @@ struct AddBudgetViewForCategory: View {
                 // Category Display (non-editable)
                 Section {
                     HStack {
-                        Image(systemName: category.icon)
-                            .foregroundStyle(category.color)
-                            .frame(width: 32)
+                        if let imageData = category.imageData,
+                           let uiImage = UIImage(data: imageData) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 32, height: 32)
+                                .clipShape(Circle())
+                        } else {
+                            Image(systemName: category.icon)
+                                .foregroundStyle(category.color)
+                                .frame(width: 32)
+                        }
 
                         Text(category.name)
                             .font(.headline)

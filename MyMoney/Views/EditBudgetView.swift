@@ -52,8 +52,17 @@ struct EditBudgetView: View {
 
                             if let category = selectedCategory {
                                 HStack(spacing: 8) {
-                                    Image(systemName: category.icon)
-                                        .foregroundStyle(category.color)
+                                    if let imageData = category.imageData,
+                                       let uiImage = UIImage(data: imageData) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 24, height: 24)
+                                            .clipShape(Circle())
+                                    } else {
+                                        Image(systemName: category.icon)
+                                            .foregroundStyle(category.color)
+                                    }
                                     Text(category.name)
                                         .foregroundStyle(.secondary)
                                 }

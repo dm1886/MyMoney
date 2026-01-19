@@ -57,13 +57,23 @@ struct CategoryPickerView: View {
                                     dismiss()
                                 } label: {
                                     HStack(spacing: 12) {
-                                        ZStack {
-                                            Circle()
-                                                .fill(category.color.opacity(0.2))
+                                        // Category icon (custom image or SF Symbol)
+                                        if let imageData = category.imageData,
+                                           let uiImage = UIImage(data: imageData) {
+                                            Image(uiImage: uiImage)
+                                                .resizable()
+                                                .scaledToFill()
                                                 .frame(width: 40, height: 40)
+                                                .clipShape(Circle())
+                                        } else {
+                                            ZStack {
+                                                Circle()
+                                                    .fill(category.color.opacity(0.2))
+                                                    .frame(width: 40, height: 40)
 
-                                            Image(systemName: category.icon)
-                                                .foregroundStyle(category.color)
+                                                Image(systemName: category.icon)
+                                                    .foregroundStyle(category.color)
+                                            }
                                         }
 
                                         Text(category.name)
@@ -91,8 +101,17 @@ struct CategoryPickerView: View {
                         }
                     } header: {
                         HStack {
-                            Image(systemName: group.icon)
-                                .foregroundStyle(group.color)
+                            if let imageData = group.imageData,
+                               let uiImage = UIImage(data: imageData) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 20, height: 20)
+                                    .clipShape(Circle())
+                            } else {
+                                Image(systemName: group.icon)
+                                    .foregroundStyle(group.color)
+                            }
                             Text(group.name)
                         }
                     }

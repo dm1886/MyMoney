@@ -69,18 +69,17 @@ class TransactionScheduler {
             // Filter for pending scheduled transactions
             let scheduledTransactions = allTransactions.filter { transaction in
                 transaction.isScheduled &&
-                transaction.status == .pending &&
-                transaction.scheduledDate != nil
+                transaction.status == .pending
             }
 
             LogManager.shared.info("Found \(scheduledTransactions.count) pending scheduled transactions", category: "TransactionScheduler")
 
             for transaction in scheduledTransactions {
-                guard let scheduledDate = transaction.scheduledDate else { continue }
+                let transactionDate = transaction.date
 
                 // Check if scheduled time has passed
-                if scheduledDate <= now {
-                    LogManager.shared.info("Time has passed for transaction \(transaction.id). Scheduled: \(scheduledDate), Now: \(now)", category: "TransactionScheduler")
+                if transactionDate <= now {
+                    LogManager.shared.info("Time has passed for transaction \(transaction.id). Scheduled: \(transactionDate), Now: \(now)", category: "TransactionScheduler")
 
                     if transaction.isAutomatic {
                         // Execute automatically
@@ -113,13 +112,7 @@ class TransactionScheduler {
         // Update status
         transaction.status = .executed
 
-        // Keep the scheduled date as the transaction date (don't change to now)
-        if let scheduledDate = transaction.scheduledDate {
-            transaction.date = scheduledDate
-        } else {
-            transaction.date = Date()
-        }
-
+        // The date is already set correctly (no need to update from scheduledDate)
         LogManager.shared.debug("Status updated to: \(transaction.status.rawValue), Date: \(transaction.date.formatted(date: .abbreviated, time: .shortened))", category: "TransactionScheduler")
 
         // Update account balance
