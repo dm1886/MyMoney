@@ -102,12 +102,42 @@ struct AccountSelectionView: View {
         }
     }
 
-    // Raggruppa conti per valuta
-    var groupedAccounts: [(String, [Account])] {
-        let grouped = Dictionary(grouping: sortedAccounts) { account in
-            account.currencyRecord?.code ?? account.currency.rawValue
+    // Raggruppa conti per tipo (come in BalanceView)
+    var groupedAccountsByType: [(AccountType, String, String, Color, [Account])] {
+        // (type, title, icon, color, accounts)
+        var groups: [(AccountType, String, String, Color, [Account])] = []
+
+        let cashAccounts = sortedAccounts.filter { $0.accountType == .cash }
+        if !cashAccounts.isEmpty {
+            groups.append((.cash, "Contanti", "banknote.fill", .green, cashAccounts))
         }
-        return grouped.sorted { $0.key < $1.key }
+
+        let paymentAccounts = sortedAccounts.filter { $0.accountType == .payment }
+        if !paymentAccounts.isEmpty {
+            groups.append((.payment, "Pagamento", "creditcard.fill", .blue, paymentAccounts))
+        }
+
+        let prepaidAccounts = sortedAccounts.filter { $0.accountType == .prepaidCard }
+        if !prepaidAccounts.isEmpty {
+            groups.append((.prepaidCard, "Carte Prepagate", "creditcard.fill", .cyan, prepaidAccounts))
+        }
+
+        let creditCardAccounts = sortedAccounts.filter { $0.accountType == .creditCard }
+        if !creditCardAccounts.isEmpty {
+            groups.append((.creditCard, "Carta di Credito", "creditcard.fill", .orange, creditCardAccounts))
+        }
+
+        let assetAccounts = sortedAccounts.filter { $0.accountType == .asset }
+        if !assetAccounts.isEmpty {
+            groups.append((.asset, "Attività", "building.columns.fill", .purple, assetAccounts))
+        }
+
+        let liabilityAccounts = sortedAccounts.filter { $0.accountType == .liability }
+        if !liabilityAccounts.isEmpty {
+            groups.append((.liability, "Passività", "chart.line.downtrend.xyaxis", .red, liabilityAccounts))
+        }
+
+        return groups
     }
 
     var body: some View {
@@ -134,9 +164,9 @@ struct AccountSelectionView: View {
 
     var content: some View {
         List {
-            ForEach(groupedAccounts, id: \.0) { currencyCode, currencyAccounts in
+            ForEach(groupedAccountsByType, id: \.0) { _, title, icon, color, typeAccounts in
                 Section {
-                    ForEach(currencyAccounts) { account in
+                    ForEach(typeAccounts) { account in
                         Button {
                             selectedAccount = account
                             dismiss()
@@ -150,13 +180,10 @@ struct AccountSelectionView: View {
                     }
                 } header: {
                     HStack(spacing: 6) {
-                        if let currency = currencyAccounts.first?.currencyRecord {
-                            Text(currency.flagEmoji)
-                            Text(currency.code)
-                        } else if let currency = currencyAccounts.first?.currency {
-                            Text(currency.flag)
-                            Text(currency.rawValue)
-                        }
+                        Image(systemName: icon)
+                            .foregroundStyle(color)
+                        Text(title)
+                            .foregroundStyle(.primary)
                     }
                     .font(.subheadline.bold())
                     .textCase(nil)
@@ -174,9 +201,12 @@ struct AccountListRow: View {
     // Calcola saldo on-the-fly
     private var calculatedBalance: Decimal {
         var balance = account.initialBalance
+        let tracker = DeletedTransactionTracker.shared
 
+        // Filter out deleted/detached transactions to prevent crash
+        // CRITICAL: Check tracker FIRST before accessing transactionType
         if let accountTransactions = account.transactions {
-            for transaction in accountTransactions where transaction.status == .executed {
+            for transaction in accountTransactions where !tracker.isDeleted(transaction.id) && transaction.modelContext != nil && transaction.status == .executed {
                 switch transaction.transactionType {
                 case .expense:
                     balance -= transaction.amount
@@ -190,8 +220,10 @@ struct AccountListRow: View {
             }
         }
 
+        // Filter out deleted/detached transfers to prevent crash
+        // CRITICAL: Check tracker FIRST before accessing transactionType
         if let incoming = account.incomingTransfers {
-            for transfer in incoming where transfer.status == .executed && transfer.transactionType == .transfer {
+            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
                 if let destAmount = transfer.destinationAmount {
                     balance += destAmount
                 } else if let transferCurr = transfer.currencyRecord,

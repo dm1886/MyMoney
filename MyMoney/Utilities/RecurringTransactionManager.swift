@@ -20,7 +20,7 @@ class RecurringTransactionManager {
     private var isGenerating = false
 
     /// Genera le prossime transazione per tutte le transazioni ricorrenti
-    func generateRecurringInstances(modelContext: ModelContext, monthsAhead: Int = 3) async {
+    func generateRecurringInstances(modelContext: ModelContext, monthsAhead: Int = 12) async {
         // Evita chiamate sovrapposte che creerebbero duplicati
         guard !isGenerating else {
             LogManager.shared.warning("Already generating recurring instances, skipping...", category: "RecurringTransactions")
@@ -66,7 +66,6 @@ class RecurringTransactionManager {
     ) async {
         guard let rule = template.recurrenceRule,
               let firstScheduledDate = template.scheduledDate else {
-            print("⚠️ Template missing recurrence rule or scheduled date")
             return
         }
 
@@ -86,8 +85,6 @@ class RecurringTransactionManager {
             $0.parentRecurringTransactionId == template.id
         }.sorted { ($0.scheduledDate ?? Date()) < ($1.scheduledDate ?? Date()) } ?? []
 
-        print("   Found \(existingInstances.count) existing instances for template \(template.id)")
-
         // Determina da quale data iniziare a generare
         let lastInstanceDate = existingInstances.last?.scheduledDate
 
@@ -103,8 +100,6 @@ class RecurringTransactionManager {
             if !alreadyExists && firstScheduledDate <= endDate {
                 createInstance(from: template, scheduledDate: firstScheduledDate, modelContext: modelContext)
                 generatedCount += 1
-            } else if alreadyExists {
-                print("   ⏭️ First instance already exists for \(firstScheduledDate.formatted(date: .abbreviated, time: .shortened)), skipping")
             }
         }
 
@@ -122,15 +117,13 @@ class RecurringTransactionManager {
             if !alreadyExists {
                 createInstance(from: template, scheduledDate: nextDate, modelContext: modelContext)
                 generatedCount += 1
-            } else {
-                print("   ⏭️ Instance already exists for \(nextDate.formatted(date: .abbreviated, time: .shortened)), skipping")
             }
 
             currentDate = nextDate
         }
 
         if generatedCount > 0 {
-            print("   ✅ Generated \(generatedCount) instances for template: \(template.id)")
+            LogManager.shared.info("Generated \(generatedCount) instances for recurring template", category: "RecurringTransactions")
         }
     }
 
@@ -186,26 +179,18 @@ class RecurringTransactionManager {
         option: RecurringDeletionOption,
         modelContext: ModelContext
     ) {
-        print("🗑️ Deleting recurring transaction with option: \(option.rawValue)")
-
         let descriptor = FetchDescriptor<Transaction>()
         guard let allTransactions = try? modelContext.fetch(descriptor) else { return }
 
-        // Trova il template
         let templateId = transaction.parentRecurringTransactionId ?? transaction.id
-        
 
         switch option {
         case .thisOnly:
-            // Elimina solo questa transaziona
-            // IMPORTANTE: Salva l'ID PRIMA di eliminare
             let transactionId = transaction.id
             LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
             modelContext.delete(transaction)
-            print("   Deleted single instance: \(transactionId)")
 
         case .thisAndFuture:
-            // Elimina questa transaziona e tutte le future
             let transactionsToDelete = allTransactions.filter { t in
                 guard t.parentRecurringTransactionId == templateId,
                       let tDate = t.scheduledDate,
@@ -216,36 +201,28 @@ class RecurringTransactionManager {
             }
 
             for t in transactionsToDelete {
-                // IMPORTANTE: Salva l'ID PRIMA di eliminare
                 let tId = t.id
                 LocalNotificationManager.shared.cancelNotification(transactionId: tId)
                 modelContext.delete(t)
             }
 
-            // Se eliminiamo anche il template, cancellalo
             if transaction.id == templateId {
                 modelContext.delete(transaction)
             }
 
-            print("   Deleted \(transactionsToDelete.count) future instances")
-
         case .all:
-            // Elimina tutte le transazione + template
             let allRelated = allTransactions.filter {
                 $0.id == templateId || $0.parentRecurringTransactionId == templateId
             }
 
             for t in allRelated {
-                // IMPORTANTE: Salva l'ID PRIMA di eliminare
                 let tId = t.id
                 LocalNotificationManager.shared.cancelNotification(transactionId: tId)
                 modelContext.delete(t)
             }
-
-            print("   Deleted all \(allRelated.count) instances including template")
         }
 
         try? modelContext.save()
-        print("✅ Deletion completed")
+        LogManager.shared.info("Recurring transaction deleted with option: \(option.rawValue)", category: "RecurringTransactions")
     }
 }

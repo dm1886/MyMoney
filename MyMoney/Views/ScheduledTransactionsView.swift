@@ -121,19 +121,36 @@ struct ScheduledTransactionRow: View {
 
     @State private var showingDeleteAlert = false
 
+    // Check if transaction is deleted
+    private var isDeleted: Bool {
+        DeletedTransactionTracker.shared.isDeleted(transaction.id) || transaction.modelContext == nil
+    }
+
     var statusColor: Color {
-        Color(hex: transaction.status.color) ?? .gray
+        guard !isDeleted else { return .gray }
+        return Color(hex: transaction.status.color) ?? .gray
     }
 
     var executionTypeText: String {
-        transaction.isAutomatic ? "Automatica" : "Manuale"
+        guard !isDeleted else { return "" }
+        return transaction.isAutomatic ? "Automatica" : "Manuale"
     }
 
     var executionTypeIcon: String {
-        transaction.isAutomatic ? "bolt.fill" : "hand.tap.fill"
+        guard !isDeleted else { return "questionmark" }
+        return transaction.isAutomatic ? "bolt.fill" : "hand.tap.fill"
     }
 
     var body: some View {
+        // CRITICAL: Check if deleted before rendering
+        if isDeleted {
+            EmptyView()
+        } else {
+            rowContent
+        }
+    }
+
+    private var rowContent: some View {
         HStack(spacing: 12) {
             // Status Icon
             ZStack {

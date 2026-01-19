@@ -86,10 +86,13 @@ struct BalanceView: View {
     // Calcola il saldo dell'account direttamente dalle transazioni
     private func calculateAccountBalance(_ account: Account) -> Decimal {
         var balance = account.initialBalance
+        let tracker = DeletedTransactionTracker.shared
 
         // Somma tutte le transazioni EXECUTED dell'account
+        // Filter out deleted/detached transactions to prevent crash
+        // CRITICAL: Check tracker FIRST before accessing transactionType
         if let accountTransactions = account.transactions {
-            for transaction in accountTransactions where transaction.status == .executed {
+            for transaction in accountTransactions where !tracker.isDeleted(transaction.id) && transaction.modelContext != nil && transaction.status == .executed {
                 switch transaction.transactionType {
                 case .expense:
                     balance -= transaction.amount
@@ -104,8 +107,10 @@ struct BalanceView: View {
         }
 
         // Aggiungi trasferimenti in entrata
+        // Filter out deleted/detached transfers to prevent crash
+        // CRITICAL: Check tracker FIRST before accessing transactionType
         if let incoming = account.incomingTransfers {
-            for transfer in incoming where transfer.status == .executed && transfer.transactionType == .transfer {
+            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
                 if let destAmount = transfer.destinationAmount {
                     balance += destAmount
                 } else if let transferCurr = transfer.currencyRecord,
@@ -431,9 +436,12 @@ struct AccountRow: View {
 
     private func calculateBalance(for account: Account) -> Decimal {
         var balance = account.initialBalance
+        let tracker = DeletedTransactionTracker.shared
 
+        // Filter out deleted/detached transactions to prevent crash
+        // CRITICAL: Check tracker FIRST before accessing transactionType
         if let accountTransactions = account.transactions {
-            for transaction in accountTransactions where transaction.status == .executed {
+            for transaction in accountTransactions where !tracker.isDeleted(transaction.id) && transaction.modelContext != nil && transaction.status == .executed {
                 // Determina l'importo da usare: se c'è destinationAmount (conversione), usalo,
                 // altrimenti converti on-the-fly se necessario, altrimenti usa l'importo originale
                 var amountToUse = transaction.amount
@@ -466,8 +474,10 @@ struct AccountRow: View {
             }
         }
 
+        // Filter out deleted/detached transfers to prevent crash
+        // CRITICAL: Check tracker FIRST before accessing transactionType
         if let incoming = account.incomingTransfers {
-            for transfer in incoming where transfer.status == .executed && transfer.transactionType == .transfer {
+            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
                 if let destAmount = transfer.destinationAmount {
                     balance += destAmount
                 } else if let transferCurr = transfer.currencyRecord,

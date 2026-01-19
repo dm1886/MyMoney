@@ -43,8 +43,14 @@ class RecurringPatternDetector {
             return []
         }
 
+        // Get tracker to filter deleted transactions
+        let tracker = DeletedTransactionTracker.shared
+
         // Filtra le transazioni eseguite negli ultimi X giorni
+        // CRITICAL: Check tracker FIRST before accessing any transaction properties
         let recentTransactions = transactions.filter { transaction in
+            !tracker.isDeleted(transaction.id) &&
+            transaction.modelContext != nil &&
             transaction.status == .executed &&
             transaction.date >= startDate &&
             transaction.date <= now &&

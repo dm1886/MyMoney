@@ -42,9 +42,12 @@ struct HomeView: View {
     // Calcola il saldo dell'account direttamente dalle transazioni
     private func calculateAccountBalance(_ account: Account) -> Decimal {
         var balance = account.initialBalance
+        let tracker = DeletedTransactionTracker.shared
 
         if let accountTransactions = account.transactions {
-            for transaction in accountTransactions where transaction.status == .executed {
+            // Filter out deleted/detached transactions to prevent crash
+            // CRITICAL: Check tracker FIRST before accessing transactionType
+            for transaction in accountTransactions where !tracker.isDeleted(transaction.id) && transaction.modelContext != nil && transaction.status == .executed {
                 switch transaction.transactionType {
                 case .expense:
                     balance -= transaction.amount
@@ -59,7 +62,9 @@ struct HomeView: View {
         }
 
         if let incoming = account.incomingTransfers {
-            for transfer in incoming where transfer.status == .executed && transfer.transactionType == .transfer {
+            // Filter out deleted/detached transfers to prevent crash
+            // CRITICAL: Check tracker FIRST before accessing transactionType
+            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
                 if let destAmount = transfer.destinationAmount {
                     balance += destAmount
                 } else if let transferCurr = transfer.currencyRecord,
@@ -79,15 +84,23 @@ struct HomeView: View {
     }
 
     var todayTransactions: [Transaction] {
-        transactions.filter { Calendar.current.isDateInToday($0.date) && $0.status != .pending }
+        // Filter out deleted/detached transactions to prevent crash
+        // CRITICAL: Check tracker FIRST before accessing any properties
+        let tracker = DeletedTransactionTracker.shared
+        return transactions.filter { transaction in
+            guard !tracker.isDeleted(transaction.id) else { return false }
+            guard transaction.modelContext != nil else { return false }
+            return Calendar.current.isDateInToday(transaction.date) && transaction.status != .pending
+        }
     }
 
     var todayExpenses: Decimal {
         _ = exchangeRates.count
         guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
+        let tracker = DeletedTransactionTracker.shared
 
         return todayTransactions
-            .filter { $0.transactionType == .expense }
+            .filter { !tracker.isDeleted($0.id) && $0.modelContext != nil && $0.transactionType == .expense }
             .reduce(0) { sum, transaction in
                 guard let transactionCurrency = transaction.currencyRecord else { return sum }
 
@@ -104,9 +117,10 @@ struct HomeView: View {
     var todayIncome: Decimal {
         _ = exchangeRates.count
         guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
+        let tracker = DeletedTransactionTracker.shared
 
         return todayTransactions
-            .filter { $0.transactionType == .income }
+            .filter { !tracker.isDeleted($0.id) && $0.modelContext != nil && $0.transactionType == .income }
             .reduce(0) { sum, transaction in
                 guard let transactionCurrency = transaction.currencyRecord else { return sum }
 

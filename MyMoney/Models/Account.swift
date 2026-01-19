@@ -85,7 +85,7 @@ final class Account {
         currencyRecord?.displayName ?? currency.displayName
     }
 
-    func updateBalance(context: ModelContext? = nil) {
+    @MainActor func updateBalance(context: ModelContext? = nil) {
         guard let transactions = transactions else {
             currentBalance = initialBalance
             return
@@ -93,20 +93,29 @@ final class Account {
 
         var balance = initialBalance
 
+        // Get the tracker to filter out deleted transactions
+        let tracker = DeletedTransactionTracker.shared
+
         // Only count EXECUTED transactions (not pending, cancelled, or failed)
-        for transaction in transactions where transaction.status == .executed {
+        for transaction in transactions {
+            // Check tracker FIRST (by ID only - safe)
+            guard !tracker.isDeleted(transaction.id) else { continue }
+
+            // Check modelContext SECOND before accessing ANY other property
+            guard transaction.modelContext != nil else { continue }
+
+            guard transaction.status == .executed else { continue }
+
             // Determina l'importo da usare: se c'è destinationAmount (conversione), usalo,
             // altrimenti converti on-the-fly se necessario, altrimenti usa l'importo originale
             var amountToUse = transaction.amount
 
             if let destAmount = transaction.destinationAmount {
-                // Usa l'importo già convertito (salvato durante la creazione)
                 amountToUse = destAmount
             } else if let ctx = context,
                       let transactionCurr = transaction.currencyRecord,
                       let accountCurr = currencyRecord,
                       transactionCurr.code != accountCurr.code {
-                // Conversione on-the-fly se le valute sono diverse
                 amountToUse = CurrencyService.shared.convert(
                     amount: transaction.amount,
                     from: transactionCurr,
@@ -123,24 +132,25 @@ final class Account {
             case .transfer:
                 balance -= amountToUse
             case .adjustment:
-                balance += amountToUse  // Amount is signed (+ or -)
+                balance += amountToUse
             }
         }
 
         // Add incoming transfers (only executed)
         if let incoming = incomingTransfers {
-            for transfer in incoming where transfer.status == .executed && transfer.transactionType == .transfer {
-                // Usa destinationAmount se disponibile (importo manuale o auto-convertito),
-                // altrimenti converti usando CurrencyService
+            for transfer in incoming {
+                guard !tracker.isDeleted(transfer.id) else { continue }
+                guard transfer.modelContext != nil else { continue }
+                guard transfer.status == .executed else { continue }
+                guard transfer.transactionType == .transfer else { continue }
+
                 var convertedAmount = transfer.amount
 
                 if let destAmount = transfer.destinationAmount {
-                    // Usa l'importo di destinazione salvato
                     convertedAmount = destAmount
                 } else if let ctx = context,
                           let transferCurr = transfer.currencyRecord,
                           let accountCurr = currencyRecord {
-                    // Fallback: converti automaticamente
                     convertedAmount = CurrencyService.shared.convert(
                         amount: transfer.amount,
                         from: transferCurr,

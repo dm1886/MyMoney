@@ -85,7 +85,7 @@ struct AddCategoryView: View {
                 }
             }
             .sheet(isPresented: $showingIconPicker) {
-                CategoryIconPickerView(selectedIcon: $selectedIcon)
+                IconPickerView(selectedIcon: $selectedIcon)
             }
             .onAppear {
                 selectedGroup = preselectedGroup ?? categoryGroups.first
@@ -106,66 +106,6 @@ struct AddCategoryView: View {
         try? modelContext.save()
 
         dismiss()
-    }
-}
-
-struct CategoryIconPickerView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Binding var selectedIcon: String
-
-    let categoryIcons = [
-        "folder.fill", "fork.knife", "cup.and.saucer.fill", "cart.fill",
-        "car.fill", "fuelpump.fill", "parkingsign.circle.fill", "bus.fill",
-        "tram.fill", "airplane", "airplane.departure", "bed.double.fill",
-        "house.fill", "bolt.fill", "wifi", "wrench.and.screwdriver.fill",
-        "tshirt.fill", "laptopcomputer", "book.fill", "cross.case.fill",
-        "figure.run", "sportscourt.fill", "dumbbell.fill", "bicycle",
-        "heart.fill", "heart.text.square.fill", "gift.fill", "graduationcap.fill",
-        "paintbrush.fill", "music.note", "film.fill", "gamecontroller.fill",
-        "banknote.fill", "dollarsign.circle.fill", "chart.line.uptrend.xyaxis",
-        "briefcase.fill", "bag.fill", "takeoutbag.and.cup.and.straw.fill",
-        "wineglass.fill", "birthday.cake.fill", "leaf.fill", "tree.fill",
-        "pawprint.fill", "hare.fill", "tortoise.fill", "fish.fill"
-    ]
-
-    let columns = [
-        GridItem(.adaptive(minimum: 60))
-    ]
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVGrid(columns: columns, spacing: 20) {
-                    ForEach(categoryIcons, id: \.self) { icon in
-                        Button {
-                            selectedIcon = icon
-                            dismiss()
-                        } label: {
-                            VStack {
-                                Image(systemName: icon)
-                                    .font(.title)
-                                    .foregroundStyle(selectedIcon == icon ? .blue : .primary)
-                                    .frame(width: 50, height: 50)
-                                    .background(
-                                        Circle()
-                                            .fill(selectedIcon == icon ? Color.blue.opacity(0.2) : Color.clear)
-                                    )
-                            }
-                        }
-                    }
-                }
-                .padding()
-            }
-            .navigationTitle("Scegli Icona")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Fatto") {
-                        dismiss()
-                    }
-                }
-            }
-        }
     }
 }
 

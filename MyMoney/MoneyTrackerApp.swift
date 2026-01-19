@@ -181,10 +181,10 @@ struct MoneyTrackerApp: App {
                             try? await UNUserNotificationCenter.current().add(request)
                         }
 
-                        // Generate recurring transaction instances
+                        // Generate recurring transaction instances (12 months ahead)
                         await RecurringTransactionManager.shared.generateRecurringInstances(
                             modelContext: sharedModelContainer.mainContext,
-                            monthsAhead: 3
+                            monthsAhead: 12
                         )
 
                         // Debug: List pending notifications
@@ -201,10 +201,16 @@ struct MoneyTrackerApp: App {
                 BackgroundTaskManager.shared.scheduleBackgroundTask()
 
             case .active:
-                // App became active - clear badge
-                print("📱 App became active - clearing badge")
+                // App became active - clear badge and regenerate recurring instances
                 Task { @MainActor in
                     await BackgroundTaskManager.shared.clearBadge()
+
+                    // Regenerate recurring transaction instances (extends 12 months from today)
+                    // This ensures "forever" recurring transactions always have future instances
+                    await RecurringTransactionManager.shared.generateRecurringInstances(
+                        modelContext: sharedModelContainer.mainContext,
+                        monthsAhead: 12
+                    )
                 }
 
             case .inactive:

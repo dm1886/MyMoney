@@ -31,13 +31,6 @@ struct AddAccountView: View {
     @State private var showingCurrencyPicker = false
     @State private var isPositiveBalance = false  // Per carte di credito in positivo
 
-    let accountIcons = [
-        "creditcard.fill", "banknote.fill", "dollarsign.circle.fill",
-        "eurosign.circle.fill", "yensign.circle.fill", "sterlingsign.circle.fill",
-        "building.columns.fill", "chart.line.uptrend.xyaxis", "wallet.pass.fill",
-        "briefcase.fill", "bag.fill", "cart.fill"
-    ]
-
     var balanceLabel: String {
         switch selectedType {
         case .creditCard:
@@ -240,61 +233,6 @@ struct AddAccountView: View {
         try? modelContext.save()
 
         dismiss()
-    }
-}
-
-struct IconPickerView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Binding var selectedIcon: String
-
-    let accountIcons = [
-        "creditcard.fill", "banknote.fill", "dollarsign.circle.fill",
-        "eurosign.circle.fill", "yensign.circle.fill", "sterlingsign.circle.fill",
-        "building.columns.fill", "chart.line.uptrend.xyaxis", "wallet.pass.fill",
-        "briefcase.fill", "bag.fill", "cart.fill", "house.fill",
-        "car.fill", "airplane", "tram.fill", "bicycle", "figure.walk",
-        "fork.knife", "cup.and.saucer.fill", "heart.fill", "star.fill",
-        "bolt.fill", "flame.fill", "drop.fill", "leaf.fill"
-    ]
-
-    let columns = [
-        GridItem(.adaptive(minimum: 60))
-    ]
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVGrid(columns: columns, spacing: 20) {
-                    ForEach(accountIcons, id: \.self) { icon in
-                        Button {
-                            selectedIcon = icon
-                            dismiss()
-                        } label: {
-                            VStack {
-                                Image(systemName: icon)
-                                    .font(.title)
-                                    .foregroundStyle(selectedIcon == icon ? .blue : .primary)
-                                    .frame(width: 50, height: 50)
-                                    .background(
-                                        Circle()
-                                            .fill(selectedIcon == icon ? Color.blue.opacity(0.2) : Color.clear)
-                                    )
-                            }
-                        }
-                    }
-                }
-                .padding()
-            }
-            .navigationTitle("Scegli Icona")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Fatto") {
-                        dismiss()
-                    }
-                }
-            }
-        }
     }
 }
 

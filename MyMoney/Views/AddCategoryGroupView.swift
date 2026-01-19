@@ -74,7 +74,7 @@ struct AddCategoryGroupView: View {
                 }
             }
             .sheet(isPresented: $showingIconPicker) {
-                CategoryIconPickerView(selectedIcon: $selectedIcon)
+                IconPickerView(selectedIcon: $selectedIcon)
             }
         }
     }

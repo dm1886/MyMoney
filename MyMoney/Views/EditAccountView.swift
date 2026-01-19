@@ -94,7 +94,7 @@ struct EditAccountView: View {
                         Text(selectedCurrencyRecord?.code ?? selectedCurrency.rawValue)
                             .foregroundStyle(.secondary)
                         TextField("0.00", text: $initialBalance)
-                            .keyboardType(.decimalPad)
+                            .keyboardType(.numbersAndPunctuation)
                             .font(.title3.bold())
                     }
 

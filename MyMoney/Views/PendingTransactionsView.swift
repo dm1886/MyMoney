@@ -60,12 +60,27 @@ struct PendingTransactionCard: View {
     @State private var showingConfirmAlert = false
     @State private var showingCancelAlert = false
 
+    // Check if transaction is deleted
+    private var isDeleted: Bool {
+        DeletedTransactionTracker.shared.isDeleted(transaction.id) || transaction.modelContext == nil
+    }
+
     var isOverdue: Bool {
+        guard !isDeleted else { return false }
         guard let scheduledDate = transaction.scheduledDate else { return false }
         return scheduledDate < Date()
     }
 
     var body: some View {
+        // CRITICAL: Check if deleted before rendering
+        if isDeleted {
+            EmptyView()
+        } else {
+            cardContent
+        }
+    }
+
+    private var cardContent: some View {
         VStack(spacing: 16) {
             // Header
             HStack {

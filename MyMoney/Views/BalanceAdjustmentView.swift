@@ -61,7 +61,7 @@ struct BalanceAdjustmentView: View {
                             .foregroundStyle(.secondary)
 
                         TextField("Nuovo Saldo", text: $newBalanceText)
-                            .keyboardType(.decimalPad)
+                            .keyboardType(.numbersAndPunctuation)
                             .font(.title2.bold())
                     }
 

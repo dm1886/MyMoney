@@ -34,17 +34,26 @@ struct AccountDetailView: View {
     @State private var selectedTransactionType: TransactionType = .expense
 
     var filteredTransactions: [Transaction] {
-        var transactions = (account.transactions ?? [])
-            .filter { $0.status != .pending }
+        let tracker = DeletedTransactionTracker.shared
+
+        // Include sia le transazioni in uscita che i trasferimenti in entrata
+        // CRITICAL: Check tracker FIRST before accessing transactionType
+        let outgoingTransactions = (account.transactions ?? [])
+            .filter { !tracker.isDeleted($0.id) && $0.modelContext != nil && $0.status != .pending }
+
+        let incomingTransfers = (account.incomingTransfers ?? [])
+            .filter { !tracker.isDeleted($0.id) && $0.modelContext != nil && $0.status != .pending && $0.transactionType == .transfer }
+
+        var allTransactions = outgoingTransactions + incomingTransfers
 
         // Applica filtro per data se selezionato
         if let selectedDate = selectedDate {
-            transactions = transactions.filter { transaction in
+            allTransactions = allTransactions.filter { transaction in
                 Calendar.current.isDate(transaction.date, inSameDayAs: selectedDate)
             }
         }
 
-        return transactions
+        return allTransactions
     }
 
     var sortedTransactions: [Transaction] {
@@ -71,9 +80,12 @@ struct AccountDetailView: View {
     // Calcola saldo on-the-fly
     private var calculatedBalance: Decimal {
         var balance = account.initialBalance
+        let tracker = DeletedTransactionTracker.shared
 
+        // Filter out deleted/detached transactions to prevent crash
+        // CRITICAL: Check tracker FIRST before accessing transactionType
         if let accountTransactions = account.transactions {
-            for transaction in accountTransactions where transaction.status == .executed {
+            for transaction in accountTransactions where !tracker.isDeleted(transaction.id) && transaction.modelContext != nil && transaction.status == .executed {
                 // Determina l'importo da usare: se c'è destinationAmount (conversione), usalo,
                 // altrimenti converti on-the-fly se necessario, altrimenti usa l'importo originale
                 var amountToUse = transaction.amount
@@ -106,8 +118,10 @@ struct AccountDetailView: View {
             }
         }
 
+        // Filter out deleted/detached transfers to prevent crash
+        // CRITICAL: Check tracker FIRST before accessing transactionType
         if let incoming = account.incomingTransfers {
-            for transfer in incoming where transfer.status == .executed && transfer.transactionType == .transfer {
+            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
                 if let destAmount = transfer.destinationAmount {
                     balance += destAmount
                 } else if let transferCurr = transfer.currencyRecord,
@@ -323,7 +337,7 @@ struct AccountDetailView: View {
                             NavigationLink {
                                 EditTransactionView(transaction: transaction)
                             } label: {
-                                TransactionRowView(transaction: transaction, isCompact: true)
+                                TransactionRowView(transaction: transaction, isCompact: true, contextAccount: account)
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button(role: .destructive) {
@@ -463,39 +477,24 @@ struct AccountDetailView: View {
     }
 
     private func deleteTransaction(_ transaction: Transaction, deleteAll: Bool) {
-        print("🔄 [DEBUG] deleteTransaction - deleteAll: \(deleteAll)")
-
-        // IMPORTANTE: Salva TUTTE le informazioni necessarie PRIMA
         let transactionId = transaction.id
         let isRecurring = transaction.isRecurring
         let parentRecurringId = transaction.parentRecurringTransactionId
         let isScheduled = transaction.isScheduled
         let accountToUpdate = account
 
-        print("   ✅ Got transactionId: \(transactionId)")
-        print("   ✅ Got isRecurring: \(isRecurring)")
-        print("   ✅ Got parentId: \(parentRecurringId?.uuidString ?? "nil")")
-        print("   ✅ Got isScheduled: \(isScheduled)")
-
-        // Esegui eliminazione in modo asincrono per evitare crash
         Task { @MainActor in
-            // Piccolo delay per assicurarsi che eventuali animazioni siano completate
-            try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 secondi
+            try? await Task.sleep(nanoseconds: 50_000_000)
 
-            print("⏳ [DEBUG] Executing deletion...")
-
-            // Fetch all transactions from account
             let allTransactions = accountToUpdate.transactions ?? []
 
             if deleteAll && isRecurring {
-                // Elimina tutte le transazioni della ricorrenza
                 let templateId = parentRecurringId ?? transactionId
 
                 let allRelated = allTransactions.filter {
                     $0.id == templateId || $0.parentRecurringTransactionId == templateId
                 }
 
-                print("   Deleting \(allRelated.count) related transactions")
                 for related in allRelated {
                     let relatedId = related.id
                     let relatedIsScheduled = related.isScheduled
@@ -506,20 +505,16 @@ struct AccountDetailView: View {
                     modelContext.delete(related)
                 }
             } else {
-                // Elimina solo questa transazione
                 if let transactionToDelete = allTransactions.first(where: { $0.id == transactionId }) {
                     if isScheduled {
                         LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
                     }
                     modelContext.delete(transactionToDelete)
-                    print("   ✅ Deleted single transaction")
                 }
             }
 
-            // Aggiorna saldo usando il riferimento salvato
             accountToUpdate.updateBalance(context: modelContext)
             try? modelContext.save()
-            print("✅ [DEBUG] deleteTransaction - COMPLETED")
         }
     }
 

@@ -16,6 +16,12 @@ struct AddTransactionView: View {
     @Query private var allCurrencies: [CurrencyRecord]
 
     let transactionType: TransactionType
+    let initialDate: Date
+
+    init(transactionType: TransactionType, initialDate: Date = Date()) {
+        self.transactionType = transactionType
+        self.initialDate = initialDate
+    }
 
     @State private var showingAddAccountAlert = false
     @State private var showingAddAccountSheet = false
@@ -24,7 +30,7 @@ struct AddTransactionView: View {
     @State private var selectedDestinationAccount: Account?
     @State private var selectedCategory: Category?
     @State private var notes = ""
-    @State private var selectedDate = Date()
+    @State private var selectedDate: Date = Date()
     @State private var showingCategoryPicker = false
     @State private var showingNewCategorySheet = false
     @State private var selectedTransactionCurrency: Currency?  // DEPRECATED
@@ -504,17 +510,40 @@ struct AddTransactionView: View {
 
                             // Preview delle prossime occorrenze
                             VStack(alignment: .leading, spacing: 8) {
+                                // Prima transazione (la data programmata)
+                                HStack {
+                                    Image(systemName: "1.circle.fill")
+                                        .foregroundStyle(.green)
+                                    Text("Prima transazione")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.right")
+                                        .font(.caption)
+                                        .foregroundStyle(.green)
+                                    Text(scheduledDate.formatted(date: .abbreviated, time: .shortened))
+                                        .font(.caption)
+                                        .foregroundStyle(.primary)
+                                        .bold()
+                                }
+                                .padding(.leading, 4)
+
+                                Divider()
+                                    .padding(.vertical, 4)
+
                                 HStack {
                                     Image(systemName: "list.bullet.circle")
                                         .foregroundStyle(.purple)
-                                    Text("Prossime Occorrenze")
+                                    Text("Prossime Ripetizioni")
                                         .font(.caption.bold())
                                         .foregroundStyle(.secondary)
                                 }
 
                                 ForEach(Array(nextOccurrences.enumerated()), id: \.offset) { index, date in
                                     HStack(spacing: 6) {
-                                        Image(systemName: "\(index + 1).circle.fill")
+                                        Image(systemName: "\(index + 2).circle.fill")
                                             .font(.caption)
                                             .foregroundStyle(.purple)
                                         Text(date.formatted(date: .abbreviated, time: .shortened))
@@ -639,6 +668,9 @@ struct AddTransactionView: View {
                 }
             }
             .onAppear {
+                // Set the date from calendar selection
+                selectedDate = initialDate
+
                 // Check if there are no accounts
                 if accounts.isEmpty {
                     showingAddAccountAlert = true
@@ -692,6 +724,8 @@ struct AddTransactionView: View {
               let account = selectedAccount else {
             return
         }
+
+        LogManager.shared.info("Creating transaction: \(transactionType.rawValue), Amount: \(amountDecimal), Account: \(account.name)", category: "Transaction")
 
         // Use selected currency or account's currency
         let currencyToUse = transactionCurrencyRecord ?? account.currencyRecord
@@ -766,7 +800,7 @@ struct AddTransactionView: View {
             Task {
                 await RecurringTransactionManager.shared.generateInstances(
                     for: transaction,
-                    monthsAhead: 3,
+                    monthsAhead: 12,
                     modelContext: modelContext
                 )
             }
@@ -776,6 +810,11 @@ struct AddTransactionView: View {
                 await LocalNotificationManager.shared.scheduleNotification(for: transaction)
             }
         }
+
+        LogManager.shared.success("Transaction created successfully", category: "Transaction")
+
+        // Notify TodayView to refresh its transaction list
+        NotificationCenter.default.post(name: .transactionsDidChange, object: nil)
 
         dismiss()
     }

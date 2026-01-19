@@ -100,7 +100,7 @@ struct EditCategoryView: View {
             }
         }
         .sheet(isPresented: $showingIconPicker) {
-            CategoryIconPickerView(selectedIcon: $selectedIcon)
+            IconPickerView(selectedIcon: $selectedIcon)
         }
         .alert("Elimina Categoria", isPresented: $showingDeleteAlert) {
             Button("Annulla", role: .cancel) { }

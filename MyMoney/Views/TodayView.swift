@@ -7,12 +7,21 @@
 
 import SwiftUI
 import SwiftData
+import Charts
+
+// Notification for when transactions change (add, edit, delete)
+extension Notification.Name {
+    static let transactionsDidChange = Notification.Name("transactionsDidChange")
+}
 
 struct TodayView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.appSettings) var appSettings
     @Environment(\.colorScheme) var colorScheme
-    @Query private var transactions: [Transaction]
+    @Environment(\.scenePhase) private var scenePhase
+    // CRITICAL: Use @State instead of @Query to control when transactions update
+    // This prevents SwiftUI from accessing deleted transactions during its update cycle
+    @State private var transactions: [Transaction] = []
     @Query private var allCurrencies: [CurrencyRecord]
     @Query private var exchangeRates: [ExchangeRate]
 
@@ -24,13 +33,33 @@ struct TodayView: View {
     @State private var showingDeleteRecurringAlert = false
     @State private var detectedPatterns: [DetectedRecurringPattern] = []
 
+    // CRITICAL: Track deleted transaction IDs to filter them out BEFORE SwiftUI accesses them
+    @State private var deletedTransactionIds: Set<UUID> = []
+
+    // Flag to trigger transaction refresh
+    @State private var needsTransactionRefresh = false
+
     var preferredCurrencyRecord: CurrencyRecord? {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
     }
 
+    // Pre-filter: esclude transazioni eliminate o con context nil
+    // CRITICAL: Filter by deletedTransactionIds FIRST (before accessing any property)
+    var validTransactions: [Transaction] {
+        // First pass: filter by ID only (safe, doesn't access other properties)
+        // Check both local deletedTransactionIds AND global tracker
+        let tracker = DeletedTransactionTracker.shared
+        let notDeleted = transactions.filter {
+            !deletedTransactionIds.contains($0.id) && !tracker.isDeleted($0.id)
+        }
+        // Second pass: also check modelContext
+        let valid = notDeleted.filter { $0.modelContext != nil }
+        return valid
+    }
+
     // Transazioni del giorno selezionato (eseguite)
     var dayTransactions: [Transaction] {
-        transactions
+        validTransactions
             .filter { transaction in
                 Calendar.current.isDate(transaction.date, inSameDayAs: selectedDate) &&
                 transaction.status == .executed
@@ -40,7 +69,7 @@ struct TodayView: View {
 
     // Transazioni PREVISTE (automatiche ricorrenti)
     var previsteTransactions: [Transaction] {
-        transactions
+        validTransactions
             .filter { transaction in
                 guard let scheduledDate = transaction.scheduledDate else { return false }
                 let isSameDay = Calendar.current.isDate(scheduledDate, inSameDayAs: selectedDate)
@@ -57,7 +86,7 @@ struct TodayView: View {
 
     // Transazioni DA CONFERMARE (solo manuali, MAI automatiche)
     var daConfermare: [Transaction] {
-        return transactions
+        return validTransactions
             .filter { transaction in
                 guard let scheduledDate = transaction.scheduledDate else { return false }
                 let isSameDay = Calendar.current.isDate(scheduledDate, inSameDayAs: selectedDate)
@@ -111,7 +140,10 @@ struct TodayView: View {
     // Calcola il totale delle transazioni previste
     var previsteTotal: Decimal {
         guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
+        let tracker = DeletedTransactionTracker.shared
         return previsteTransactions.reduce(Decimal(0)) { sum, transaction in
+            // CRITICAL: Check tracker FIRST
+            guard !tracker.isDeleted(transaction.id), transaction.modelContext != nil else { return sum }
             guard let transactionCurrency = transaction.currencyRecord else { return sum }
             let convertedAmount = CurrencyService.shared.convert(
                 amount: transaction.amount,
@@ -126,7 +158,10 @@ struct TodayView: View {
     // Calcola il totale delle transazioni da confermare
     var daConfermareTota: Decimal {
         guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
+        let tracker = DeletedTransactionTracker.shared
         return daConfermare.reduce(Decimal(0)) { sum, transaction in
+            // CRITICAL: Check tracker FIRST
+            guard !tracker.isDeleted(transaction.id), transaction.modelContext != nil else { return sum }
             guard let transactionCurrency = transaction.currencyRecord else { return sum }
             let convertedAmount = CurrencyService.shared.convert(
                 amount: transaction.amount,
@@ -138,10 +173,19 @@ struct TodayView: View {
         }
     }
 
-    // Calcola il totale delle transazioni eseguite
+    // Calcola il totale delle transazioni eseguite (esclude trasferimenti e aggiustamenti)
     var dayTransactionsTotal: Decimal {
         guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
+        let tracker = DeletedTransactionTracker.shared
         return dayTransactions.reduce(Decimal(0)) { sum, transaction in
+            // CRITICAL: Check tracker FIRST
+            guard !tracker.isDeleted(transaction.id), transaction.modelContext != nil else { return sum }
+
+            // Escludi trasferimenti e aggiustamenti dal totale
+            if transaction.transactionType == .transfer || transaction.transactionType == .adjustment {
+                return sum
+            }
+
             guard let transactionCurrency = transaction.currencyRecord else { return sum }
             let convertedAmount = CurrencyService.shared.convert(
                 amount: transaction.amount,
@@ -154,21 +198,51 @@ struct TodayView: View {
             let signedAmount: Decimal
             switch transaction.transactionType {
             case .expense:
-                // Uscite: negative
                 signedAmount = -convertedAmount
             case .income:
-                // Entrate: positive
                 signedAmount = convertedAmount
-            case .transfer:
-                // Trasferimenti: negativi (esce dal conto)
-                signedAmount = -convertedAmount
-            case .adjustment:
-                // Aggiustamenti: già hanno il segno corretto nell'amount
-                signedAmount = convertedAmount
+            case .transfer, .adjustment:
+                signedAmount = 0  // Mai raggiunto (già escluso sopra)
             }
 
             return sum + signedAmount
         }
+    }
+
+    // Totale uscite del giorno (per pie chart)
+    var dayExpenses: Decimal {
+        guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
+        let tracker = DeletedTransactionTracker.shared
+        return dayTransactions
+            .filter { !tracker.isDeleted($0.id) && $0.modelContext != nil && $0.transactionType == .expense }
+            .reduce(Decimal(0)) { sum, transaction in
+                guard let transactionCurrency = transaction.currencyRecord else { return sum }
+                let convertedAmount = CurrencyService.shared.convert(
+                    amount: transaction.amount,
+                    from: transactionCurrency,
+                    to: preferredCurrency,
+                    context: modelContext
+                )
+                return sum + convertedAmount
+            }
+    }
+
+    // Totale entrate del giorno (per pie chart)
+    var dayIncome: Decimal {
+        guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
+        let tracker = DeletedTransactionTracker.shared
+        return dayTransactions
+            .filter { !tracker.isDeleted($0.id) && $0.modelContext != nil && $0.transactionType == .income }
+            .reduce(Decimal(0)) { sum, transaction in
+                guard let transactionCurrency = transaction.currencyRecord else { return sum }
+                let convertedAmount = CurrencyService.shared.convert(
+                    amount: transaction.amount,
+                    from: transactionCurrency,
+                    to: preferredCurrency,
+                    context: modelContext
+                )
+                return sum + convertedAmount
+            }
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
@@ -193,12 +267,39 @@ struct TodayView: View {
 
     private func updateDetectedPatterns() {
         if appSettings.recurringDetectionEnabled {
+            // CRITICAL: Use validTransactions (filtered by tracker) to avoid crash on deleted transactions
             detectedPatterns = RecurringPatternDetector.shared.detectRecurringPatterns(
-                from: transactions,
+                from: validTransactions,
                 daysThreshold: appSettings.recurringDetectionDays
             )
         } else {
             detectedPatterns = []
+        }
+    }
+
+    /// CRITICAL: Safely fetch transactions from context, filtering out any that are marked for deletion
+    /// This replaces @Query to give us full control over when the transaction list updates
+    private func refreshTransactionsSafely() {
+        let tracker = DeletedTransactionTracker.shared
+
+        do {
+            let descriptor = FetchDescriptor<Transaction>()
+            let allTransactions = try modelContext.fetch(descriptor)
+
+            // Filter out deleted transactions BEFORE updating @State
+            // This ensures SwiftUI NEVER sees deleted transactions
+            let safeTransactions = allTransactions.filter { transaction in
+                let isTrackerDeleted = tracker.isDeleted(transaction.id)
+                let isLocalDeleted = deletedTransactionIds.contains(transaction.id)
+                let hasContext = transaction.modelContext != nil
+
+                return !isTrackerDeleted && !isLocalDeleted && hasContext
+            }
+
+            transactions = safeTransactions
+            updateDetectedPatterns()
+        } catch {
+            LogManager.shared.error("Error fetching transactions: \(error)", category: "TodayView")
         }
     }
 
@@ -252,18 +353,64 @@ struct TodayView: View {
             .navigationBarTitleDisplayMode(.inline)
 
             
-            //-------------------
+            // Swipe gesture to change day
+            .gesture(
+                DragGesture(minimumDistance: 50, coordinateSpace: .local)
+                    .onEnded { value in
+                        if value.translation.width < -50 {
+                            // Swipe left - go to next day
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
+                            }
+                        } else if value.translation.width > 50 {
+                            // Swipe right - go to previous day
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
+                            }
+                        }
+                    }
+            )
             .onAppear {
+                // Always set to today when app opens
+                selectedDate = Date()
+                refreshTransactionsSafely()
                 updateDetectedPatterns()
             }
-            .onChange(of: transactions) { _, _ in
-                updateDetectedPatterns()
+            .onChange(of: needsTransactionRefresh) { _, needsRefresh in
+                if needsRefresh {
+                    refreshTransactionsSafely()
+                    needsTransactionRefresh = false
+                }
             }
             .onChange(of: appSettings.recurringDetectionEnabled) { _, _ in
                 updateDetectedPatterns()
             }
             .onChange(of: appSettings.recurringDetectionDays) { _, _ in
                 updateDetectedPatterns()
+            }
+            // Refresh when sheets close (transaction added/edited)
+            .onChange(of: showingAddTransaction) { _, isShowing in
+                if !isShowing {
+                    refreshTransactionsSafely()
+                }
+            }
+            .onChange(of: selectedTransactionType) { _, type in
+                if type == nil {
+                    // Sheet closed, refresh
+                    refreshTransactionsSafely()
+                }
+            }
+            // Refresh when scene becomes active (e.g., after navigating back)
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    refreshTransactionsSafely()
+                }
+            }
+            // Listen for transaction changes notification (from EditTransactionView, AddTransactionView, etc.)
+            .onReceive(NotificationCenter.default.publisher(for: .transactionsDidChange)) { _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    refreshTransactionsSafely()
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -279,8 +426,13 @@ struct TodayView: View {
             .sheet(isPresented: $showingAddTransaction) {
                 TransactionTypeSelectionView(selectedType: $selectedTransactionType)
             }
-            .sheet(item: $selectedTransactionType) { type in
-                AddTransactionView(transactionType: type)
+            .sheet(item: $selectedTransactionType, onDismiss: {
+                // Refresh transactions when AddTransactionView closes
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    refreshTransactionsSafely()
+                }
+            }) { type in
+                AddTransactionView(transactionType: type, initialDate: selectedDate)
             }
             .alert("Elimina Transazione Ricorrente", isPresented: $showingDeleteRecurringAlert) {
                 Button("Annulla", role: .cancel) {
@@ -332,6 +484,30 @@ struct TodayView: View {
             .buttonStyle(PlainButtonStyle())
 
             Spacer()
+
+            // Pie chart piccolo per uscite/entrate
+            if dayExpenses > 0 || dayIncome > 0 {
+                Chart {
+                    if dayExpenses > 0 {
+                        SectorMark(
+                            angle: .value("Importo", Double(truncating: dayExpenses as NSDecimalNumber)),
+                            innerRadius: .ratio(0.5),
+                            angularInset: 2
+                        )
+                        .foregroundStyle(.red.gradient)
+                    }
+                    if dayIncome > 0 {
+                        SectorMark(
+                            angle: .value("Importo", Double(truncating: dayIncome as NSDecimalNumber)),
+                            innerRadius: .ratio(0.5),
+                            angularInset: 2
+                        )
+                        .foregroundStyle(.green.gradient)
+                    }
+                }
+                .frame(width: 56, height: 56)
+                .chartLegend(.hidden)
+            }
         }
     }
 
@@ -423,10 +599,10 @@ struct TodayView: View {
     private func calendarDayCell(date: Date) -> some View {
         let isSelected = Calendar.current.isDate(date, inSameDayAs: selectedDate)
         let isToday = Calendar.current.isDateInToday(date)
-        let hasTransactions = transactions.contains { Calendar.current.isDate($0.date, inSameDayAs: date) && $0.status == .executed }
+        let hasTransactions = validTransactions.contains { Calendar.current.isDate($0.date, inSameDayAs: date) && $0.status == .executed }
 
         // Controlla se ci sono transazioni programmate per questo giorno
-        let hasScheduledTransactions = transactions.contains { transaction in
+        let hasScheduledTransactions = validTransactions.contains { transaction in
             guard let scheduledDate = transaction.scheduledDate,
                   transaction.status == .pending else {
                 return false
@@ -729,8 +905,6 @@ struct TodayView: View {
     }
 
     private func deleteTransaction(_ transaction: Transaction, deleteAll: Bool) {
-        print("🔄 [DEBUG] TodayView.deleteTransaction - deleteAll: \(deleteAll)")
-
         // IMPORTANTE: Salva TUTTE le informazioni necessarie PRIMA
         let transactionId = transaction.id
         let isRecurring = transaction.isRecurring
@@ -739,48 +913,57 @@ struct TodayView: View {
         let accountToUpdate = transaction.account
         let destinationAccountToUpdate = transaction.destinationAccount
 
-        print("   ✅ Got transactionId: \(transactionId)")
-        print("   ✅ Got isRecurring: \(isRecurring)")
-        print("   ✅ Got parentId: \(parentRecurringId?.uuidString ?? "nil")")
-        print("   ✅ Got isScheduled: \(isScheduled)")
+        // Add to deletedTransactionIds IMMEDIATELY to prevent UI access
+        deletedTransactionIds.insert(transactionId)
 
-        // Esegui eliminazione in modo asincrono per evitare crash
-        Task { @MainActor in
-            // Piccolo delay per assicurarsi che eventuali animazioni siano completate
-            try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 secondi
+        // If deleting all recurring, also add all related IDs
+        if deleteAll && isRecurring {
+            let templateId = parentRecurringId ?? transactionId
+            for t in transactions where t.id == templateId || t.parentRecurringTransactionId == templateId {
+                deletedTransactionIds.insert(t.id)
+            }
+        }
 
-            print("⏳ [DEBUG] Executing deletion...")
+        // Esegui eliminazione con DispatchQueue e delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [modelContext, transactions] in
+            // Filtra le transazioni valide (non eliminate/detached)
+            let safeTransactions = transactions.filter { $0.modelContext != nil }
 
             if deleteAll && isRecurring {
                 // Elimina tutte le transazioni della ricorrenza
                 let templateId = parentRecurringId ?? transactionId
 
-                let allRelated = transactions.filter {
+                let allRelated = safeTransactions.filter {
                     $0.id == templateId || $0.parentRecurringTransactionId == templateId
                 }
 
-                print("   Deleting \(allRelated.count) related transactions")
-                for related in allRelated {
-                    let relatedId = related.id
-                    let relatedIsScheduled = related.isScheduled
+                withAnimation {
+                    for related in allRelated {
+                        let relatedId = related.id
+                        let relatedIsScheduled = related.isScheduled
 
-                    if relatedIsScheduled {
-                        LocalNotificationManager.shared.cancelNotification(transactionId: relatedId)
+                        if relatedIsScheduled {
+                            LocalNotificationManager.shared.cancelNotification(transactionId: relatedId)
+                        }
+                        modelContext.delete(related)
                     }
-                    modelContext.delete(related)
                 }
             } else {
                 // Elimina solo questa transazione
-                if let transactionToDelete = transactions.first(where: { $0.id == transactionId }) {
+                if let transactionToDelete = safeTransactions.first(where: { $0.id == transactionId }) {
                     if isScheduled {
                         LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
                     }
-                    modelContext.delete(transactionToDelete)
-                    print("   ✅ Deleted single transaction")
+                    withAnimation {
+                        modelContext.delete(transactionToDelete)
+                    }
                 }
             }
 
-            // Aggiorna i saldi degli account coinvolti usando i riferimenti salvati
+            // Salva prima di aggiornare i bilanci
+            try? modelContext.save()
+
+            // Aggiorna i saldi degli account coinvolti
             if let account = accountToUpdate {
                 account.updateBalance(context: modelContext)
             }
@@ -790,7 +973,6 @@ struct TodayView: View {
             }
 
             try? modelContext.save()
-            print("✅ [DEBUG] TodayView.deleteTransaction - COMPLETED")
         }
     }
 }
@@ -802,61 +984,157 @@ struct TransactionRowView: View {
     @Environment(\.colorScheme) var colorScheme
     let transaction: Transaction
     var isCompact: Bool = false
+    var contextAccount: Account? = nil  // Conto da cui stiamo visualizzando (per mostrare il nome dell'altro conto nei trasferimenti)
 
-    var body: some View {
-        HStack(spacing: 12) {
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(iconBackgroundColor)
-                    .frame(width: 44, height: 44)
+    // Cached values from init to avoid accessing deleted transaction
+    private let cachedTransactionType: TransactionType
+    private let cachedTransactionId: UUID
+    private let wasDeletedAtInit: Bool
 
-                Image(systemName: transaction.category?.icon ?? defaultIcon)
-                    .font(.system(size: 18))
-                    .foregroundStyle(iconColor)
-            }
+    init(transaction: Transaction, isCompact: Bool = false, contextAccount: Account? = nil) {
+        self.transaction = transaction
+        self.isCompact = isCompact
+        self.contextAccount = contextAccount
 
-            // Info
-            VStack(alignment: .leading, spacing: 4) {
-                Text(transaction.category?.name ?? transaction.transactionType.rawValue)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-
-                HStack(spacing: 4) {
-                    if transaction.isScheduled {
-                        Image(systemName: "clock")
-                            .font(.caption2)
-                        Text(transaction.scheduledDate?.formatted(date: .omitted, time: .shortened) ?? "")
-                            .font(.caption)
-                    } else {
-                        Text(transaction.date.formatted(date: .omitted, time: .shortened))
-                            .font(.caption)
-                    }
-
-                    if transaction.isScheduled, let icon = scheduleIcon {
-                        Image(systemName: icon)
-                            .font(.caption2)
-                    }
-                }
-                .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            // Amount with colored background
-            Text(transaction.displayAmount)
-                .font(.body.bold())
-                .foregroundStyle(amountTextColor)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(amountBackgroundColor)
-                )
+        // Check if deleted before accessing any properties
+        if transaction.modelContext == nil {
+            self.wasDeletedAtInit = true
+            self.cachedTransactionType = .expense  // Default
+            self.cachedTransactionId = UUID()
+        } else {
+            self.wasDeletedAtInit = false
+            // Cache values immediately to avoid accessing deleted transaction later
+            self.cachedTransactionType = transaction.transactionType
+            self.cachedTransactionId = transaction.id
         }
     }
 
+    private var isDeleted: Bool {
+        // Controlla se la transazione era eliminata all'init o lo è ora
+        // Also check the global tracker
+        return wasDeletedAtInit ||
+               transaction.modelContext == nil ||
+               DeletedTransactionTracker.shared.isDeleted(cachedTransactionId)
+    }
+
+    var body: some View {
+        // Se la transazione è stata eliminata, mostra una view vuota
+        if isDeleted {
+            EmptyView()
+        } else {
+            transactionContent
+        }
+    }
+
+    @ViewBuilder
+    private var transactionContent: some View {
+        // Guard against race condition where isDeleted was false
+        // but modelContext became nil between body check and this evaluation
+        if transaction.modelContext == nil {
+            EmptyView()
+        } else {
+            contentView
+        }
+    }
+
+    @ViewBuilder
+    private var contentView: some View {
+        if transaction.modelContext == nil {
+            EmptyView()
+        } else {
+            actualContentView
+        }
+    }
+
+    @ViewBuilder
+    private var actualContentView: some View {
+        // Final safety check
+        if transaction.modelContext == nil {
+            EmptyView()
+        } else {
+            HStack(spacing: 12) {
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(iconBackgroundColor)
+                        .frame(width: 44, height: 44)
+
+                    Image(systemName: transaction.category?.icon ?? defaultIcon)
+                        .font(.system(size: 18))
+                        .foregroundStyle(iconColor)
+                }
+
+                // Info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(displayTitle)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+
+                    HStack(spacing: 4) {
+                        if transaction.modelContext != nil && transaction.isScheduled {
+                            Image(systemName: "clock")
+                                .font(.caption2)
+                            Text(transaction.scheduledDate?.formatted(date: .omitted, time: .shortened) ?? "")
+                                .font(.caption)
+                        } else if transaction.modelContext != nil {
+                            Text(transaction.date.formatted(date: .omitted, time: .shortened))
+                                .font(.caption)
+                        }
+
+                        if transaction.modelContext != nil && transaction.isScheduled, let icon = scheduleIcon {
+                            Image(systemName: icon)
+                                .font(.caption2)
+                        }
+                    }
+                    .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                // Amount with colored background
+                Text(transaction.modelContext != nil ? transaction.displayAmount : "")
+                    .font(.body.bold())
+                    .foregroundStyle(amountTextColor)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(amountBackgroundColor)
+                    )
+            }
+        }
+    }
+
+    // Titolo da mostrare (per trasferimenti, mostra il nome del conto)
+    private var displayTitle: String {
+        guard !isDeleted else { return "" }
+        guard transaction.modelContext != nil else { return "" }
+
+        if cachedTransactionType == .transfer, let contextAccount = contextAccount {
+            // Determina se questo è un trasferimento in uscita o in entrata
+            if transaction.account?.id == contextAccount.id {
+                // Trasferimento in uscita: mostra il conto di destinazione
+                if let destAccount = transaction.destinationAccount {
+                    return "Trasferito a: \(destAccount.name)"
+                }
+                return "Trasferimento"
+            } else if transaction.destinationAccount?.id == contextAccount.id {
+                // Trasferimento in entrata: mostra il conto di origine
+                if let sourceAccount = transaction.account {
+                    return "Ricevuto da: \(sourceAccount.name)"
+                }
+                return "Trasferimento"
+            }
+        }
+
+        // Per non-trasferimenti o quando non c'è contextAccount
+        return transaction.category?.name ?? cachedTransactionType.rawValue
+    }
+
     private var iconBackgroundColor: Color {
+        guard !isDeleted else { return .gray.opacity(0.15) }
+        guard transaction.modelContext != nil else { return .gray.opacity(0.15) }
+
         if transaction.isScheduled {
             return .orange.opacity(0.15)
         }
@@ -864,6 +1142,9 @@ struct TransactionRowView: View {
     }
 
     private var iconColor: Color {
+        guard !isDeleted else { return .gray }
+        guard transaction.modelContext != nil else { return .gray }
+
         if transaction.isScheduled {
             return .orange
         }
@@ -871,10 +1152,13 @@ struct TransactionRowView: View {
     }
 
     private var defaultIcon: String {
+        guard !isDeleted else { return "questionmark" }
+        guard transaction.modelContext != nil else { return "questionmark" }
+
         if transaction.isScheduled {
             return "clock"
         }
-        switch transaction.transactionType {
+        switch cachedTransactionType {
         case .expense: return "cart"
         case .income: return "dollarsign.circle"
         case .transfer: return "arrow.left.arrow.right"
@@ -884,7 +1168,9 @@ struct TransactionRowView: View {
 
     // Background color for amount based on transaction type
     private var amountBackgroundColor: Color {
-        switch transaction.transactionType {
+        guard !isDeleted else { return .gray.opacity(0.15) }
+
+        switch cachedTransactionType {
         case .expense:
             return .red.opacity(0.15)
         case .income:
@@ -898,7 +1184,9 @@ struct TransactionRowView: View {
 
     // Text color for amount based on transaction type
     private var amountTextColor: Color {
-        switch transaction.transactionType {
+        guard !isDeleted else { return .gray.opacity(0.15) }
+
+        switch cachedTransactionType {
         case .expense:
             return .red
         case .income:
@@ -911,7 +1199,9 @@ struct TransactionRowView: View {
     }
 
     private var lineColor: Color {
-        switch transaction.transactionType {
+        guard !isDeleted else { return .gray }
+
+        switch cachedTransactionType {
         case .expense:
             return .red
         case .income:
@@ -924,6 +1214,9 @@ struct TransactionRowView: View {
     }
 
     private var scheduleIcon: String? {
+        guard !isDeleted else { return nil }
+        guard transaction.modelContext != nil else { return nil }
+
         if transaction.isAutomatic {
             return "bolt.fill"
         }

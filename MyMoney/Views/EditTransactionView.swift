@@ -50,6 +50,12 @@ struct EditTransactionView: View {
     @State private var showingStopRecurrenceHelp = false
     @State private var showingDeleteTransactionsHelp = false
 
+    // Edit scope dialog for recurring transactions
+    @State private var showingEditScopeDialog = false
+
+    // Flag per prevenire accesso alla transazione durante/dopo eliminazione
+    @State private var isDeletionInProgress = false
+
     init(transaction: Transaction) {
         self.transaction = transaction
 
@@ -125,6 +131,16 @@ struct EditTransactionView: View {
     }
 
     var body: some View {
+        // Se l'eliminazione è in corso, mostra una vista vuota per evitare crash
+        if isDeletionInProgress {
+            Color.clear
+        } else {
+            mainContent
+        }
+    }
+
+    @ViewBuilder
+    private var mainContent: some View {
         NavigationStack {
             Form {
                 // Amount Section
@@ -177,11 +193,11 @@ struct EditTransactionView: View {
                             showNavigationBar: false,
                             transactionType: transactionType,
                             selectedCategory: selectedCategory,
-                            title: "Conto"
+                            title: transactionType == .transfer ? "Da Conto" : "Conto"
                         )
                     } label: {
                         HStack {
-                            Text("Conto")
+                            Text(transactionType == .transfer ? "Da Conto" : "Conto")
                                 .foregroundStyle(.primary)
 
                             Spacer()
@@ -211,6 +227,83 @@ struct EditTransactionView: View {
                                 Text("Seleziona")
                                     .foregroundStyle(.secondary)
                             }
+                        }
+                    }
+                }
+
+                // Destination Account Section (solo per trasferimenti)
+                if transactionType == .transfer {
+                    Section {
+                        NavigationLink {
+                            AccountSelectionView(
+                                selectedAccount: $selectedDestinationAccount,
+                                showNavigationBar: false,
+                                transactionType: transactionType,
+                                selectedCategory: nil,
+                                title: "A Conto"
+                            )
+                        } label: {
+                            HStack {
+                                Text("A Conto")
+                                    .foregroundStyle(.primary)
+
+                                Spacer()
+
+                                if let account = selectedDestinationAccount {
+                                    HStack(spacing: 8) {
+                                        if let imageData = account.imageData, let uiImage = UIImage(data: imageData) {
+                                            Image(uiImage: uiImage)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 28, height: 28)
+                                                .clipShape(Circle())
+                                        } else {
+                                            Image(systemName: account.icon)
+                                                .foregroundStyle(account.color)
+                                        }
+
+                                        Text(account.name)
+                                            .foregroundStyle(.secondary)
+
+                                        if let currency = account.currencyRecord {
+                                            Text(currency.flagEmoji)
+                                                .font(.caption)
+                                        }
+                                    }
+                                } else {
+                                    Text("Seleziona")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+
+                        // Mostra conversione se le valute sono diverse
+                        if let sourceCurrency = selectedAccount?.currencyRecord,
+                           let destCurrency = selectedDestinationAccount?.currencyRecord,
+                           sourceCurrency.code != destCurrency.code,
+                           let amountDecimal = Decimal(string: amount.replacingOccurrences(of: ",", with: ".")) {
+                            let converted = CurrencyService.shared.convert(
+                                amount: amountDecimal,
+                                from: sourceCurrency,
+                                to: destCurrency,
+                                context: modelContext
+                            )
+                            HStack {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .foregroundStyle(.blue)
+                                Text("Convertito")
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text("\(destCurrency.symbol)\(formatDecimal(converted))")
+                                    .font(.headline)
+                                    .foregroundStyle(.blue)
+                            }
+                        }
+                    } footer: {
+                        if let sourceCurrency = selectedAccount?.currencyRecord,
+                           let destCurrency = selectedDestinationAccount?.currencyRecord,
+                           sourceCurrency.code != destCurrency.code {
+                            Text("L'importo verrà convertito da \(sourceCurrency.code) a \(destCurrency.code) usando il tasso di cambio corrente.")
                         }
                     }
                 }
@@ -284,238 +377,21 @@ struct EditTransactionView: View {
                 }
 
                 // MARK: - Scheduled Transaction Section
-                Section {
-                    Toggle(isOn: $isScheduled) {
-                        HStack {
-                            Image(systemName: "clock.badge.checkmark")
-                                .foregroundStyle(.orange)
-                            Text("Programma Transazione")
-                        }
-                    }
-                    .onChange(of: isScheduled) { _, newValue in
-                        if newValue && transactionStatus != .pending {
-                            // Set default scheduled date if enabling for first time
-                            scheduledDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-                        }
-                    }
-
-                    if isScheduled {
-                        DatePicker("Data Programmata", selection: $scheduledDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
-                            .datePickerStyle(.compact)
-
-                        Toggle(isOn: $isAutomatic) {
-                            HStack {
-                                Image(systemName: isAutomatic ? "bolt.fill" : "hand.tap.fill")
-                                    .foregroundStyle(isAutomatic ? .blue : .orange)
-                                Text("Esecuzione Automatica")
-                            }
-                        }
-
-                        if isAutomatic {
-                            Text("La transazione sarà eseguita automaticamente alla data impostata.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text("Riceverai una notifica per confermare manualmente la transazione.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        // Show current status if already scheduled
-                        if isScheduled {
-                            HStack {
-                                Text("Stato:")
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                HStack(spacing: 4) {
-                                    Image(systemName: transactionStatus.icon)
-                                    Text(transactionStatus.rawValue)
-                                }
-                                .foregroundStyle(Color(hex: transactionStatus.color) ?? .primary)
-                            }
-                            .font(.caption)
-                        }
-                    }
-                } header: {
-                    Text("Programmazione")
-                } footer: {
-                    if isScheduled {
-                        Text("Le transazioni programmate vengono eseguite alla data impostata e non influenzano il saldo fino all'esecuzione.")
-                    }
-                }
+                scheduledTransactionSection
 
                 // MARK: - Recurring Transaction Info (Read-only)
                 if isRecurring || parentRecurringTransactionId != nil {
-                    Section {
-                        HStack {
-                            Image(systemName: "repeat.circle.fill")
-                                .foregroundStyle(.purple)
-                            Text(isRecurring ? "Template Ricorrente" : "Transazione Ricorrente")
-                            Spacer()
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.purple)
-                        }
-
-                        if let rule = recurrenceRule {
-                            HStack {
-                                Image(systemName: rule.icon)
-                                    .foregroundStyle(.purple)
-                                Text("Frequenza")
-                                Spacer()
-                                Text(rule.displayString)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-
-                        if let endDate = recurrenceEndDate {
-                            HStack {
-                                Image(systemName: "calendar.badge.clock")
-                                    .foregroundStyle(.orange)
-                                Text("Fino a")
-                                Spacer()
-                                Text(endDate.formatted(date: .abbreviated, time: .omitted))
-                                    .foregroundStyle(.secondary)
-                            }
-                        } else if isRecurring || parentRecurringTransactionId != nil {
-                            HStack {
-                                Image(systemName: "infinity.circle")
-                                    .foregroundStyle(.blue)
-                                Text("Ripetizione Infinita")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    } header: {
-                        Text("Ripetizione")
-                    } footer: {
-                        if isRecurring {
-                            Text("Questo è il template principale della serie ricorrente.")
-                        } else {
-                            Text("Questa è una transazione di una serie ricorrente. La modifica influenzerà solo questa transazione.")
-                        }
-                    }
+                    recurringInfoSection
 
                     // MARK: - Gestione Ripetizione
                     if parentRecurringTransactionId != nil {
-                        Section {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Button {
-                                    showingStopRecurrenceAlert = true
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "stop.circle")
-                                            .foregroundStyle(.orange)
-                                        Text("Interrompi Ripetizione da Qui")
-                                        Spacer()
-                                    }
-                                }
-
-                                DisclosureGroup(
-                                    isExpanded: $showingStopRecurrenceHelp,
-                                    content: {
-                                        Text("Ferma la ripetizione mantenendo questa transazione. Tutte le transazioni future verranno eliminate, ma questa rimarrà intatta.")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .padding(.top, 4)
-                                    },
-                                    label: {
-                                        Text("Cosa succede?")
-                                            .font(.caption)
-                                            .foregroundStyle(.blue)
-                                    }
-                                )
-                            }
-
-                            Divider()
-                                .padding(.vertical, 4)
-
-                            VStack(alignment: .leading, spacing: 8) {
-                                Button {
-                                    showingDeleteInstancesWarning = true
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "trash.circle")
-                                            .foregroundStyle(.red)
-                                        Text("Elimina Transazioni...")
-                                        Spacer()
-                                    }
-                                }
-
-                                DisclosureGroup(
-                                    isExpanded: $showingDeleteTransactionsHelp,
-                                    content: {
-                                        VStack(alignment: .leading, spacing: 6) {
-                                            Text("• Solo Questa: elimina solo questa transazione")
-                                            Text("• Questa e Future: elimina questa + tutte le future")
-                                            Text("• Tutte: elimina l'intera serie ricorrente")
-                                        }
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .padding(.top, 4)
-                                    },
-                                    label: {
-                                        Text("Cosa succede?")
-                                            .font(.caption)
-                                            .foregroundStyle(.blue)
-                                    }
-                                )
-                            }
-                        } header: {
-                            Text("Gestione Ripetizione")
-                        } footer: {
-                            Text("Puoi interrompere la ripetizione o eliminare transazioni specifiche della serie.")
-                        }
+                        recurringManagementSection
                     }
                 }
 
-                // MARK: - Manual Confirmation Buttons
-                if transactionStatus == .pending && !isAutomatic {
-                    Section {
-                        VStack(spacing: 12) {
-                            Text("Questa transazione richiede conferma manuale")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-
-                            HStack(spacing: 12) {
-                                Button(action: confirmTransaction) {
-                                    HStack {
-                                        Image(systemName: "checkmark.circle.fill")
-                                        Text("Conferma")
-                                            .font(.headline)
-                                    }
-                                    .foregroundStyle(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .fill(Color.green)
-                                    )
-                                }
-                                .buttonStyle(.plain)
-
-                                Button(action: cancelTransaction) {
-                                    HStack {
-                                        Image(systemName: "xmark.circle.fill")
-                                        Text("Annulla")
-                                            .font(.headline)
-                                    }
-                                    .foregroundStyle(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .fill(Color.red)
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.vertical, 8)
-                    } header: {
-                        Text("Azioni")
-                    } footer: {
-                        Text("Conferma per eseguire immediatamente la transazione, o Annulla per cancellarla definitivamente.")
-                    }
+                // MARK: - Execution Buttons (for all pending transactions)
+                if transactionStatus == .pending {
+                    executionButtonsSection
                 }
             }
             .navigationTitle("Modifica Transazione")
@@ -529,9 +405,18 @@ struct EditTransactionView: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Salva") {
-                        saveTransaction()
+                        // Se è una transazione ricorrente, chiedi se applicare a tutte o solo a questa
+                        if parentRecurringTransactionId != nil {
+                            showingEditScopeDialog = true
+                        } else {
+                            saveTransaction(applyToAll: false)
+                        }
                     }
-                    .disabled(amount.isEmpty || selectedAccount == nil)
+                    .disabled(
+                        amount.isEmpty ||
+                        selectedAccount == nil ||
+                        (transactionType == .transfer && selectedDestinationAccount == nil)
+                    )
                 }
 
                 ToolbarItem(placement: .destructiveAction) {
@@ -580,52 +465,309 @@ struct EditTransactionView: View {
             } message: {
                 Text("Sei sicuro di voler eliminare questa transazione?")
             }
+            .confirmationDialog(
+                "Modifica Transazione Ricorrente",
+                isPresented: $showingEditScopeDialog,
+                titleVisibility: .visible
+            ) {
+                Button("Solo questa") {
+                    saveTransaction(applyToAll: false)
+                }
+                Button("Tutte le future") {
+                    saveTransaction(applyToAll: true)
+                }
+                Button("Annulla", role: .cancel) { }
+            } message: {
+                Text("Vuoi applicare le modifiche solo a questa transazione o a tutte le transazioni future della serie?")
+            }
         }
     }
 
+    // MARK: - Extracted View Sections
+
+    @ViewBuilder
+    private var scheduledTransactionSection: some View {
+        Section {
+            Toggle(isOn: $isScheduled) {
+                HStack {
+                    Image(systemName: "clock.badge.checkmark")
+                        .foregroundStyle(.orange)
+                    Text("Programma Transazione")
+                }
+            }
+            .onChange(of: isScheduled) { _, newValue in
+                if newValue && transactionStatus != .pending {
+                    scheduledDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+                }
+            }
+
+            if isScheduled {
+                DatePicker("Data Programmata", selection: $scheduledDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
+                    .datePickerStyle(.compact)
+
+                Toggle(isOn: $isAutomatic) {
+                    HStack {
+                        Image(systemName: isAutomatic ? "bolt.fill" : "hand.tap.fill")
+                            .foregroundStyle(isAutomatic ? .blue : .orange)
+                        Text("Esecuzione Automatica")
+                    }
+                }
+
+                if isAutomatic {
+                    Text("La transazione sarà eseguita automaticamente alla data impostata.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Riceverai una notifica per confermare manualmente la transazione.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Text("Stato:")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    HStack(spacing: 4) {
+                        Image(systemName: transactionStatus.icon)
+                        Text(transactionStatus.rawValue)
+                    }
+                    .foregroundStyle(Color(hex: transactionStatus.color) ?? .primary)
+                }
+                .font(.caption)
+            }
+        } header: {
+            Text("Programmazione")
+        } footer: {
+            if isScheduled {
+                Text("Le transazioni programmate vengono eseguite alla data impostata e non influenzano il saldo fino all'esecuzione.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var recurringInfoSection: some View {
+        Section {
+            HStack {
+                Image(systemName: "repeat.circle.fill")
+                    .foregroundStyle(.purple)
+                Text(isRecurring ? "Template Ricorrente" : "Transazione Ricorrente")
+                Spacer()
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.purple)
+            }
+
+            if let rule = recurrenceRule {
+                HStack {
+                    Image(systemName: rule.icon)
+                        .foregroundStyle(.purple)
+                    Text("Frequenza")
+                    Spacer()
+                    Text(rule.displayString)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let endDate = recurrenceEndDate {
+                HStack {
+                    Image(systemName: "calendar.badge.clock")
+                        .foregroundStyle(.orange)
+                    Text("Fino a")
+                    Spacer()
+                    Text(endDate.formatted(date: .abbreviated, time: .omitted))
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                HStack {
+                    Image(systemName: "infinity.circle")
+                        .foregroundStyle(.blue)
+                    Text("Ripetizione Infinita")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Text("Ripetizione")
+        } footer: {
+            if isRecurring {
+                Text("Questo è il template principale della serie ricorrente.")
+            } else {
+                Text("Questa è una transazione di una serie ricorrente. La modifica influenzerà solo questa transazione.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var recurringManagementSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    showingStopRecurrenceAlert = true
+                } label: {
+                    HStack {
+                        Image(systemName: "stop.circle")
+                            .foregroundStyle(.orange)
+                        Text("Interrompi Ripetizione da Qui")
+                        Spacer()
+                    }
+                }
+
+                DisclosureGroup(
+                    isExpanded: $showingStopRecurrenceHelp,
+                    content: {
+                        Text("Ferma la ripetizione mantenendo questa transazione. Tutte le transazioni future verranno eliminate, ma questa rimarrà intatta.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 4)
+                    },
+                    label: {
+                        Text("Cosa succede?")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                    }
+                )
+            }
+
+            Divider()
+                .padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    showingDeleteInstancesWarning = true
+                } label: {
+                    HStack {
+                        Image(systemName: "trash.circle")
+                            .foregroundStyle(.red)
+                        Text("Elimina Transazioni...")
+                        Spacer()
+                    }
+                }
+
+                DisclosureGroup(
+                    isExpanded: $showingDeleteTransactionsHelp,
+                    content: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("• Solo Questa: elimina solo questa transazione")
+                            Text("• Questa e Future: elimina questa + tutte le future")
+                            Text("• Tutte: elimina l'intera serie ricorrente")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                    },
+                    label: {
+                        Text("Cosa succede?")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                    }
+                )
+            }
+        } header: {
+            Text("Gestione Ripetizione")
+        } footer: {
+            Text("Puoi interrompere la ripetizione o eliminare transazioni specifiche della serie.")
+        }
+    }
+
+    @ViewBuilder
+    private var executionButtonsSection: some View {
+        Section {
+            VStack(spacing: 12) {
+                if isAutomatic {
+                    Text("Transazione automatica programmata")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                } else {
+                    Text("Questa transazione richiede conferma manuale")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                HStack(spacing: 12) {
+                    Button(action: confirmTransaction) {
+                        HStack {
+                            Image(systemName: "bolt.circle.fill")
+                            Text("Esegui Ora")
+                                .font(.headline)
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.green)
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: cancelTransaction) {
+                        HStack {
+                            Image(systemName: "xmark.circle.fill")
+                            Text("Elimina")
+                                .font(.headline)
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.red)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 8)
+        } header: {
+            Text("Azioni")
+        } footer: {
+            if isAutomatic {
+                Text("Premi 'Esegui Ora' per eseguire subito la transazione senza attendere la data programmata, o 'Elimina' per cancellarla.")
+            } else {
+                Text("Conferma per eseguire immediatamente la transazione, o Elimina per cancellarla definitivamente.")
+            }
+        }
+    }
+
+    // MARK: - Actions
+
     private func confirmTransaction() {
-        // IMPORTANTE: Salva l'ID PRIMA dell'esecuzione
         let transactionId = transaction.id
 
-        // Execute transaction asynchronously
         Task { @MainActor in
             await TransactionScheduler.shared.executeTransaction(transaction, modelContext: modelContext)
-
-            // Cancel notification after execution succeeds (usa solo l'ID)
             LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
-
-            // Dismiss con delay per evitare crash
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 secondi
+            try? await Task.sleep(nanoseconds: 100_000_000)
             dismiss()
         }
     }
 
     private func cancelTransaction() {
-        // IMPORTANTE: Salva l'ID PRIMA di cancellare
         let transactionId = transaction.id
-
-        // Cancel notification when cancelling (usa solo l'ID)
         LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
-
         TransactionScheduler.shared.cancelTransaction(transaction, modelContext: modelContext)
 
-        // Dismiss con delay per evitare crash
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 secondi
+            try? await Task.sleep(nanoseconds: 100_000_000)
             dismiss()
         }
     }
 
-    private func saveTransaction() {
-        guard let amountDecimal = Decimal(string: amount.replacingOccurrences(of: ",", with: ".")) else { return }
+    private func saveTransaction(applyToAll: Bool) {
+        guard let amountDecimal = Decimal(string: amount.replacingOccurrences(of: ",", with: ".")) else {
+            return
+        }
+
+        LogManager.shared.info("Saving transaction: \(transactionType.rawValue), Amount: \(amountDecimal)", category: "Transaction")
 
         // Track if we're changing scheduling status
         let wasScheduled = transaction.isScheduled
         let wasPending = transaction.status == .pending
 
-        // Update transaction
+        // Update current transaction
         transaction.amount = amountDecimal
         transaction.account = selectedAccount
+        transaction.destinationAccount = selectedDestinationAccount
         transaction.category = selectedCategory
         transaction.notes = notes
 
@@ -637,7 +779,25 @@ struct EditTransactionView: View {
         transaction.currencyRecord = selectedTransactionCurrencyRecord
 
         // Set converted amount if currency conversion is needed
-        if transactionType != .transfer && needsConversion {
+        if transactionType == .transfer {
+            // For transfers, check if source and destination currencies differ
+            if let sourceCurrency = selectedAccount?.currencyRecord,
+               let destCurrency = selectedDestinationAccount?.currencyRecord,
+               sourceCurrency.code != destCurrency.code {
+                // Convert amount from source to destination currency
+                let converted = CurrencyService.shared.convert(
+                    amount: amountDecimal,
+                    from: sourceCurrency,
+                    to: destCurrency,
+                    context: modelContext
+                )
+                transaction.destinationAmount = converted
+            } else {
+                // Same currency, no conversion needed
+                transaction.destinationAmount = nil
+            }
+        } else if needsConversion {
+            // For expense/income, convert from transaction currency to account currency
             transaction.destinationAmount = convertedAmount
         } else {
             // Clear destinationAmount if no conversion needed
@@ -669,6 +829,15 @@ struct EditTransactionView: View {
             transaction.scheduledDate = nil
         }
 
+        // Se applyToAll è true, applica le modifiche anche a tutte le transazioni future della serie
+        if applyToAll, let templateId = parentRecurringTransactionId {
+            applyChangesToFutureTransactions(
+                templateId: templateId,
+                amount: amountDecimal,
+                convertedAmount: convertedAmount
+            )
+        }
+
         // Update account balance only if status changed from pending to executed or vice versa
         if let account = selectedAccount {
             if (wasScheduled && wasPending && !isScheduled) || (!wasScheduled && isScheduled) {
@@ -676,7 +845,7 @@ struct EditTransactionView: View {
             }
         }
 
-        if let destinationAccount = transaction.destinationAccount {
+        if let destinationAccount = selectedDestinationAccount {
             if (wasScheduled && wasPending && !isScheduled) || (!wasScheduled && isScheduled) {
                 destinationAccount.updateBalance(context: modelContext)
             }
@@ -689,276 +858,188 @@ struct EditTransactionView: View {
             await LocalNotificationManager.shared.updateNotification(for: transaction)
         }
 
+        LogManager.shared.success("Transaction saved successfully", category: "Transaction")
+
+        // Notify TodayView to refresh its transaction list
+        NotificationCenter.default.post(name: .transactionsDidChange, object: nil)
+
         dismiss()
     }
 
     private func initiateDelete() {
-        print("🚀 [DEBUG] initiateDelete() - START")
-
-        // Check if this transaction still exists in the context
-        // (potrebbe essere stata già eliminata da "Interrompi Ripetizione da Qui")
-        let descriptor = FetchDescriptor<Transaction>()
-        guard let allTransactions = try? modelContext.fetch(descriptor),
-              allTransactions.contains(where: { $0.id == transaction.id }) else {
-            // La transazione è già stata eliminata, chiudi la vista
-            print("⚠️ [DEBUG] Transaction already deleted in initiateDelete, dismissing")
-            dismiss()
-            return
-        }
-
-        print("🔍 [DEBUG] Checking if transaction is recurring...")
-        let isRecurring = transaction.isRecurring
-        print("   isRecurring: \(isRecurring)")
-
-        let parentId = transaction.parentRecurringTransactionId
-        print("   parentRecurringTransactionId: \(parentId?.uuidString ?? "nil")")
-
         // Check if this is a recurring transaction or instance
-        if isRecurring || parentId != nil {
-            print("📋 [DEBUG] Showing delete instances warning")
+        if isRecurring || parentRecurringTransactionId != nil {
             showingDeleteInstancesWarning = true
         } else {
-            print("📋 [DEBUG] Showing simple delete dialog")
             showingDeleteDialog = true
         }
-
-        print("✅ [DEBUG] initiateDelete() - COMPLETED")
     }
 
     private func deleteTransaction() {
-        print("🗑️ [DEBUG] deleteTransaction() - START")
-
-        // Verifica se la transazione esiste ancora
-        let descriptor = FetchDescriptor<Transaction>()
-        guard let allTransactions = try? modelContext.fetch(descriptor),
-              allTransactions.contains(where: { $0.id == transaction.id }) else {
-            // La transazione è già stata eliminata
-            print("⚠️ [DEBUG] Transaction already deleted, dismissing")
-            dismiss()
-            return
-        }
-
-        print("🔍 [DEBUG] Reading transaction properties...")
-
-        // IMPORTANTE: Salva TUTTE le informazioni necessarie PRIMA
         let transactionId = transaction.id
-        print("   ✅ Got transactionId: \(transactionId)")
+        let accountToUpdate = selectedAccount
+        let destinationAccountToUpdate = selectedDestinationAccount
+        let wasScheduled = self.isScheduled
 
-        let isScheduled = transaction.isScheduled
-        print("   ✅ Got isScheduled: \(isScheduled)")
+        // Mark as deleted in global tracker IMMEDIATELY
+        DeletedTransactionTracker.shared.markAsDeleted(transactionId)
 
-        let accountToUpdate = transaction.account
-        print("   ✅ Got account: \(accountToUpdate?.name ?? "nil")")
-
-        let destinationAccountToUpdate = transaction.destinationAccount
-        print("   ✅ Got destinationAccount: \(destinationAccountToUpdate?.name ?? "nil")")
-
-        // STRATEGIA: Chiudi la vista PRIMA di eliminare
-        print("👋 [DEBUG] Dismissing BEFORE deletion")
+        isDeletionInProgress = true
         dismiss()
 
         // Elimina DOPO aver chiuso la vista
-        Task { @MainActor in
-            // Piccolo delay per assicurarsi che la vista sia chiusa
-            try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 secondi
-
-            print("⏳ [DEBUG] Vista chiusa, ora elimino...")
-
-            // Cancel notification if exists (usa solo l'ID)
-            if isScheduled {
-                print("🔔 [DEBUG] Cancelling notification for: \(transactionId)")
-                LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
-                print("   ✅ Notification cancelled")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [modelContext] in
+            let descriptor = FetchDescriptor<Transaction>()
+            guard let allTransactions = try? modelContext.fetch(descriptor),
+                  let transactionToDelete = allTransactions.first(where: { $0.id == transactionId }) else {
+                return
             }
 
-            // Delete transaction
-            print("🗑️ [DEBUG] Deleting transaction from context...")
-            modelContext.delete(transaction)
-            print("   ✅ Transaction deleted from context")
+            if wasScheduled {
+                LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
+            }
 
-            // Update balances AFTER deletion usando i riferimenti salvati
+            withAnimation {
+                modelContext.delete(transactionToDelete)
+            }
+
+            try? modelContext.save()
+
             if let account = accountToUpdate {
-                print("💰 [DEBUG] Updating balance for account: \(account.name)")
                 account.updateBalance(context: modelContext)
-                print("   ✅ Balance updated")
             }
 
             if let destinationAccount = destinationAccountToUpdate {
-                print("💰 [DEBUG] Updating balance for destination account: \(destinationAccount.name)")
                 destinationAccount.updateBalance(context: modelContext)
-                print("   ✅ Destination balance updated")
             }
 
-            // Save everything together
-            print("💾 [DEBUG] Saving context...")
             try? modelContext.save()
-            print("   ✅ Context saved")
-
-            print("✅ [DEBUG] deleteTransaction() - COMPLETED")
         }
     }
 
     private func deleteRecurring(option: RecurringDeletionOption) {
-        print("🔄 [DEBUG] deleteRecurring() - START with option: \(option.rawValue)")
+        let transactionId = transaction.id
+        let accountToUpdate = selectedAccount
+        let destinationAccountToUpdate = selectedDestinationAccount
+        let templateId = parentRecurringTransactionId ?? transactionId
+        let thisScheduledDate = scheduledDate
 
-        // Verifica se la transazione esiste ancora
-        let descriptor = FetchDescriptor<Transaction>()
-        guard let allTransactions = try? modelContext.fetch(descriptor),
-              allTransactions.contains(where: { $0.id == transaction.id }) else {
-            // La transazione è già stata eliminata
-            print("⚠️ [DEBUG] Transaction already deleted in deleteRecurring, dismissing")
-            dismiss()
-            return
+        let tracker = DeletedTransactionTracker.shared
+
+        switch option {
+        case .thisOnly:
+            tracker.markAsDeleted(transactionId)
+        case .thisAndFuture:
+            tracker.markAsDeleted(transactionId)
+            let descriptor = FetchDescriptor<Transaction>()
+            if let allTransactions = try? modelContext.fetch(descriptor) {
+                let futureIds = allTransactions.filter { t in
+                    guard t.parentRecurringTransactionId == templateId,
+                          let tDate = t.scheduledDate else { return false }
+                    return tDate >= thisScheduledDate
+                }.map { $0.id }
+                tracker.markAsDeleted(futureIds)
+            }
+        case .all:
+            tracker.markAsDeleted(templateId)
+            let descriptor = FetchDescriptor<Transaction>()
+            if let allTransactions = try? modelContext.fetch(descriptor) {
+                let allRelatedIds = allTransactions.filter {
+                    $0.id == templateId || $0.parentRecurringTransactionId == templateId
+                }.map { $0.id }
+                tracker.markAsDeleted(allRelatedIds)
+            }
         }
 
-        print("🔍 [DEBUG] Reading transaction data and account references...")
-        // IMPORTANTE: Salva TUTTI i dati necessari PRIMA
-        let transactionId = transaction.id
-        print("   ✅ Got transactionId: \(transactionId)")
-
-        let accountToUpdate = transaction.account
-        print("   ✅ Got account: \(accountToUpdate?.name ?? "nil")")
-
-        let destinationAccountToUpdate = transaction.destinationAccount
-        print("   ✅ Got destinationAccount: \(destinationAccountToUpdate?.name ?? "nil")")
-
-        let templateId = transaction.parentRecurringTransactionId ?? transaction.id
-        print("   ✅ Got templateId: \(templateId)")
-
-        let thisScheduledDate = transaction.scheduledDate
-        print("   ✅ Got scheduledDate: \(thisScheduledDate?.description ?? "nil")")
-
-        // STRATEGIA: Chiudi la vista PRIMA di eliminare
-        print("👋 [DEBUG] Dismissing BEFORE deletion")
+        isDeletionInProgress = true
         dismiss()
 
         // Elimina DOPO aver chiuso la vista
-        Task { @MainActor in
-            // Piccolo delay per assicurarsi che la vista sia chiusa
-            try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 secondi
-
-            print("⏳ [DEBUG] Vista chiusa, ora elimino...")
-
-            // Fetch transactions again in the async context
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [modelContext] in
             let descriptor = FetchDescriptor<Transaction>()
             guard let allTransactions = try? modelContext.fetch(descriptor) else {
-                print("⚠️ [DEBUG] Could not fetch transactions")
                 return
             }
 
-            print("🗑️ [DEBUG] Executing deletion for option: \(option.rawValue)")
-
             switch option {
             case .thisOnly:
-                // Elimina solo questa transazione
-                print("   Deleting single transaction: \(transactionId)")
                 if let transactionToDelete = allTransactions.first(where: { $0.id == transactionId }) {
                     LocalNotificationManager.shared.cancelNotification(transactionId: transactionId)
-                    modelContext.delete(transactionToDelete)
-                    print("   ✅ Deleted single transaction")
+                    withAnimation {
+                        modelContext.delete(transactionToDelete)
+                    }
                 }
 
             case .thisAndFuture:
-                // Elimina questa transazione e tutte le future
-                guard let thisDate = thisScheduledDate else {
-                    print("   ⚠️ No scheduled date for thisAndFuture deletion")
-                    return
-                }
-
                 let transactionsToDelete = allTransactions.filter { t in
                     guard t.parentRecurringTransactionId == templateId,
                           let tDate = t.scheduledDate else {
                         return false
                     }
-                    return tDate >= thisDate
+                    return tDate >= thisScheduledDate
                 }
 
-                print("   Deleting \(transactionsToDelete.count) transactions (this and future)")
-                for t in transactionsToDelete {
-                    let tId = t.id
-                    LocalNotificationManager.shared.cancelNotification(transactionId: tId)
-                    modelContext.delete(t)
-                }
+                withAnimation {
+                    for t in transactionsToDelete {
+                        let tId = t.id
+                        LocalNotificationManager.shared.cancelNotification(transactionId: tId)
+                        modelContext.delete(t)
+                    }
 
-                // Se la transazione corrente è il template, eliminala
-                if transactionId == templateId {
-                    if let template = allTransactions.first(where: { $0.id == templateId }) {
-                        modelContext.delete(template)
-                        print("   ✅ Deleted template as well")
+                    if transactionId == templateId {
+                        if let template = allTransactions.first(where: { $0.id == templateId }) {
+                            modelContext.delete(template)
+                        }
                     }
                 }
 
-                print("   ✅ Deleted \(transactionsToDelete.count) future transactions")
-
             case .all:
-                // Elimina tutte le transazioni + template
                 let allRelated = allTransactions.filter {
                     $0.id == templateId || $0.parentRecurringTransactionId == templateId
                 }
 
-                print("   Deleting all \(allRelated.count) transactions including template")
-                for t in allRelated {
-                    let tId = t.id
-                    LocalNotificationManager.shared.cancelNotification(transactionId: tId)
-                    modelContext.delete(t)
+                withAnimation {
+                    for t in allRelated {
+                        let tId = t.id
+                        LocalNotificationManager.shared.cancelNotification(transactionId: tId)
+                        modelContext.delete(t)
+                    }
                 }
-
-                print("   ✅ Deleted all \(allRelated.count) instances")
             }
 
-            // Save context
             try? modelContext.save()
-            print("   ✅ Context saved")
 
-            // Update balances AFTER deletion usando i riferimenti salvati
             if let account = accountToUpdate {
-                print("💰 [DEBUG] Updating balance for account: \(account.name)")
                 account.updateBalance(context: modelContext)
-                print("   ✅ Balance updated")
             }
 
             if let destinationAccount = destinationAccountToUpdate {
-                print("💰 [DEBUG] Updating balance for destination account: \(destinationAccount.name)")
                 destinationAccount.updateBalance(context: modelContext)
-                print("   ✅ Destination balance updated")
             }
 
-            print("✅ [DEBUG] deleteRecurring() - COMPLETED")
+            try? modelContext.save()
         }
     }
 
     private func stopRecurrenceFromHere() {
-        // IMPORTANTE: Salva TUTTI i dati necessari PRIMA
         guard let templateId = transaction.parentRecurringTransactionId,
               let thisScheduledDate = transaction.scheduledDate else {
             return
         }
 
-        print("🛑 [DEBUG] stopRecurrenceFromHere - templateId: \(templateId), date: \(thisScheduledDate)")
-
-        // STRATEGIA: Chiudi la vista PRIMA di modificare/eliminare
-        print("👋 [DEBUG] Dismissing BEFORE stopping recurrence")
         dismiss()
 
-        // Modifica/Elimina DOPO aver chiuso la vista
         Task { @MainActor in
-            // Piccolo delay per assicurarsi che la vista sia chiusa
-            try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 secondi
+            try? await Task.sleep(nanoseconds: 50_000_000)
 
-            print("⏳ [DEBUG] Vista chiusa, ora interrompo la ripetizione...")
-
-            // Trova il template
             let descriptor = FetchDescriptor<Transaction>()
             guard let allTransactions = try? modelContext.fetch(descriptor),
                   let template = allTransactions.first(where: { $0.id == templateId }) else {
-                print("⚠️ [DEBUG] Template not found")
                 return
             }
 
-            // Imposta la data fine al giorno prima di questa transazione
             if let dayBefore = Calendar.current.date(byAdding: .day, value: -1, to: thisScheduledDate) {
                 template.recurrenceEndDate = dayBefore
-                print("📅 [DEBUG] Set recurrence end date to: \(dayBefore)")
             }
 
             // Elimina tutte le transazioni future (dopo questa, escludendo questa)
@@ -978,9 +1059,73 @@ struct EditTransactionView: View {
             }
 
             try? modelContext.save()
+            LogManager.shared.info("Recurrence stopped. Deleted \(futureTransactions.count) future transactions.", category: "Transaction")
+        }
+    }
 
-            print("🛑 Ripetizione interrotta. Eliminate \(futureTransactions.count) transazioni future.")
-            print("✅ [DEBUG] stopRecurrenceFromHere - COMPLETED")
+    private func applyChangesToFutureTransactions(templateId: UUID, amount: Decimal, convertedAmount: Decimal?) {
+        let thisScheduledDate = transaction.scheduledDate ?? Date()
+
+        let descriptor = FetchDescriptor<Transaction>()
+        guard let allTransactions = try? modelContext.fetch(descriptor) else { return }
+
+        // Trova tutte le transazioni future della stessa serie
+        let futureTransactions = allTransactions.filter { t in
+            guard t.parentRecurringTransactionId == templateId,
+                  t.id != transaction.id,
+                  let tDate = t.scheduledDate else {
+                return false
+            }
+            return tDate > thisScheduledDate && t.status == .pending
+        }
+
+        // Applica le stesse modifiche a tutte le transazioni future
+        for futureTransaction in futureTransactions {
+            updateTransactionFields(futureTransaction, amount: amount, convertedAmount: convertedAmount)
+        }
+
+        // Aggiorna anche il template
+        if let template = allTransactions.first(where: { $0.id == templateId }) {
+            updateTransactionFields(template, amount: amount, convertedAmount: convertedAmount)
+        }
+    }
+
+    private func updateTransactionFields(_ targetTransaction: Transaction, amount: Decimal, convertedAmount: Decimal?) {
+        targetTransaction.amount = amount
+        targetTransaction.account = selectedAccount
+        targetTransaction.destinationAccount = selectedDestinationAccount
+        targetTransaction.category = selectedCategory
+        targetTransaction.notes = notes
+        targetTransaction.currencyRecord = selectedTransactionCurrencyRecord
+        targetTransaction.isAutomatic = isAutomatic
+
+        // Update converted amount
+        if transactionType == .transfer {
+            updateTransferConversion(targetTransaction, amount: amount)
+        } else if needsConversion {
+            targetTransaction.destinationAmount = convertedAmount
+        } else {
+            targetTransaction.destinationAmount = nil
+        }
+    }
+
+    private func updateTransferConversion(_ targetTransaction: Transaction, amount: Decimal) {
+        guard let sourceCurrency = selectedAccount?.currencyRecord,
+              let destCurrency = selectedDestinationAccount?.currencyRecord else {
+            targetTransaction.destinationAmount = nil
+            return
+        }
+
+        if sourceCurrency.code != destCurrency.code {
+            let converted = CurrencyService.shared.convert(
+                amount: amount,
+                from: sourceCurrency,
+                to: destCurrency,
+                context: modelContext
+            )
+            targetTransaction.destinationAmount = converted
+        } else {
+            targetTransaction.destinationAmount = nil
         }
     }
 }
