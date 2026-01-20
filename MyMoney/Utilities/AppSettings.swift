@@ -25,6 +25,37 @@ enum ThemeMode: String, CaseIterable, Codable {
     }
 }
 
+enum BalanceHeaderStyle: String, CaseIterable, Codable {
+    case totalBalance = "Saldo Totale"
+    case assetsDebts = "Attivi e Debiti"
+    case onlyPositive = "Solo Positivi"
+    case onlyNegative = "Solo Debiti"
+    case horizontalBars = "Grafico a Barre"
+    case weeklyTrend = "Trend Settimanale"
+
+    var icon: String {
+        switch self {
+        case .totalBalance: return "banknote"
+        case .assetsDebts: return "chart.pie"
+        case .onlyPositive: return "arrow.up.circle"
+        case .onlyNegative: return "arrow.down.circle"
+        case .horizontalBars: return "chart.bar.xaxis"
+        case .weeklyTrend: return "chart.line.uptrend.xyaxis"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .totalBalance: return "Mostra il saldo totale di tutti i conti"
+        case .assetsDebts: return "Mostra attivi e debiti separati con grafico"
+        case .onlyPositive: return "Mostra solo la somma dei saldi positivi"
+        case .onlyNegative: return "Mostra solo la somma dei debiti"
+        case .horizontalBars: return "Grafico con barre orizzontali"
+        case .weeklyTrend: return "Andamento spese ultimi 7 giorni"
+        }
+    }
+}
+
 // Environment key per AppSettings (pattern @Observable)
 private struct AppSettingsKey: EnvironmentKey {
     static let defaultValue = AppSettings.shared
@@ -101,6 +132,12 @@ final class AppSettings {
         }
     }
 
+    var balanceHeaderStyle: BalanceHeaderStyle = .totalBalance {
+        didSet {
+            UserDefaults.standard.set(balanceHeaderStyle.rawValue, forKey: "balanceHeaderStyle")
+        }
+    }
+
     // iCloud sync status (read-only, just for display)
     var lastICloudSync: Date? {
         get {
@@ -138,6 +175,12 @@ final class AppSettings {
             self.superSecure = UserDefaults.standard.bool(forKey: "superSecure")
         } else {
             self.superSecure = true  // Default to true for existing users
+        }
+
+        // Load balanceHeaderStyle
+        if let savedStyle = UserDefaults.standard.string(forKey: "balanceHeaderStyle"),
+           let style = BalanceHeaderStyle(rawValue: savedStyle) {
+            self.balanceHeaderStyle = style
         }
     }
 

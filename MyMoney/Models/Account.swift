@@ -86,12 +86,17 @@ final class Account {
     }
 
     @MainActor func updateBalance(context: ModelContext? = nil) {
+        print("🔄 [DEBUG] updateBalance() called for account: \(name)")
+        print("🔄 [DEBUG] Initial balance: \(initialBalance)")
+
         guard let transactions = transactions else {
+            print("🔄 [DEBUG] No transactions array, setting balance to initialBalance")
             currentBalance = initialBalance
             return
         }
 
         var balance = initialBalance
+        print("🔄 [DEBUG] Total transactions count: \(transactions.count)")
 
         // Get the tracker to filter out deleted transactions
         let tracker = DeletedTransactionTracker.shared
@@ -99,50 +104,87 @@ final class Account {
         // Only count EXECUTED transactions (not pending, cancelled, or failed)
         for transaction in transactions {
             // Check tracker FIRST (by ID only - safe)
-            guard !tracker.isDeleted(transaction.id) else { continue }
+            guard !tracker.isDeleted(transaction.id) else {
+                print("🔄 [DEBUG] Skipping deleted transaction: \(transaction.id)")
+                continue
+            }
 
             // Check modelContext SECOND before accessing ANY other property
-            guard transaction.modelContext != nil else { continue }
+            guard transaction.modelContext != nil else {
+                print("🔄 [DEBUG] Skipping transaction with nil modelContext")
+                continue
+            }
 
-            guard transaction.status == .executed else { continue }
+            guard transaction.status == .executed else {
+                print("🔄 [DEBUG] Skipping non-executed transaction, status: \(transaction.status.rawValue)")
+                continue
+            }
 
-            // Determina l'importo da usare: se c'è destinationAmount (conversione), usalo,
-            // altrimenti converti on-the-fly se necessario, altrimenti usa l'importo originale
+            print("🔄 [DEBUG] Processing transaction: type=\(transaction.transactionType.rawValue), amount=\(transaction.amount), notes=\(transaction.notes)")
+
+            // Determina l'importo da usare in base al tipo di transazione
             var amountToUse = transaction.amount
 
-            if let destAmount = transaction.destinationAmount {
-                amountToUse = destAmount
-            } else if let ctx = context,
-                      let transactionCurr = transaction.currencyRecord,
-                      let accountCurr = currencyRecord,
-                      transactionCurr.code != accountCurr.code {
-                amountToUse = CurrencyService.shared.convert(
-                    amount: transaction.amount,
-                    from: transactionCurr,
-                    to: accountCurr,
-                    context: ctx
-                )
+            // Per TRANSFER: usa sempre transaction.amount (importo originale nella valuta di origine)
+            // destinationAmount è solo per il conto di destinazione (gestito in incomingTransfers)
+            if transaction.transactionType != .transfer {
+                // Per expense/income/adjustment: usa destinationAmount se presente (conversione)
+                if let destAmount = transaction.destinationAmount {
+                    amountToUse = destAmount
+                    print("🔄 [DEBUG] Using destinationAmount (converted): \(destAmount)")
+                } else if let ctx = context,
+                          let transactionCurr = transaction.currencyRecord,
+                          let accountCurr = currencyRecord,
+                          transactionCurr.code != accountCurr.code {
+                    amountToUse = CurrencyService.shared.convert(
+                        amount: transaction.amount,
+                        from: transactionCurr,
+                        to: accountCurr,
+                        context: ctx
+                    )
+                    print("🔄 [DEBUG] Converted on-the-fly: \(transaction.amount) → \(amountToUse)")
+                }
+            } else {
+                print("🔄 [DEBUG] TRANSFER: using original amount \(amountToUse) (not converted)")
             }
 
             switch transaction.transactionType {
             case .expense:
                 balance -= amountToUse
+                print("🔄 [DEBUG] EXPENSE: balance -= \(amountToUse) → new balance: \(balance)")
             case .income:
                 balance += amountToUse
+                print("🔄 [DEBUG] INCOME: balance += \(amountToUse) → new balance: \(balance)")
             case .transfer:
                 balance -= amountToUse
+                print("🔄 [DEBUG] TRANSFER (outgoing): balance -= \(amountToUse) → new balance: \(balance)")
             case .adjustment:
                 balance += amountToUse
+                print("🔄 [DEBUG] ADJUSTMENT: balance += \(amountToUse) → new balance: \(balance)")
             }
         }
 
         // Add incoming transfers (only executed)
+        print("🔄 [DEBUG] Checking incoming transfers...")
         if let incoming = incomingTransfers {
+            print("🔄 [DEBUG] Incoming transfers count: \(incoming.count)")
             for transfer in incoming {
-                guard !tracker.isDeleted(transfer.id) else { continue }
-                guard transfer.modelContext != nil else { continue }
-                guard transfer.status == .executed else { continue }
-                guard transfer.transactionType == .transfer else { continue }
+                guard !tracker.isDeleted(transfer.id) else {
+                    print("🔄 [DEBUG] Skipping deleted incoming transfer")
+                    continue
+                }
+                guard transfer.modelContext != nil else {
+                    print("🔄 [DEBUG] Skipping incoming transfer with nil modelContext")
+                    continue
+                }
+                guard transfer.status == .executed else {
+                    print("🔄 [DEBUG] Skipping non-executed incoming transfer, status: \(transfer.status.rawValue)")
+                    continue
+                }
+                guard transfer.transactionType == .transfer else {
+                    print("🔄 [DEBUG] Skipping non-transfer type in incomingTransfers")
+                    continue
+                }
 
                 var convertedAmount = transfer.amount
 
@@ -160,9 +202,13 @@ final class Account {
                 }
 
                 balance += convertedAmount
+                print("🔄 [DEBUG] TRANSFER (incoming): balance += \(convertedAmount) → new balance: \(balance)")
             }
+        } else {
+            print("🔄 [DEBUG] No incoming transfers array")
         }
 
+        print("🔄 [DEBUG] Final balance for \(name): \(balance)")
         currentBalance = balance
     }
 }

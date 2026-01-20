@@ -106,7 +106,7 @@ struct EditTransactionView: View {
 
     var convertedAmount: Decimal? {
         guard needsConversion,
-              let amountDecimal = Decimal(string: amount.replacingOccurrences(of: ",", with: ".")),
+              let amountDecimal = parseAmount(amount),
               let transCurr = transactionCurrencyRecord,
               let accCurr = accountCurrencyRecord else {
             return nil
@@ -126,6 +126,49 @@ struct EditTransactionView: View {
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
         return formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
+    }
+
+    /// Parse amount string with thousands separators removed
+    private func parseAmount(_ amountString: String) -> Decimal? {
+        // Remove all non-numeric characters except decimal separators (. and ,)
+        var cleaned = amountString.replacingOccurrences(of: " ", with: "")
+
+        // Count decimal separators
+        let commaCount = cleaned.filter { $0 == "," }.count
+        let dotCount = cleaned.filter { $0 == "." }.count
+
+        // Determine which is the decimal separator based on position
+        // The last separator is the decimal separator
+        if let lastComma = cleaned.lastIndex(of: ","),
+           let lastDot = cleaned.lastIndex(of: ".") {
+            if lastComma > lastDot {
+                // Comma is decimal separator (e.g., European: 1.000,50)
+                cleaned = cleaned.replacingOccurrences(of: ".", with: "")
+                cleaned = cleaned.replacingOccurrences(of: ",", with: ".")
+            } else {
+                // Dot is decimal separator (e.g., US: 1,000.50)
+                cleaned = cleaned.replacingOccurrences(of: ",", with: "")
+            }
+        } else if commaCount > 0 {
+            // Only commas present
+            if commaCount == 1 && cleaned.split(separator: ",").last?.count ?? 0 <= 2 {
+                // Single comma with 1-2 digits after = decimal separator (e.g., 10,50)
+                cleaned = cleaned.replacingOccurrences(of: ",", with: ".")
+            } else {
+                // Multiple commas or comma with >2 digits = thousands separator (e.g., 1,000,000)
+                cleaned = cleaned.replacingOccurrences(of: ",", with: "")
+            }
+        }
+        // If only dots, they stay as-is (assumed to be decimal separator for single dot, thousands for multiple)
+        else if dotCount > 1 {
+            // Multiple dots = thousands separators (e.g., 1.000.000)
+            let parts = cleaned.split(separator: ".")
+            if parts.count > 1 {
+                cleaned = parts.dropLast().joined() + "." + parts.last!
+            }
+        }
+
+        return Decimal(string: cleaned)
     }
 
     var body: some View {
@@ -288,7 +331,7 @@ struct EditTransactionView: View {
                         if let sourceCurrency = selectedAccount?.currencyRecord,
                            let destCurrency = selectedDestinationAccount?.currencyRecord,
                            sourceCurrency.code != destCurrency.code,
-                           let amountDecimal = Decimal(string: amount.replacingOccurrences(of: ",", with: ".")) {
+                           let amountDecimal = parseAmount(amount) {
                             let converted = CurrencyService.shared.convert(
                                 amount: amountDecimal,
                                 from: sourceCurrency,
@@ -753,7 +796,7 @@ struct EditTransactionView: View {
     }
 
     private func saveTransaction(applyToAll: Bool) {
-        guard let amountDecimal = Decimal(string: amount.replacingOccurrences(of: ",", with: ".")) else {
+        guard let amountDecimal = parseAmount(amount) else {
             return
         }
 
@@ -762,6 +805,10 @@ struct EditTransactionView: View {
         // Track if we're changing scheduling status
         let wasScheduled = transaction.isScheduled
         let wasPending = transaction.status == .pending
+
+        // Store old accounts BEFORE updating (for balance recalculation if accounts changed)
+        let oldAccount = transaction.account
+        let oldDestinationAccount = transaction.destinationAccount
 
         // Update current transaction
         transaction.amount = amountDecimal
@@ -779,6 +826,9 @@ struct EditTransactionView: View {
 
         // Set converted amount if currency conversion is needed
         if transactionType == .transfer {
+            print("💾 [SAVE DEBUG] TRANSFER - amount: \(amountDecimal)")
+            print("💾 [SAVE DEBUG] TRANSFER - source account: \(selectedAccount?.name ?? "nil") (\(selectedAccount?.currencyRecord?.code ?? "nil"))")
+            print("💾 [SAVE DEBUG] TRANSFER - dest account: \(selectedDestinationAccount?.name ?? "nil") (\(selectedDestinationAccount?.currencyRecord?.code ?? "nil"))")
             // For transfers, check if source and destination currencies differ
             if let sourceCurrency = selectedAccount?.currencyRecord,
                let destCurrency = selectedDestinationAccount?.currencyRecord,
@@ -791,16 +841,20 @@ struct EditTransactionView: View {
                     context: modelContext
                 )
                 transaction.destinationAmount = converted
+                print("💾 [SAVE DEBUG] TRANSFER - Cross-currency: destinationAmount set to \(converted)")
             } else {
                 // Same currency, no conversion needed
                 transaction.destinationAmount = nil
+                print("💾 [SAVE DEBUG] TRANSFER - Same currency: destinationAmount set to nil")
             }
         } else if needsConversion {
             // For expense/income, convert from transaction currency to account currency
             transaction.destinationAmount = convertedAmount
+            print("💾 [SAVE DEBUG] NON-TRANSFER - destinationAmount set to \(convertedAmount ?? 0)")
         } else {
             // Clear destinationAmount if no conversion needed
             transaction.destinationAmount = nil
+            print("💾 [SAVE DEBUG] NON-TRANSFER - destinationAmount set to nil")
         }
 
         // Update scheduling fields
@@ -833,20 +887,52 @@ struct EditTransactionView: View {
             )
         }
 
-        // Update account balance only if status changed from pending to executed or vice versa
-        if let account = selectedAccount {
-            if (wasScheduled && wasPending && !isScheduled) || (!wasScheduled && isScheduled) {
+        // IMPORTANTE: Salvare PRIMA di updateBalance() per assicurare che le relazioni inverse siano stabilite
+        try? modelContext.save()
+
+        // Update account balances:
+        // - Always update for executed transactions (any edit could change the balance)
+        // - Update when status changes between pending and executed
+        let needsBalanceUpdate = transaction.status == .executed ||
+                                  (wasScheduled && wasPending && !isScheduled) ||
+                                  (!wasScheduled && isScheduled)
+
+        print("📝 [DEBUG] EditTransaction - needsBalanceUpdate: \(needsBalanceUpdate)")
+        print("📝 [DEBUG] EditTransaction - transaction.status: \(transaction.status.rawValue)")
+        print("📝 [DEBUG] EditTransaction - transactionType: \(transactionType.rawValue)")
+        print("📝 [DEBUG] EditTransaction - selectedAccount: \(selectedAccount?.name ?? "nil")")
+        print("📝 [DEBUG] EditTransaction - selectedDestinationAccount: \(selectedDestinationAccount?.name ?? "nil")")
+        print("📝 [DEBUG] EditTransaction - oldAccount: \(oldAccount?.name ?? "nil")")
+        print("📝 [DEBUG] EditTransaction - oldDestinationAccount: \(oldDestinationAccount?.name ?? "nil")")
+
+        if needsBalanceUpdate {
+            // Update source account
+            if let account = selectedAccount {
+                print("📝 [DEBUG] Calling updateBalance for SOURCE account: \(account.name)")
                 account.updateBalance(context: modelContext)
             }
-        }
 
-        if let destinationAccount = selectedDestinationAccount {
-            if (wasScheduled && wasPending && !isScheduled) || (!wasScheduled && isScheduled) {
+            // Update destination account (for transfers)
+            if let destinationAccount = selectedDestinationAccount {
+                print("📝 [DEBUG] Calling updateBalance for DESTINATION account: \(destinationAccount.name)")
                 destinationAccount.updateBalance(context: modelContext)
             }
-        }
 
-        try? modelContext.save()
+            // Also update old accounts if they changed
+            if let previousAccount = oldAccount, previousAccount.id != selectedAccount?.id {
+                print("📝 [DEBUG] Calling updateBalance for OLD SOURCE account: \(previousAccount.name)")
+                previousAccount.updateBalance(context: modelContext)
+            }
+            if let previousDestAccount = oldDestinationAccount, previousDestAccount.id != selectedDestinationAccount?.id {
+                print("📝 [DEBUG] Calling updateBalance for OLD DESTINATION account: \(previousDestAccount.name)")
+                previousDestAccount.updateBalance(context: modelContext)
+            }
+
+            // Salva di nuovo dopo l'aggiornamento dei bilanci
+            try? modelContext.save()
+        } else {
+            print("📝 [DEBUG] Skipping balance update - needsBalanceUpdate is false")
+        }
 
         // Update local notification if transaction is scheduled
         Task {

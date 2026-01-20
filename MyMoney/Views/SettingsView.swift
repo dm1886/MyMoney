@@ -119,10 +119,25 @@ struct SettingsView: View {
                             }
                         }
                     }
+
+                    NavigationLink {
+                        BalanceHeaderStylePicker()
+                    } label: {
+                        HStack {
+                            Image(systemName: appSettings.balanceHeaderStyle.icon)
+                                .foregroundStyle(.purple)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Stile Intestazione Bilancio")
+                                Text(appSettings.balanceHeaderStyle.rawValue)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 } header: {
                     Text("Personalizzazione")
                 } footer: {
-                    Text("Scegli il colore principale dell'app e gestisci le tue categorie di spesa.")
+                    Text("Scegli il colore principale dell'app, gestisci le categorie e personalizza la visualizzazione del bilancio.")
                 }
 
                 Section {

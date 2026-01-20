@@ -139,7 +139,7 @@ struct DefaultAccountSelectionView: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     Text(formatBalance(account))
                         .font(.body)
-                        .foregroundStyle(account.currentBalance < 0 ? .red : .primary)
+                        .foregroundColor(account.currentBalance < 0 ? .red : .primary)
 
                     if selectedAccount?.id == account.id {
                         Image(systemName: "checkmark.circle.fill")

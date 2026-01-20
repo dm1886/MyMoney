@@ -76,7 +76,7 @@ struct AddTransactionView: View {
 
     var convertedAmount: Decimal? {
         guard needsConversion,
-              let amountDecimal = Decimal(string: amount.replacingOccurrences(of: ",", with: ".")),
+              let amountDecimal = parseAmount(amount),
               let transCurr = transactionCurrencyRecord,
               let accCurr = accountCurrencyRecord else {
             return nil
@@ -103,7 +103,7 @@ struct AddTransactionView: View {
 
     var autoConvertedDestinationAmount: Decimal? {
         guard transferNeedsConversion,
-              let amountDecimal = Decimal(string: amount.replacingOccurrences(of: ",", with: ".")),
+              let amountDecimal = parseAmount(amount),
               let sourceCurr = selectedAccount?.currencyRecord,
               let destCurr = selectedDestinationAccount?.currencyRecord else {
             return nil
@@ -119,7 +119,7 @@ struct AddTransactionView: View {
 
     var finalDestinationAmount: Decimal? {
         if isDestinationAmountManual {
-            return Decimal(string: destinationAmount.replacingOccurrences(of: ",", with: "."))
+            return parseAmount(destinationAmount)
         }
         return autoConvertedDestinationAmount
     }
@@ -168,6 +168,49 @@ struct AddTransactionView: View {
         }
 
         return count
+    }
+
+    /// Parse amount string with thousands separators removed
+    private func parseAmount(_ amountString: String) -> Decimal? {
+        // Remove all non-numeric characters except decimal separators (. and ,)
+        var cleaned = amountString.replacingOccurrences(of: " ", with: "")
+
+        // Count decimal separators
+        let commaCount = cleaned.filter { $0 == "," }.count
+        let dotCount = cleaned.filter { $0 == "." }.count
+
+        // Determine which is the decimal separator based on position
+        // The last separator is the decimal separator
+        if let lastComma = cleaned.lastIndex(of: ","),
+           let lastDot = cleaned.lastIndex(of: ".") {
+            if lastComma > lastDot {
+                // Comma is decimal separator (e.g., European: 1.000,50)
+                cleaned = cleaned.replacingOccurrences(of: ".", with: "")
+                cleaned = cleaned.replacingOccurrences(of: ",", with: ".")
+            } else {
+                // Dot is decimal separator (e.g., US: 1,000.50)
+                cleaned = cleaned.replacingOccurrences(of: ",", with: "")
+            }
+        } else if commaCount > 0 {
+            // Only commas present
+            if commaCount == 1 && cleaned.split(separator: ",").last?.count ?? 0 <= 2 {
+                // Single comma with 1-2 digits after = decimal separator (e.g., 10,50)
+                cleaned = cleaned.replacingOccurrences(of: ",", with: ".")
+            } else {
+                // Multiple commas or comma with >2 digits = thousands separator (e.g., 1,000,000)
+                cleaned = cleaned.replacingOccurrences(of: ",", with: "")
+            }
+        }
+        // If only dots, they stay as-is (assumed to be decimal separator for single dot, thousands for multiple)
+        else if dotCount > 1 {
+            // Multiple dots = thousands separators (e.g., 1.000.000)
+            let parts = cleaned.split(separator: ".")
+            if parts.count > 1 {
+                cleaned = parts.dropLast().joined() + "." + parts.last!
+            }
+        }
+
+        return Decimal(string: cleaned)
     }
 
     var body: some View {
@@ -733,7 +776,7 @@ struct AddTransactionView: View {
 
     private var isValid: Bool {
         guard !amount.isEmpty,
-              let _ = Decimal(string: amount.replacingOccurrences(of: ",", with: ".")),
+              let _ = parseAmount(amount),
               selectedAccount != nil else {
             return false
         }
@@ -746,7 +789,7 @@ struct AddTransactionView: View {
     }
 
     private func saveTransaction() {
-        guard let amountDecimal = Decimal(string: amount.replacingOccurrences(of: ",", with: ".")),
+        guard let amountDecimal = parseAmount(amount),
               let account = selectedAccount else {
             return
         }
@@ -800,14 +843,16 @@ struct AddTransactionView: View {
 
         modelContext.insert(transaction)
 
-        // Update balance only for executed (non-scheduled) transactions
-        if !isScheduled {
-            account.updateBalance(context: modelContext)
+        // IMPORTANTE: Salvare PRIMA di updateBalance() per assicurare che le relazioni inverse siano stabilite
+        try? modelContext.save()
 
-            if let destinationAccount = selectedDestinationAccount {
-                destinationAccount.updateBalance(context: modelContext)
-            }
-        }
+        print("📝 [DEBUG] AddTransaction - Transaction inserted and saved")
+        print("📝 [DEBUG] AddTransaction - transactionType: \(transactionType.rawValue)")
+        print("📝 [DEBUG] AddTransaction - amount: \(amountDecimal)")
+        print("📝 [DEBUG] AddTransaction - account: \(account.name)")
+        print("📝 [DEBUG] AddTransaction - destinationAccount: \(selectedDestinationAccount?.name ?? "nil")")
+        print("📝 [DEBUG] AddTransaction - isScheduled: \(isScheduled)")
+        print("📝 [DEBUG] AddTransaction - transaction.status: \(transaction.status.rawValue)")
 
         // Registra l'uso della valuta
         if let currencyRecord = currencyToUse {
@@ -819,7 +864,22 @@ struct AddTransactionView: View {
             category.recordUsage()
         }
 
-        try? modelContext.save()
+        // Update balance only for executed (non-scheduled) transactions
+        // NOTA: Questo deve avvenire DOPO save() per assicurare che le relazioni siano stabilite
+        if !isScheduled {
+            print("📝 [DEBUG] AddTransaction - Calling updateBalance for SOURCE account: \(account.name)")
+            account.updateBalance(context: modelContext)
+
+            if let destinationAccount = selectedDestinationAccount {
+                print("📝 [DEBUG] AddTransaction - Calling updateBalance for DESTINATION account: \(destinationAccount.name)")
+                destinationAccount.updateBalance(context: modelContext)
+            }
+
+            // Salva di nuovo dopo l'aggiornamento dei bilanci
+            try? modelContext.save()
+        } else {
+            print("📝 [DEBUG] AddTransaction - Skipping balance update (scheduled transaction)")
+        }
 
         // Generate recurring instances if this is a recurring template
         if isRecurring && isScheduled {
