@@ -232,6 +232,9 @@ struct AddAccountView: View {
         modelContext.insert(account)
         try? modelContext.save()
 
+        // Haptic feedback for successful account creation
+        HapticManager.shared.accountSaved()
+
         dismiss()
     }
 }

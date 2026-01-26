@@ -311,6 +311,9 @@ struct TodayView: View {
 
         try? modelContext.save()
 
+        // Haptic feedback for confirming recurring transaction
+        HapticManager.shared.recurringTransactionConfirmed()
+
         // Remove the pattern from the detected list immediately
         detectedPatterns.removeAll { $0.id == pattern.id }
 
@@ -377,13 +380,20 @@ struct TodayView: View {
                 // Always set to today when app opens
                 selectedDate = Date()
                 refreshTransactionsSafely()
-                updateDetectedPatterns()
             }
             .onChange(of: needsTransactionRefresh) { _, needsRefresh in
                 if needsRefresh {
                     refreshTransactionsSafely()
                     needsTransactionRefresh = false
                 }
+            }
+            .onChange(of: transactions) { _, _ in
+                // Aggiorna i pattern quando le transazioni cambiano
+                updateDetectedPatterns()
+            }
+            .onChange(of: selectedDate) { _, _ in
+                // Aggiorna i pattern quando cambia la data selezionata
+                updateDetectedPatterns()
             }
             .onChange(of: appSettings.recurringDetectionEnabled) { _, _ in
                 updateDetectedPatterns()
@@ -945,6 +955,9 @@ struct TodayView: View {
 
         // Add to deletedTransactionIds IMMEDIATELY to prevent UI access
         deletedTransactionIds.insert(transactionId)
+
+        // Haptic feedback for transaction deletion
+        HapticManager.shared.transactionDeleted()
 
         // If deleting all recurring, also add all related IDs
         if deleteAll && isRecurring {

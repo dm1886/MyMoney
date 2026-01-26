@@ -9,33 +9,80 @@ import SwiftUI
 import SwiftData
 
 struct ResocontoView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.appSettings) var appSettings
-    @Query private var transactions: [Transaction]
-    @Query private var accounts: [Account]
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                Spacer()
+            List {
+                Section {
+                    NavigationLink {
+                        HistoricalBalanceView()
+                    } label: {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(appSettings.accentColor.opacity(0.15))
+                                    .frame(width: 44, height: 44)
 
-                Image(systemName: "chart.bar.doc.horizontal")
-                    .font(.system(size: 60))
-                    .foregroundStyle(appSettings.accentColor.opacity(0.3))
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(appSettings.accentColor)
+                            }
 
-                Text("Resoconto")
-                    .font(.title.bold())
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Saldo Storico")
+                                    .font(.body.bold())
+                                    .foregroundStyle(.primary)
 
-                Text("Grafici e statistiche in arrivo")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
+                                Text("Visualizza il saldo di un conto in una data specifica")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
 
-                Spacer()
+                    NavigationLink {
+                        IncomeExpenseReportView()
+                    } label: {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.green.opacity(0.15))
+                                    .frame(width: 44, height: 44)
+
+                                Image(systemName: "chart.bar.xaxis")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(.green)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Entrate e Uscite")
+                                    .font(.body.bold())
+                                    .foregroundStyle(.primary)
+
+                                Text("Analizza entrate e uscite nel tempo")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } header: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chart.bar.doc.horizontal.fill")
+                            .foregroundStyle(appSettings.accentColor)
+                        Text("Report Disponibili")
+                            .foregroundStyle(.primary)
+                    }
+                    .font(.subheadline.bold())
+                    .textCase(nil)
+                } footer: {
+                    Text("Seleziona un report per visualizzare statistiche e analisi dettagliate")
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.systemGroupedBackground))
             .navigationTitle("Resoconto")
             .navigationBarTitleDisplayMode(.inline)
         }

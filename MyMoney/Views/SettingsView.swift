@@ -547,6 +547,17 @@ struct SettingsView: View {
                     }
 
                     NavigationLink {
+                        HapticTestView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "waveform.path")
+                                .foregroundStyle(.orange)
+                            Text("Test Haptic Feedback")
+                            Spacer()
+                        }
+                    }
+
+                    NavigationLink {
                         LogsView()
                     } label: {
                         HStack {

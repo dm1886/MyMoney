@@ -908,6 +908,9 @@ struct AddTransactionView: View {
 
         LogManager.shared.success("Transaction created successfully", category: "Transaction")
 
+        // Haptic feedback for successful transaction save
+        HapticManager.shared.transactionSaved()
+
         // Notify TodayView to refresh its transaction list
         NotificationCenter.default.post(name: .transactionsDidChange, object: nil)
 

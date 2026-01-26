@@ -296,6 +296,10 @@ struct AddBudgetView: View {
 
         do {
             try modelContext.save()
+
+            // Haptic feedback for successful budget creation
+            HapticManager.shared.budgetSaved()
+
             dismiss()
         } catch {
             print("Error saving budget: \(error)")

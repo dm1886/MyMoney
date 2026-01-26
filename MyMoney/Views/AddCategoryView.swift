@@ -196,6 +196,9 @@ struct AddCategoryView: View {
         modelContext.insert(category)
         try? modelContext.save()
 
+        // Haptic feedback for successful category creation
+        HapticManager.shared.categorySaved()
+
         dismiss()
     }
 }
