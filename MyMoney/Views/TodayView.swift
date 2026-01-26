@@ -32,6 +32,8 @@ struct TodayView: View {
     @State private var transactionToDelete: Transaction?
     @State private var showingDeleteRecurringAlert = false
     @State private var detectedPatterns: [DetectedRecurringPattern] = []
+    @State private var patternToConfirm: DetectedRecurringPattern?
+    @State private var showingConfirmPatternAlert = false
 
     // CRITICAL: Track deleted transaction IDs to filter them out BEFORE SwiftUI accesses them
     @State private var deletedTransactionIds: Set<UUID> = []
@@ -312,6 +314,9 @@ struct TodayView: View {
         // Remove the pattern from the detected list immediately
         detectedPatterns.removeAll { $0.id == pattern.id }
 
+        // Refresh the transactions list immediately to show the new transaction
+        refreshTransactionsSafely()
+
         // Then update the full list
         updateDetectedPatterns()
     }
@@ -450,6 +455,23 @@ struct TodayView: View {
                 }
             } message: {
                 Text("Vuoi eliminare solo questa occorrenza o tutte le transazioni ricorrenti?")
+            }
+            .alert("Conferma Transazione Ricorrente", isPresented: $showingConfirmPatternAlert) {
+                Button("Annulla", role: .cancel) {
+                    patternToConfirm = nil
+                }
+                Button("Conferma") {
+                    if let pattern = patternToConfirm {
+                        confirmRecurringPattern(pattern)
+                    }
+                    patternToConfirm = nil
+                }
+            } message: {
+                if let pattern = patternToConfirm {
+                    Text("Vuoi creare una transazione \(pattern.transactionType == .expense ? "di spesa" : pattern.transactionType == .income ? "di entrata" : "di trasferimento") per \(pattern.category.name) di \(formatAmount(pattern.averageAmount))?")
+                } else {
+                    Text("Vuoi confermare questa transazione ricorrente?")
+                }
             }
         }
     }
@@ -685,8 +707,8 @@ struct TodayView: View {
 
     private var transactionsList: some View {
         List {
-            // Sezione RICORRENTI RILEVATE
-            if !detectedPatterns.isEmpty && appSettings.recurringDetectionEnabled {
+            // Sezione RICORRENTI RILEVATE (SOLO per oggi)
+            if !detectedPatterns.isEmpty && appSettings.recurringDetectionEnabled && Calendar.current.isDateInToday(selectedDate) {
                 Section {
                     ForEach(detectedPatterns) { pattern in
                         HStack(spacing: 12) {
@@ -733,7 +755,8 @@ struct TodayView: View {
                                     .font(.body.bold())
 
                                 Button {
-                                    confirmRecurringPattern(pattern)
+                                    patternToConfirm = pattern
+                                    showingConfirmPatternAlert = true
                                 } label: {
                                     Text("Conferma")
                                         .font(.caption.bold())

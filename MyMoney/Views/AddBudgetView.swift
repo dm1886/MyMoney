@@ -25,6 +25,7 @@ struct AddBudgetView: View {
     @State private var alertAt80Percent = true
     @State private var alertAt100Percent = true
     @State private var showingCategorySelection = false
+    @State private var startFromPeriodBeginning: Bool? = true
 
     var preferredCurrency: CurrencyRecord? {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
@@ -35,6 +36,35 @@ struct AddBudgetView: View {
         guard let amountValue = Decimal(string: amount), amountValue > 0 else { return false }
         guard let _ = selectedCurrency else { return false }
         return true
+    }
+
+    var startPeriodDescription: String {
+        let calendar = Calendar.current
+        let now = Date()
+
+        switch selectedPeriod {
+        case .daily:
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            return formatter.string(from: calendar.startOfDay(for: now))
+        case .weekly:
+            let start = calendar.startOfWeek(for: now) ?? now
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            return formatter.string(from: start)
+        case .monthly:
+            let start = calendar.startOfMonth(for: now) ?? now
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMMM yyyy"
+            return formatter.string(from: start)
+        case .yearly:
+            let start = calendar.startOfYear(for: now) ?? now
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy"
+            return formatter.string(from: start)
+        case .custom:
+            return ""
+        }
     }
 
     var body: some View {
@@ -123,6 +153,29 @@ struct AddBudgetView: View {
                     }
                 }
 
+                // Data Inizio Budget
+                if selectedPeriod != .custom {
+                    Section {
+                        Toggle(isOn: Binding(
+                            get: { startFromPeriodBeginning ?? true },
+                            set: { startFromPeriodBeginning = $0 }
+                        )) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Inizia da inizio periodo")
+                                Text((startFromPeriodBeginning ?? true) ? startPeriodDescription : "Inizia da oggi")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    } footer: {
+                        if startFromPeriodBeginning ?? true {
+                            Text("Il budget utilizzerà i dati dall'inizio del periodo corrente (\(startPeriodDescription))")
+                        } else {
+                            Text("Il budget partirà da oggi e si rinnoverà automaticamente ogni \(selectedPeriod.rawValue.lowercased())")
+                        }
+                    }
+                }
+
                 // Currency
                 Section {
                     NavigationLink {
@@ -201,13 +254,39 @@ struct AddBudgetView: View {
             return
         }
 
+        // Calcola la startDate corretta in base al periodo e al toggle
+        let calculatedStartDate: Date
+        if selectedPeriod == .custom {
+            calculatedStartDate = startDate
+        } else if startFromPeriodBeginning ?? true {
+            // Toggle ON: inizia dall'inizio del periodo corrente
+            let calendar = Calendar.current
+            let now = Date()
+            switch selectedPeriod {
+            case .daily:
+                calculatedStartDate = calendar.startOfDay(for: now)
+            case .weekly:
+                calculatedStartDate = calendar.startOfWeek(for: now) ?? now
+            case .monthly:
+                calculatedStartDate = calendar.startOfMonth(for: now) ?? now
+            case .yearly:
+                calculatedStartDate = calendar.startOfYear(for: now) ?? now
+            case .custom:
+                calculatedStartDate = startDate
+            }
+        } else {
+            // Toggle OFF: inizia da oggi
+            calculatedStartDate = Date()
+        }
+
         let budget = Budget(
             amount: amountValue,
             period: selectedPeriod,
             currencyRecord: currency,
-            startDate: selectedPeriod == .custom ? startDate : Date(),
+            startDate: calculatedStartDate,
             endDate: (selectedPeriod == .custom && hasEndDate) ? endDate : nil,
-            category: category
+            category: category,
+            startFromPeriodBeginning: startFromPeriodBeginning
         )
 
         budget.alertAt80Percent = alertAt80Percent

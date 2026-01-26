@@ -38,22 +38,27 @@ class RecurringPatternDetector {
         let calendar = Calendar.current
         let now = Date()
 
-        // Calcola la data di inizio (X giorni fa)
-        guard let startDate = calendar.date(byAdding: .day, value: -daysThreshold, to: now) else {
+        // Ottieni l'inizio di oggi (00:00:00)
+        let startOfToday = calendar.startOfDay(for: now)
+
+        // Calcola la data di inizio (X giorni fa, ESCLUDENDO oggi)
+        guard let startDate = calendar.date(byAdding: .day, value: -daysThreshold, to: startOfToday) else {
             return []
         }
 
         // Get tracker to filter deleted transactions
         let tracker = DeletedTransactionTracker.shared
 
-        // Filtra le transazioni eseguite negli ultimi X giorni
+        // Filtra le transazioni eseguite negli ultimi X giorni ESCLUDENDO oggi
+        // In questo modo, se hai fatto N transazioni negli ultimi giorni (senza oggi),
+        // ti viene suggerita OGGI MATTINA prima che tu la inserisca
         // CRITICAL: Check tracker FIRST before accessing any transaction properties
         let recentTransactions = transactions.filter { transaction in
             !tracker.isDeleted(transaction.id) &&
             transaction.modelContext != nil &&
             transaction.status == .executed &&
             transaction.date >= startDate &&
-            transaction.date <= now &&
+            transaction.date < startOfToday &&  // ESCLUDE oggi!
             !transaction.isScheduled  // Esclude transazioni già programmate
         }
 
@@ -85,11 +90,25 @@ class RecurringPatternDetector {
                 continue
             }
 
-            // Calcola la media degli importi
-            let totalAmount = transactionsGroup.reduce(Decimal(0)) { sum, transaction in
-                sum + transaction.amount
+            // Trova l'importo PIÙ FREQUENTE invece della media
+            // Raggruppa per importo e conta le occorrenze
+            var amountFrequency: [Decimal: Int] = [:]
+            for transaction in transactionsGroup {
+                let amount = transaction.amount
+                amountFrequency[amount, default: 0] += 1
             }
-            let averageAmount = totalAmount / Decimal(transactionsGroup.count)
+
+            // Trova l'importo con la frequenza più alta
+            let mostFrequentAmount = amountFrequency.max { a, b in
+                // Se stesso numero di occorrenze, preferisci l'importo più recente
+                if a.value == b.value {
+                    // Conta le date per determinare quale è più recente
+                    let datesA = transactionsGroup.filter { $0.amount == a.key }.map { $0.date }.max() ?? Date.distantPast
+                    let datesB = transactionsGroup.filter { $0.amount == b.key }.map { $0.date }.max() ?? Date.distantPast
+                    return datesA < datesB
+                }
+                return a.value < b.value
+            }?.key ?? firstTransaction.amount
 
             // Trova l'ultima occorrenza
             let lastDate = transactionsGroup.map { $0.date }.max() ?? Date()
@@ -97,7 +116,7 @@ class RecurringPatternDetector {
             let pattern = DetectedRecurringPattern(
                 category: category,
                 account: account,
-                averageAmount: averageAmount,
+                averageAmount: mostFrequentAmount,
                 occurrences: transactionsGroup.count,
                 lastDate: lastDate,
                 transactionType: firstTransaction.transactionType

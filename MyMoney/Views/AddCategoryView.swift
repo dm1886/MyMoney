@@ -25,6 +25,7 @@ struct AddCategoryView: View {
     @State private var showingIconPicker = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var photoData: Data?
+    @State private var hasInitializedGroup = false
 
     var body: some View {
         NavigationStack {
@@ -173,7 +174,11 @@ struct AddCategoryView: View {
                 }
             }
             .onAppear {
-                selectedGroup = preselectedGroup ?? categoryGroups.first
+                // Inizializza il gruppo SOLO la prima volta, non ogni volta che la vista appare
+                if !hasInitializedGroup {
+                    selectedGroup = preselectedGroup ?? categoryGroups.first
+                    hasInitializedGroup = true
+                }
             }
         }
     }

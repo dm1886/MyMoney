@@ -16,10 +16,18 @@ struct BudgetListView: View {
     @Query private var categories: [Category]
 
     @State private var showingAddBudget = false
-    @State private var selectedBudget: Budget?
+    @State private var budgetToEdit: Budget?
 
     var activeBudgets: [Budget] {
         budgets.filter { $0.isActive }
+    }
+
+    private func formatAmount(_ amount: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
     }
 
     var inactiveBudgets: [Budget] {
@@ -51,7 +59,7 @@ struct BudgetListView: View {
             .sheet(isPresented: $showingAddBudget) {
                 AddBudgetView()
             }
-            .sheet(item: $selectedBudget) { budget in
+            .sheet(item: $budgetToEdit) { budget in
                 EditBudgetView(budget: budget)
             }
         }
@@ -64,11 +72,16 @@ struct BudgetListView: View {
             if !activeBudgets.isEmpty {
                 Section("Attivi") {
                     ForEach(activeBudgets) { budget in
-                        budgetRow(budget)
-                            .onTapGesture {
-                                selectedBudget = budget
+                        NavigationLink(destination: BudgetDetailView(budget: budget)) {
+                            budgetRow(budget)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button {
+                                budgetToEdit = budget
+                            } label: {
+                                Label("Modifica", systemImage: "pencil")
                             }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            .tint(.blue)
                                 Button(role: .destructive) {
                                     deleteBudget(budget)
                                 } label: {
@@ -89,12 +102,17 @@ struct BudgetListView: View {
             if !inactiveBudgets.isEmpty {
                 Section("Inattivi") {
                     ForEach(inactiveBudgets) { budget in
-                        budgetRow(budget)
-                            .opacity(0.6)
-                            .onTapGesture {
-                                selectedBudget = budget
+                        NavigationLink(destination: BudgetDetailView(budget: budget)) {
+                            budgetRow(budget)
+                                .opacity(0.6)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button {
+                                budgetToEdit = budget
+                            } label: {
+                                Label("Modifica", systemImage: "pencil")
                             }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            .tint(.blue)
                                 Button(role: .destructive) {
                                     deleteBudget(budget)
                                 } label: {
@@ -171,7 +189,7 @@ struct BudgetListView: View {
                     Text("Speso")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("\(currencySymbol)\(spent.formatted())")
+                    Text("\(currencySymbol) \(formatAmount(spent))")
                         .font(.subheadline.bold())
                         .foregroundStyle(progressColor(percentage: percentage))
                 }
@@ -182,7 +200,7 @@ struct BudgetListView: View {
                     Text("Budget")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("\(currencySymbol)\(budget.amount.formatted())")
+                    Text("\(currencySymbol) \(formatAmount(budget.amount))")
                         .font(.subheadline.bold())
                 }
             }
@@ -212,7 +230,7 @@ struct BudgetListView: View {
                     Spacer()
 
                     if remaining > 0 {
-                        Text("Rimangono \(currencySymbol)\(remaining.formatted())")
+                        Text("Rimangono \(currencySymbol) \(formatAmount(remaining))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {

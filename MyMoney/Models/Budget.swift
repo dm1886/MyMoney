@@ -9,6 +9,7 @@ import Foundation
 import SwiftData
 
 enum BudgetPeriod: String, Codable, CaseIterable {
+    case daily = "Giornaliero"
     case weekly = "Settimanale"
     case monthly = "Mensile"
     case yearly = "Annuale"
@@ -25,6 +26,7 @@ final class Budget {
     var endDate: Date?  // nil = nessuna scadenza
     var isActive: Bool
     var createdAt: Date
+    var startFromPeriodBeginning: Bool?  // true = inizia da inizio periodo, false = inizia da oggi, nil = usa default (true)
 
     // Relazione con categoria
     var category: Category?
@@ -39,7 +41,8 @@ final class Budget {
         currencyRecord: CurrencyRecord?,
         startDate: Date = Date(),
         endDate: Date? = nil,
-        category: Category? = nil
+        category: Category? = nil,
+        startFromPeriodBeginning: Bool? = true
     ) {
         self.id = UUID()
         self.amount = amount
@@ -50,6 +53,7 @@ final class Budget {
         self.category = category
         self.isActive = true
         self.createdAt = Date()
+        self.startFromPeriodBeginning = startFromPeriodBeginning  // nil se non specificato = usa default true
         self.alertAt80Percent = true
         self.alertAt100Percent = true
     }
@@ -66,7 +70,16 @@ final class Budget {
             return startDate
         }
 
+        // Se startFromPeriodBeginning = false, usa sempre la startDate (data di creazione)
+        // nil = usa default (true)
+        if startFromPeriodBeginning == false {
+            return startDate
+        }
+
+        // Altrimenti usa l'inizio del periodo corrente
         switch period {
+        case .daily:
+            return calendar.startOfDay(for: now)
         case .weekly:
             return calendar.startOfWeek(for: now) ?? now
         case .monthly:
@@ -88,7 +101,27 @@ final class Budget {
             return endDate
         }
 
+        // Se startFromPeriodBeginning = false, calcola la fine basandosi sulla startDate
+        // nil = usa default (true)
+        if startFromPeriodBeginning == false {
+            switch period {
+            case .daily:
+                return calendar.date(byAdding: .day, value: 1, to: startDate) ?? startDate
+            case .weekly:
+                return calendar.date(byAdding: .day, value: 7, to: startDate) ?? startDate
+            case .monthly:
+                return calendar.date(byAdding: .month, value: 1, to: startDate) ?? startDate
+            case .yearly:
+                return calendar.date(byAdding: .year, value: 1, to: startDate) ?? startDate
+            case .custom:
+                return calendar.date(byAdding: .day, value: 30, to: startDate) ?? startDate
+            }
+        }
+
+        // Altrimenti usa la fine del periodo corrente
         switch period {
+        case .daily:
+            return calendar.date(bySettingHour: 23, minute: 59, second: 59, of: now) ?? now
         case .weekly:
             return calendar.endOfWeek(for: now) ?? now
         case .monthly:

@@ -86,23 +86,26 @@ struct AccountDetailView: View {
         // CRITICAL: Check tracker FIRST before accessing transactionType
         if let accountTransactions = account.transactions {
             for transaction in accountTransactions where !tracker.isDeleted(transaction.id) && transaction.modelContext != nil && transaction.status == .executed {
-                // Determina l'importo da usare: se c'è destinationAmount (conversione), usalo,
-                // altrimenti converti on-the-fly se necessario, altrimenti usa l'importo originale
+                // Determina l'importo da usare
                 var amountToUse = transaction.amount
 
-                if let destAmount = transaction.destinationAmount {
-                    // Usa l'importo già convertito (salvato durante la creazione)
-                    amountToUse = destAmount
-                } else if let transactionCurr = transaction.currencyRecord,
-                          let accountCurr = account.currencyRecord,
-                          transactionCurr.code != accountCurr.code {
-                    // Conversione on-the-fly se le valute sono diverse
-                    amountToUse = CurrencyService.shared.convert(
-                        amount: transaction.amount,
-                        from: transactionCurr,
-                        to: accountCurr,
-                        context: modelContext
-                    )
+                // Per TRANSFER: usa sempre transaction.amount (importo originale nella valuta di origine)
+                // destinationAmount è solo per il conto di destinazione (gestito in incomingTransfers)
+                if transaction.transactionType != .transfer {
+                    // Per expense/income/adjustment: usa destinationAmount se presente (conversione)
+                    if let destAmount = transaction.destinationAmount {
+                        amountToUse = destAmount
+                    } else if let transactionCurr = transaction.currencyRecord,
+                              let accountCurr = account.currencyRecord,
+                              transactionCurr.code != accountCurr.code {
+                        // Conversione on-the-fly se le valute sono diverse
+                        amountToUse = CurrencyService.shared.convert(
+                            amount: transaction.amount,
+                            from: transactionCurr,
+                            to: accountCurr,
+                            context: modelContext
+                        )
+                    }
                 }
 
                 switch transaction.transactionType {

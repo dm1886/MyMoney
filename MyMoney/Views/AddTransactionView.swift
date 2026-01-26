@@ -828,7 +828,16 @@ struct AddTransactionView: View {
         if isScheduled {
             transaction.isScheduled = true
             transaction.isAutomatic = isAutomatic
-            transaction.status = .pending
+
+            // Se la data è nel passato, eseguila automaticamente
+            // (sia automatiche che manuali, per evitare che rimangano invisibili)
+            let isPastDate = selectedDate < Date()
+            if isPastDate {
+                transaction.status = .executed
+                print("🕐 [AUTO-EXECUTE] Transazione programmata con data passata eseguita automaticamente")
+            } else {
+                transaction.status = .pending
+            }
         } else {
             transaction.status = .executed
         }
@@ -860,13 +869,13 @@ struct AddTransactionView: View {
         }
 
         // Registra l'uso della categoria (solo per transazioni eseguite)
-        if !isScheduled, let category = selectedCategory {
+        if transaction.status == .executed, let category = selectedCategory {
             category.recordUsage()
         }
 
-        // Update balance only for executed (non-scheduled) transactions
+        // Update balance only for executed transactions
         // NOTA: Questo deve avvenire DOPO save() per assicurare che le relazioni siano stabilite
-        if !isScheduled {
+        if transaction.status == .executed {
             print("📝 [DEBUG] AddTransaction - Calling updateBalance for SOURCE account: \(account.name)")
             account.updateBalance(context: modelContext)
 
@@ -878,7 +887,7 @@ struct AddTransactionView: View {
             // Salva di nuovo dopo l'aggiornamento dei bilanci
             try? modelContext.save()
         } else {
-            print("📝 [DEBUG] AddTransaction - Skipping balance update (scheduled transaction)")
+            print("📝 [DEBUG] AddTransaction - Skipping balance update (pending/scheduled transaction)")
         }
 
         // Generate recurring instances if this is a recurring template

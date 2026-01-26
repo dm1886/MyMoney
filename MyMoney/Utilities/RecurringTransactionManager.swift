@@ -91,17 +91,9 @@ class RecurringTransactionManager {
 
         var generatedCount = 0
 
-        if lastInstanceDate == nil {
-            // Prima volta - genera anche l'transaziona iniziale (quella di oggi/prima data)
-            let alreadyExists = existingInstances.contains { instance in
-                return Calendar.current.isDate(instance.date, inSameDayAs: firstDate)
-            }
-
-            if !alreadyExists && firstDate <= endDate {
-                createInstance(from: template, forDate: firstDate, modelContext: modelContext)
-                generatedCount += 1
-            }
-        }
+        // NON creare la prima istanza se coincide con la data del template
+        // perché il template stesso funge da prima istanza (evita duplicati)
+        // La prima istanza sarà quella generata dalla ricorrenza successiva
 
         // Genera le prossime occorrenze
         let startDate = lastInstanceDate ?? firstDate
@@ -155,7 +147,16 @@ class RecurringTransactionManager {
         // Copia impostazioni programmazione
         instance.isScheduled = true
         instance.isAutomatic = template.isAutomatic
-        instance.status = .pending
+
+        // Se la data dell'istanza è nel passato, eseguila automaticamente
+        // (sia automatiche che manuali, per evitare che rimangano invisibili)
+        let isPastDate = finalDate < Date()
+        if isPastDate {
+            instance.status = .executed
+            LogManager.shared.info("Auto-executing past recurring instance (date: \(finalDate), automatic: \(template.isAutomatic))", category: "RecurringTransactions")
+        } else {
+            instance.status = .pending
+        }
 
         // NON è ricorrente (è un'transaziona)
         instance.isRecurring = false
