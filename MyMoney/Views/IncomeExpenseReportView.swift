@@ -79,7 +79,11 @@ struct IncomeExpenseReportView: View {
             let start = calendar.date(from: calendar.dateComponents([.year], from: now)) ?? now
             return (start, now)
         case .custom:
-            return (customStartDate, customEndDate)
+            // CRITICAL FIX: Usa startOfDay per la data di inizio e endOfDay per la data di fine
+            // Questo permette di selezionare "da oggi a oggi" e vedere tutte le transazioni del giorno
+            let startOfDay = calendar.startOfDay(for: customStartDate)
+            let endOfDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: customEndDate)) ?? customEndDate
+            return (startOfDay, endOfDay)
         }
     }
 

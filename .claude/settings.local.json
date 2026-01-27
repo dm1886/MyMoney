@@ -3,7 +3,8 @@
     "allow": [
       "WebFetch(domain:www.exchangerate-api.com)",
       "Bash(xcodebuild:*)",
-      "Bash(open:*)"
+      "Bash(open:*)",
+      "Bash(git add:*)"
     ]
   }
 }

@@ -43,8 +43,13 @@ class RecurringPatternDetector {
 
         // Calcola la data di inizio (X giorni fa, ESCLUDENDO oggi)
         guard let startDate = calendar.date(byAdding: .day, value: -daysThreshold, to: startOfToday) else {
+            LogManager.shared.debug("❌ RecurringPattern: impossibile calcolare startDate", category: "RecurringPattern")
             return []
         }
+
+        LogManager.shared.debug("🔍 RecurringPattern: Analizzando transazioni dal \(startDate) al \(startOfToday)", category: "RecurringPattern")
+        LogManager.shared.debug("🔍 RecurringPattern: Totale transazioni da analizzare: \(transactions.count)", category: "RecurringPattern")
+        LogManager.shared.debug("🔍 RecurringPattern: Minimo occorrenze richieste: \(minOccurrences)", category: "RecurringPattern")
 
         // Get tracker to filter deleted transactions
         let tracker = DeletedTransactionTracker.shared
@@ -54,61 +59,66 @@ class RecurringPatternDetector {
         // ti viene suggerita OGGI MATTINA prima che tu la inserisca
         // CRITICAL: Check tracker FIRST before accessing any transaction properties
         let recentTransactions = transactions.filter { transaction in
-            !tracker.isDeleted(transaction.id) &&
-            transaction.modelContext != nil &&
-            transaction.status == .executed &&
-            transaction.date >= startDate &&
-            transaction.date < startOfToday &&  // ESCLUDE oggi!
-            !transaction.isScheduled  // Esclude transazioni già programmate
+            let isDeleted = tracker.isDeleted(transaction.id)
+            let hasContext = transaction.modelContext != nil
+            let isExecuted = transaction.status == .executed
+            let isInDateRange = transaction.date >= startDate && transaction.date < startOfToday
+            let isNotScheduled = !transaction.isScheduled
+
+            let passes = !isDeleted && hasContext && isExecuted && isInDateRange && isNotScheduled
+
+            if !passes {
+                LogManager.shared.debug("❌ Transazione \(transaction.id): deleted=\(isDeleted) context=\(hasContext) executed=\(isExecuted) inRange=\(isInDateRange) notScheduled=\(isNotScheduled)", category: "RecurringPattern")
+            }
+
+            return passes
         }
 
-        // Raggruppa per categoria + account + tipo
+        LogManager.shared.debug("✅ RecurringPattern: Transazioni filtrate che passano i criteri: \(recentTransactions.count)", category: "RecurringPattern")
+
+        // CRITICAL FIX: Raggruppa per categoria + account + tipo + IMPORTO
+        // Questo permette di riconoscere pattern diversi per la stessa categoria ma con importi diversi
         var patterns: [String: [Transaction]] = [:]
 
         for transaction in recentTransactions {
             guard let category = transaction.category,
                   let account = transaction.account else {
+                LogManager.shared.debug("⚠️ Transazione \(transaction.id) saltata: category=\(transaction.category?.name ?? "nil") account=\(transaction.account?.name ?? "nil")", category: "RecurringPattern")
                 continue
             }
 
-            let key = "\(category.id.uuidString)_\(account.id.uuidString)_\(transaction.transactionType.rawValue)"
+            // CRITICAL: Includi l'IMPORTO nella chiave di raggruppamento
+            let key = "\(category.id.uuidString)_\(account.id.uuidString)_\(transaction.transactionType.rawValue)_\(transaction.amount)"
 
             if patterns[key] == nil {
                 patterns[key] = []
+                LogManager.shared.debug("📦 Nuovo pattern creato: \(category.name) su \(account.name) - \(transaction.amount)", category: "RecurringPattern")
             }
             patterns[key]?.append(transaction)
+            LogManager.shared.debug("➕ Transazione aggiunta al pattern: \(category.name) \(transaction.amount) - Data: \(transaction.date)", category: "RecurringPattern")
         }
+
+        LogManager.shared.debug("📊 RecurringPattern: Totale gruppi di pattern trovati: \(patterns.count)", category: "RecurringPattern")
 
         // Filtra solo i pattern con almeno minOccurrences occorrenze
         var detectedPatterns: [DetectedRecurringPattern] = []
 
-        for (_, transactionsGroup) in patterns {
+        for (key, transactionsGroup) in patterns {
+            LogManager.shared.debug("🔎 Analizzando pattern \(key): \(transactionsGroup.count) occorrenze", category: "RecurringPattern")
+
             guard transactionsGroup.count >= minOccurrences,
                   let firstTransaction = transactionsGroup.first,
                   let category = firstTransaction.category,
                   let account = firstTransaction.account else {
+                LogManager.shared.debug("❌ Pattern \(key) scartato: occorrenze=\(transactionsGroup.count) minimo=\(minOccurrences)", category: "RecurringPattern")
                 continue
             }
 
-            // Trova l'importo PIÙ FREQUENTE invece della media
-            // Raggruppa per importo e conta le occorrenze
-            var amountFrequency: [Decimal: Int] = [:]
-            for transaction in transactionsGroup {
-                let amount = transaction.amount
-                amountFrequency[amount, default: 0] += 1
-            }
+            LogManager.shared.debug("✅ Pattern \(key) VALIDO: \(category.name) - \(firstTransaction.amount) con \(transactionsGroup.count) occorrenze", category: "RecurringPattern")
 
-            // Trova l'importo con la frequenza più alta
-            let mostFrequentAmount = amountFrequency.max { a, b in
-                // Se stesso numero di occorrenze, preferisci l'importo più recente
-                if a.value == b.value {
-                    // Conta le date per determinare quale è più recente
-                    let datesA = transactionsGroup.filter { $0.amount == a.key }.map { $0.date }.max() ?? Date.distantPast
-                    let datesB = transactionsGroup.filter { $0.amount == b.key }.map { $0.date }.max() ?? Date.distantPast
-                    return datesA < datesB
-                }
-                return a.value < b.value
-            }?.key ?? firstTransaction.amount
+            // Siccome ora raggruppiamo anche per importo, tutte le transazioni nel gruppo
+            // hanno GIÀ lo stesso importo per definizione
+            let patternAmount = firstTransaction.amount
 
             // Trova l'ultima occorrenza
             let lastDate = transactionsGroup.map { $0.date }.max() ?? Date()
@@ -116,13 +126,18 @@ class RecurringPatternDetector {
             let pattern = DetectedRecurringPattern(
                 category: category,
                 account: account,
-                averageAmount: mostFrequentAmount,
+                averageAmount: patternAmount,
                 occurrences: transactionsGroup.count,
                 lastDate: lastDate,
                 transactionType: firstTransaction.transactionType
             )
 
             detectedPatterns.append(pattern)
+        }
+
+        LogManager.shared.debug("🎯 RecurringPattern: TOTALE PATTERN RILEVATI: \(detectedPatterns.count)", category: "RecurringPattern")
+        for pattern in detectedPatterns {
+            LogManager.shared.debug("   📌 \(pattern.category.name) - \(pattern.averageAmount) \(pattern.account.currency.rawValue) - \(pattern.occurrences) volte", category: "RecurringPattern")
         }
 
         // Ordina per numero di occorrenze (decrescente)

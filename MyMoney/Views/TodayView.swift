@@ -34,6 +34,7 @@ struct TodayView: View {
     @State private var detectedPatterns: [DetectedRecurringPattern] = []
     @State private var patternToConfirm: DetectedRecurringPattern?
     @State private var showingConfirmPatternAlert = false
+    @State private var patternsUpdateTrigger: Int = 0  // CRITICAL: Trigger per forzare refresh UI
 
     // CRITICAL: Track deleted transaction IDs to filter them out BEFORE SwiftUI accesses them
     @State private var deletedTransactionIds: Set<UUID> = []
@@ -266,25 +267,40 @@ struct TodayView: View {
     }
 
     private func updateDetectedPatterns() {
+        LogManager.shared.debug("🔄 TodayView: updateDetectedPatterns chiamato", category: "TodayView")
+        LogManager.shared.debug("   📊 Totale transazioni disponibili: \(transactions.count)", category: "TodayView")
+        LogManager.shared.debug("   📊 Transazioni valide (dopo filtri): \(validTransactions.count)", category: "TodayView")
+        LogManager.shared.debug("   ⚙️ Recurring detection enabled: \(appSettings.recurringDetectionEnabled)", category: "TodayView")
+        LogManager.shared.debug("   ⚙️ Recurring detection days: \(appSettings.recurringDetectionDays)", category: "TodayView")
+
         if appSettings.recurringDetectionEnabled {
             // CRITICAL: Use validTransactions (filtered by tracker) to avoid crash on deleted transactions
             detectedPatterns = RecurringPatternDetector.shared.detectRecurringPatterns(
                 from: validTransactions,
                 daysThreshold: appSettings.recurringDetectionDays
             )
+            LogManager.shared.debug("   ✅ Pattern rilevati: \(detectedPatterns.count)", category: "TodayView")
+
+            // CRITICAL FIX: Forza il refresh della UI incrementando il trigger
+            patternsUpdateTrigger += 1
+            LogManager.shared.debug("   🔄 UI Trigger aggiornato a: \(patternsUpdateTrigger)", category: "TodayView")
         } else {
             detectedPatterns = []
+            LogManager.shared.debug("   ⚠️ Recurring detection DISABILITATO", category: "TodayView")
         }
     }
 
     /// CRITICAL: Safely fetch transactions from context, filtering out any that are marked for deletion
     /// This replaces @Query to give us full control over when the transaction list updates
     private func refreshTransactionsSafely() {
+        LogManager.shared.debug("🔄 TodayView: refreshTransactionsSafely chiamato", category: "TodayView")
         let tracker = DeletedTransactionTracker.shared
 
         do {
             let descriptor = FetchDescriptor<Transaction>()
             let allTransactions = try modelContext.fetch(descriptor)
+
+            LogManager.shared.debug("   📊 Totale transazioni fetched da DB: \(allTransactions.count)", category: "TodayView")
 
             // Filter out deleted transactions BEFORE updating @State
             // This ensures SwiftUI NEVER sees deleted transactions
@@ -294,6 +310,15 @@ struct TodayView: View {
                 let hasContext = transaction.modelContext != nil
 
                 return !isTrackerDeleted && !isLocalDeleted && hasContext
+            }
+
+            LogManager.shared.debug("   ✅ Transazioni sicure (dopo filtri): \(safeTransactions.count)", category: "TodayView")
+
+            // Log alcune transazioni per debug
+            let executedTransactions = safeTransactions.filter { $0.status == .executed && !$0.isScheduled }
+            LogManager.shared.debug("   📝 Transazioni eseguite (non programmate): \(executedTransactions.count)", category: "TodayView")
+            for (index, transaction) in executedTransactions.prefix(10).enumerated() {
+                LogManager.shared.debug("      \(index+1). \(transaction.category?.name ?? "N/A") - \(transaction.amount) \(transaction.account?.currency.rawValue ?? "N/A") - \(transaction.date)", category: "TodayView")
             }
 
             transactions = safeTransactions
@@ -325,8 +350,15 @@ struct TodayView: View {
     }
 
     var body: some View {
+        let _ = LogManager.shared.debug("🎨🎨 TodayView BODY RENDERING - patternsUpdateTrigger=\(patternsUpdateTrigger) detectedPatterns.count=\(detectedPatterns.count)", category: "TodayView")
+
         NavigationStack {
             VStack(spacing: 0) {
+                // DEBUG: Forza visualizzazione pattern count in UI nascosta per triggerare refresh
+                Text("\(patternsUpdateTrigger)")
+                    .frame(width: 0, height: 0)
+                    .opacity(0)
+
                 // BOX CONTENENTE DATA E CALENDARIO
                 VStack(spacing: 0) {
                     // HEADER CON DATA
@@ -349,7 +381,9 @@ struct TodayView: View {
                 .padding(.bottom, 16)
 
                 // LISTA TRANSAZIONI
-                if allTransactions.isEmpty {
+                // CRITICAL FIX: Mostra sempre transactionsList anche se allTransactions è vuoto
+                // perché potrebbero esserci suggerimenti ricorrenti da mostrare
+                if allTransactions.isEmpty && detectedPatterns.isEmpty {
                     emptyStateView
                 } else {
                     transactionsList
@@ -380,6 +414,15 @@ struct TodayView: View {
                 // Always set to today when app opens
                 selectedDate = Date()
                 refreshTransactionsSafely()
+
+                // CRITICAL FIX: Forza un aggiornamento dei pattern dopo un piccolo delay
+                // per assicurarsi che tutte le transazioni siano state caricate da SwiftData
+                Task {
+                    try? await Task.sleep(for: .milliseconds(200))
+                    await MainActor.run {
+                        updateDetectedPatterns()
+                    }
+                }
             }
             .onChange(of: needsTransactionRefresh) { _, needsRefresh in
                 if needsRefresh {
@@ -416,7 +459,21 @@ struct TodayView: View {
             // Refresh when scene becomes active (e.g., after navigating back)
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
+                    // Verifica se siamo in un nuovo giorno e aggiorna selectedDate
+                    if !Calendar.current.isDate(selectedDate, inSameDayAs: Date()) {
+                        selectedDate = Date()
+                    }
+
                     refreshTransactionsSafely()
+
+                    // CRITICAL FIX: Forza un aggiornamento dei pattern anche quando l'app diventa attiva
+                    // per assicurarsi che le transazioni ricorrenti suggerite siano sempre aggiornate
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(100))
+                        await MainActor.run {
+                            updateDetectedPatterns()
+                        }
+                    }
                 }
             }
             // Listen for transaction changes notification (from EditTransactionView, AddTransactionView, etc.)
@@ -717,9 +774,88 @@ struct TodayView: View {
 
     private var transactionsList: some View {
         List {
-            // Sezione RICORRENTI RILEVATE (SOLO per oggi)
-            if !detectedPatterns.isEmpty && appSettings.recurringDetectionEnabled && Calendar.current.isDateInToday(selectedDate) {
+            // CRITICAL: Logging della condizione UI
+            let _ = LogManager.shared.debug("🎨 TodayView: Rendering transactionsList - patternsUpdateTrigger=\(patternsUpdateTrigger)", category: "TodayView")
+
+            // SEZIONE DEBUG (solo se enabled e nessun pattern trovato e data >= oggi)
+            if detectedPatterns.isEmpty && appSettings.recurringDetectionEnabled && selectedDate >= Calendar.current.startOfDay(for: Date()) {
                 Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundStyle(.blue)
+                            Text("Nessuna transazione ricorrente rilevata")
+                                .font(.subheadline.bold())
+                        }
+
+                        Text("Inserisci la stessa transazione (categoria e importo) per almeno 3 giorni consecutivi e verrà suggerita automaticamente.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Divider()
+                            .padding(.vertical, 4)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("📊 Debug Info:")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+
+                            Text("• Totale transazioni: \(transactions.count)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+
+                            Text("• Transazioni valide: \(validTransactions.count)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+
+                            Text("• Giorni analizzati: \(appSettings.recurringDetectionDays)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+
+                            let executedCount = validTransactions.filter { $0.status == .executed && !$0.isScheduled }.count
+                            Text("• Transazioni eseguite (non programmate): \(executedCount)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(.tertiarySystemGroupedBackground))
+                        )
+                    }
+                    .padding(.vertical, 8)
+                } header: {
+                    HStack {
+                        HStack(spacing: 6) {
+                            Image(systemName: "repeat.circle")
+                                .foregroundStyle(.purple.opacity(0.5))
+                            Text("Ricorrenti Suggerite")
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .font(.subheadline.bold())
+                    .textCase(nil)
+                }
+            }
+
+            // Sezione RICORRENTI RILEVATE
+            // DEBUG: Log della condizione
+            let isToday = Calendar.current.isDateInToday(selectedDate)
+            let isTodayOrFuture = selectedDate >= Calendar.current.startOfDay(for: Date())
+            let hasPatterns = !detectedPatterns.isEmpty
+            let isEnabled = appSettings.recurringDetectionEnabled
+            let _ = LogManager.shared.debug("🔍 UI CONDITION CHECK: hasPatterns=\(hasPatterns) isEnabled=\(isEnabled) isToday=\(isToday) isTodayOrFuture=\(isTodayOrFuture)", category: "TodayView")
+            let _ = LogManager.shared.debug("   selectedDate=\(selectedDate) now=\(Date())", category: "TodayView")
+            let _ = LogManager.shared.debug("   startOfDay(selectedDate)=\(Calendar.current.startOfDay(for: selectedDate))", category: "TodayView")
+            let _ = LogManager.shared.debug("   startOfDay(now)=\(Calendar.current.startOfDay(for: Date()))", category: "TodayView")
+
+            // CRITICAL FIX: Usa isTodayOrFuture invece di isToday per evitare problemi di timezone
+            // I pattern dovrebbero essere mostrati solo per oggi o date future, mai per date passate
+            if hasPatterns && isEnabled && isTodayOrFuture {
+                Section {
+                    // DEBUG: Questo viene mostrato solo se ci sono pattern rilevati
+                    let _ = LogManager.shared.debug("✅ UI: Mostrando sezione Ricorrenti Suggerite con \(detectedPatterns.count) pattern", category: "TodayView")
                     ForEach(detectedPatterns) { pattern in
                         HStack(spacing: 12) {
                             // Category icon (custom image or SF Symbol)
@@ -906,6 +1042,7 @@ struct TodayView: View {
                 }
             }
         }
+        .id(patternsUpdateTrigger)  // CRITICAL FIX: Forza il refresh della List quando i pattern cambiano
 //        .listStyle(.plain)
     }
 
