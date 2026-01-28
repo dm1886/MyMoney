@@ -777,68 +777,6 @@ struct TodayView: View {
             // CRITICAL: Logging della condizione UI
             let _ = LogManager.shared.debug("🎨 TodayView: Rendering transactionsList - patternsUpdateTrigger=\(patternsUpdateTrigger)", category: "TodayView")
 
-            // SEZIONE DEBUG (solo se enabled e nessun pattern trovato e data >= oggi)
-            if detectedPatterns.isEmpty && appSettings.recurringDetectionEnabled && selectedDate >= Calendar.current.startOfDay(for: Date()) {
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "info.circle.fill")
-                                .foregroundStyle(.blue)
-                            Text("Nessuna transazione ricorrente rilevata")
-                                .font(.subheadline.bold())
-                        }
-
-                        Text("Inserisci la stessa transazione (categoria e importo) per almeno 3 giorni consecutivi e verrà suggerita automaticamente.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        Divider()
-                            .padding(.vertical, 4)
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("📊 Debug Info:")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
-
-                            Text("• Totale transazioni: \(transactions.count)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-
-                            Text("• Transazioni valide: \(validTransactions.count)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-
-                            Text("• Giorni analizzati: \(appSettings.recurringDetectionDays)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-
-                            let executedCount = validTransactions.filter { $0.status == .executed && !$0.isScheduled }.count
-                            Text("• Transazioni eseguite (non programmate): \(executedCount)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color(.tertiarySystemGroupedBackground))
-                        )
-                    }
-                    .padding(.vertical, 8)
-                } header: {
-                    HStack {
-                        HStack(spacing: 6) {
-                            Image(systemName: "repeat.circle")
-                                .foregroundStyle(.purple.opacity(0.5))
-                            Text("Ricorrenti Suggerite")
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .font(.subheadline.bold())
-                    .textCase(nil)
-                }
-            }
-
             // Sezione RICORRENTI RILEVATE
             // DEBUG: Log della condizione
             let isToday = Calendar.current.isDateInToday(selectedDate)

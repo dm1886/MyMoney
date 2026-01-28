@@ -16,7 +16,7 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             TabView(selection: $selectedTab) {
-                HomeView()
+                HomeViewNew()
                     .tabItem {
                         Label("Home", systemImage: "house.fill")
                     }
@@ -48,10 +48,6 @@ struct ContentView: View {
             }
             .accentColor(.blue)
             .blur(radius: shouldShowAuthScreen ? 10 : 0)
-            .onChange(of: selectedTab) { _, _ in
-                // Haptic feedback when changing tabs
-                HapticManager.shared.selectionFeedback()
-            }
 
             // Biometric Authentication Overlay
             if shouldShowAuthScreen {

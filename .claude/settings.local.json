@@ -4,7 +4,8 @@
       "WebFetch(domain:www.exchangerate-api.com)",
       "Bash(xcodebuild:*)",
       "Bash(open:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(find:*)"
     ]
   }
 }

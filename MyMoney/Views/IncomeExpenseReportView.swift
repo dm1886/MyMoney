@@ -11,6 +11,8 @@ import Charts
 
 // MARK: - Period Selection
 enum TimePeriod: String, CaseIterable {
+    case today = "Oggi"
+    case yesterday = "Ieri"
     case last7Days = "Ultimi 7 giorni"
     case last30Days = "Ultimi 30 giorni"
     case last90Days = "Ultimi 90 giorni"
@@ -21,6 +23,8 @@ enum TimePeriod: String, CaseIterable {
 
     var icon: String {
         switch self {
+        case .today: return "calendar.badge.checkmark"
+        case .yesterday: return "calendar.badge.minus"
         case .last7Days: return "7.circle.fill"
         case .last30Days: return "30.circle.fill"
         case .last90Days: return "90.circle.fill"
@@ -58,6 +62,14 @@ struct IncomeExpenseReportView: View {
         let now = Date()
 
         switch selectedPeriod {
+        case .today:
+            let startOfToday = calendar.startOfDay(for: now)
+            let endOfToday = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? now
+            return (startOfToday, endOfToday)
+        case .yesterday:
+            let startOfYesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: now)) ?? now
+            let endOfYesterday = calendar.startOfDay(for: now)
+            return (startOfYesterday, endOfYesterday)
         case .last7Days:
             let start = calendar.date(byAdding: .day, value: -7, to: now) ?? now
             return (start, now)
@@ -90,7 +102,35 @@ struct IncomeExpenseReportView: View {
     var filteredTransactions: [Transaction] {
         let range = dateRange
 
-        return transactions.filter { transaction in
+        // DEBUG: Analizza TUTTE le transazioni nel range (prima dei filtri)
+        let inRange = transactions.filter { $0.date >= range.start && $0.date <= range.end }
+        print("📊 IncomeExpenseReport: Periodo \(selectedPeriod.rawValue)")
+        print("   Range: \(range.start) → \(range.end)")
+        print("   Totale transazioni DB: \(transactions.count)")
+        print("   Transazioni nel range (senza filtri): \(inRange.count)")
+
+        // Analisi per tipo
+        let allIncome = inRange.filter { $0.transactionType == .income }
+        let allExpense = inRange.filter { $0.transactionType == .expense }
+        let allTransfer = inRange.filter { $0.transactionType == .transfer }
+        let allAdjustment = inRange.filter { $0.transactionType == .adjustment }
+        print("   → Tutte nel range: Entrate=\(allIncome.count), Uscite=\(allExpense.count), Trasferimenti=\(allTransfer.count), Aggiustamenti=\(allAdjustment.count)")
+
+        // Calcola i totali per tipo
+        let totalIncomeAmount = allIncome.reduce(Decimal(0)) { $0 + $1.amount }
+        let totalExpenseAmount = allExpense.reduce(Decimal(0)) { $0 + $1.amount }
+        let totalTransferAmount = allTransfer.reduce(Decimal(0)) { $0 + $1.amount }
+        let totalAdjustmentAmount = allAdjustment.reduce(Decimal(0)) { $0 + $1.amount }
+        print("   → Totali per tipo: Entrate=\(totalIncomeAmount), Uscite=\(totalExpenseAmount), Trasferimenti=\(totalTransferAmount), Aggiustamenti=\(totalAdjustmentAmount)")
+        print("   → SOMMA TOTALE DI TUTTO (incluso trasferimenti): \(totalIncomeAmount + totalExpenseAmount + totalTransferAmount + totalAdjustmentAmount)")
+
+        // Analisi per status
+        let executed = inRange.filter { $0.status == .executed }
+        let pending = inRange.filter { $0.status == .pending }
+        print("   → Per status: Eseguite=\(executed.count), In attesa=\(pending.count)")
+
+        // Ora applica i filtri standard
+        let filtered = transactions.filter { transaction in
             guard transaction.status == .executed else { return false }
             guard transaction.date >= range.start && transaction.date <= range.end else { return false }
 
@@ -106,18 +146,42 @@ struct IncomeExpenseReportView: View {
 
             return false
         }
+
+        print("   Transazioni FILTRATE (executed + conti selezionati): \(filtered.count)")
+        print("   Conti selezionati: \(selectedAccounts.count) / \(accounts.count)")
+
+        let incomeCount = filtered.filter { $0.transactionType == .income }.count
+        let expenseCount = filtered.filter { $0.transactionType == .expense }.count
+        print("   → Filtrate: Entrate=\(incomeCount), Uscite=\(expenseCount)")
+
+        // DETAILED LOGGING: Mostra ogni singola transazione contata
+        print("   📋 DETTAGLIO TRANSAZIONI FILTRATE:")
+        for transaction in filtered {
+            let amount = transaction.amount
+            let category = transaction.category?.name ?? "N/A"
+            let account = transaction.account?.name ?? "N/A"
+            let type = transaction.transactionType.rawValue
+            let date = transaction.date
+            print("      • \(type) | \(amount) | \(category) | \(account) | \(date)")
+        }
+
+        return filtered
     }
 
     var totalIncome: Decimal {
-        filteredTransactions
+        let total = filteredTransactions
             .filter { $0.transactionType == .income }
             .reduce(0) { $0 + $1.amount }
+        print("   💰 TOTAL INCOME CALCOLATO: \(total)")
+        return total
     }
 
     var totalExpense: Decimal {
-        filteredTransactions
+        let total = filteredTransactions
             .filter { $0.transactionType == .expense }
             .reduce(0) { $0 + $1.amount }
+        print("   💸 TOTAL EXPENSE CALCOLATO: \(total)")
+        return total
     }
 
     var netBalance: Decimal {
