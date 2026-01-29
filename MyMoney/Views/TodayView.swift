@@ -75,13 +75,11 @@ struct TodayView: View {
         validTransactions
             .filter { transaction in
                 let isSameDay = Calendar.current.isDate(transaction.date, inSameDayAs: selectedDate)
-                let isRecurringTemplate = transaction.isRecurring && transaction.parentRecurringTransactionId == nil
 
                 return transaction.isScheduled &&
                        transaction.status == .pending &&
                        transaction.isAutomatic &&
-                       isSameDay &&
-                       !isRecurringTemplate
+                       isSameDay
             }
             .sorted { $0.date < $1.date }
     }
@@ -91,7 +89,6 @@ struct TodayView: View {
         return validTransactions
             .filter { transaction in
                 let isSameDay = Calendar.current.isDate(transaction.date, inSameDayAs: selectedDate)
-                let isRecurringTemplate = transaction.isRecurring && transaction.parentRecurringTransactionId == nil
 
                 // Solo transazioni MANUALI (mai automatiche)
                 let isManual = !transaction.isAutomatic
@@ -99,8 +96,7 @@ struct TodayView: View {
                 return transaction.isScheduled &&
                        transaction.status == .pending &&
                        isManual &&
-                       isSameDay &&
-                       !isRecurringTemplate
+                       isSameDay
             }
             .sorted { $0.date < $1.date }
     }

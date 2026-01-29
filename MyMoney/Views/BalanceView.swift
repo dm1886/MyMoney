@@ -66,25 +66,16 @@ struct BalanceView: View {
 
     var totalBalance: Decimal {
         guard let preferredCurrency = preferredCurrencyRecord else {
-            print("💰 [BalanceView] No preferred currency found!")
             return 0
         }
 
-        print("💰 [BalanceView] ===== Calculating TOTAL BALANCE =====")
-        print("💰 [BalanceView] Preferred currency: \(preferredCurrency.code)")
-
         let total = accounts.reduce(Decimal(0)) { sum, account in
             guard let accountCurrency = account.currencyRecord else {
-                print("💰 [BalanceView] Account \(account.name) has no currency record, skipping")
                 return sum
             }
 
-            print("💰 [BalanceView] --- Processing account: \(account.name) (\(accountCurrency.code)) ---")
-
             // Calcola il saldo on-the-fly dalle transazioni invece di usare currentBalance
             let accountBalance = calculateAccountBalance(account)
-
-            print("💰 [BalanceView] Account balance in \(accountCurrency.code): \(accountBalance)")
 
             let convertedBalance = CurrencyService.shared.convert(
                 amount: accountBalance,
@@ -93,13 +84,9 @@ struct BalanceView: View {
                 context: modelContext
             )
 
-            print("💰 [BalanceView] Converted to \(preferredCurrency.code): \(convertedBalance)")
-            print("💰 [BalanceView] Running total: \(sum) + \(convertedBalance) = \(sum + convertedBalance)")
-
             return sum + convertedBalance
         }
 
-        print("💰 [BalanceView] ===== TOTAL BALANCE: \(total) \(preferredCurrency.code) =====")
         return total
     }
 
@@ -185,16 +172,13 @@ struct BalanceView: View {
 
     // Calcola il saldo dell'account direttamente dalle transazioni
     private func calculateAccountBalance(_ account: Account) -> Decimal {
-        print("💰 [BalanceView] calculateAccountBalance for: \(account.name)")
         var balance = account.initialBalance
-        print("💰 [BalanceView] Initial balance: \(balance)")
         let tracker = DeletedTransactionTracker.shared
 
         // Somma tutte le transazioni EXECUTED dell'account
         // Filter out deleted/detached transactions to prevent crash
         // CRITICAL: Check tracker FIRST before accessing transactionType
         if let accountTransactions = account.transactions {
-            print("💰 [BalanceView] Account transactions count: \(accountTransactions.count)")
             for transaction in accountTransactions where !tracker.isDeleted(transaction.id) && transaction.modelContext != nil && transaction.status == .executed {
                 // Per TRANSFER: usa sempre transaction.amount (importo originale)
                 // Per expense/income: usa destinationAmount se presente (conversione valuta)
@@ -204,25 +188,18 @@ struct BalanceView: View {
                     // Per expense/income: controlla se c'è conversione
                     if let destAmount = transaction.destinationAmount {
                         amountToUse = destAmount
-                        print("💰 [BalanceView] Using destinationAmount for \(transaction.transactionType.rawValue): \(destAmount)")
                     }
                 }
-
-                print("💰 [BalanceView] Processing \(transaction.transactionType.rawValue): amount=\(amountToUse)")
 
                 switch transaction.transactionType {
                 case .expense:
                     balance -= amountToUse
-                    print("💰 [BalanceView] EXPENSE: balance -= \(amountToUse) → \(balance)")
                 case .income:
                     balance += amountToUse
-                    print("💰 [BalanceView] INCOME: balance += \(amountToUse) → \(balance)")
                 case .transfer:
                     balance -= amountToUse
-                    print("💰 [BalanceView] TRANSFER (outgoing): balance -= \(amountToUse) → \(balance)")
                 case .adjustment:
                     balance += amountToUse
-                    print("💰 [BalanceView] ADJUSTMENT: balance += \(amountToUse) → \(balance)")
                 }
             }
         }
@@ -231,12 +208,10 @@ struct BalanceView: View {
         // Filter out deleted/detached transfers to prevent crash
         // CRITICAL: Check tracker FIRST before accessing transactionType
         if let incoming = account.incomingTransfers {
-            print("💰 [BalanceView] Incoming transfers count: \(incoming.count)")
             for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
                 var amountToAdd: Decimal = 0
                 if let destAmount = transfer.destinationAmount {
                     amountToAdd = destAmount
-                    print("💰 [BalanceView] Using destinationAmount for incoming: \(destAmount)")
                 } else if let transferCurr = transfer.currencyRecord,
                           let accountCurr = account.currencyRecord {
                     amountToAdd = CurrencyService.shared.convert(
@@ -245,17 +220,13 @@ struct BalanceView: View {
                         to: accountCurr,
                         context: modelContext
                     )
-                    print("💰 [BalanceView] Converted incoming: \(transfer.amount) → \(amountToAdd)")
                 } else {
                     amountToAdd = transfer.amount
-                    print("💰 [BalanceView] Using original amount for incoming: \(amountToAdd)")
                 }
                 balance += amountToAdd
-                print("💰 [BalanceView] TRANSFER (incoming): balance += \(amountToAdd) → \(balance)")
             }
         }
 
-        print("💰 [BalanceView] Final balance for \(account.name): \(balance)")
         return balance
     }
 

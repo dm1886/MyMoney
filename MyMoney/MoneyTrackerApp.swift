@@ -69,6 +69,9 @@ struct MoneyTrackerApp: App {
                 }
             }
 
+            // Populate currency cache to avoid main thread I/O
+            CurrencyService.shared.populateCache(context: context)
+
             // Download exchange rates only on first app launch
             let isFirstLaunch = !UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
             if isFirstLaunch {
@@ -126,6 +129,9 @@ struct MoneyTrackerApp: App {
                 .onAppear {
                     // Start transaction scheduler and check missed transactions
                     Task { @MainActor in
+                        // Refresh currency cache on app appear
+                        CurrencyService.shared.populateCache(context: sharedModelContainer.mainContext)
+
                         // Configure notification delegate with model context
                         notificationDelegate.modelContext = sharedModelContainer.mainContext
                         UNUserNotificationCenter.current().delegate = notificationDelegate

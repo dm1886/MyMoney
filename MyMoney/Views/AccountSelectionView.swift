@@ -190,6 +190,10 @@ struct AccountSelectionView: View {
                 }
             }
         }
+        .refreshable {
+            // Force refresh when user pulls down
+            // The @Query will automatically update
+        }
     }
 }
 
@@ -198,8 +202,16 @@ struct AccountListRow: View {
     let isSelected: Bool
     let modelContext: ModelContext
 
-    // Calcola saldo on-the-fly
+    // Query per far aggiornare la vista quando cambiano le transazioni
+    @Query private var allTransactions: [Transaction]
+    @Query private var exchangeRates: [ExchangeRate]
+
+    // Calcola saldo on-the-fly - ora reagisce ai cambiamenti grazie alla @Query
     private var calculatedBalance: Decimal {
+        // Forza il re-render quando cambiano transazioni o tassi
+        _ = allTransactions.count
+        _ = exchangeRates.count
+
         var balance = account.initialBalance
         let tracker = DeletedTransactionTracker.shared
 
@@ -207,15 +219,36 @@ struct AccountListRow: View {
         // CRITICAL: Check tracker FIRST before accessing transactionType
         if let accountTransactions = account.transactions {
             for transaction in accountTransactions where !tracker.isDeleted(transaction.id) && transaction.modelContext != nil && transaction.status == .executed {
+                // IMPORTANTE: Usa la stessa logica di BalanceView
+                var amountToUse = transaction.amount
+
+                // Per TRANSFER: usa sempre transaction.amount (importo originale)
+                // Per expense/income/adjustment: usa destinationAmount se presente (conversione valuta)
+                if transaction.transactionType != .transfer {
+                    if let destAmount = transaction.destinationAmount {
+                        amountToUse = destAmount
+                    } else if let transactionCurr = transaction.currencyRecord,
+                              let accountCurr = account.currencyRecord,
+                              transactionCurr.code != accountCurr.code {
+                        // Conversione on-the-fly se le valute sono diverse
+                        amountToUse = CurrencyService.shared.convert(
+                            amount: transaction.amount,
+                            from: transactionCurr,
+                            to: accountCurr,
+                            context: modelContext
+                        )
+                    }
+                }
+
                 switch transaction.transactionType {
                 case .expense:
-                    balance -= transaction.amount
+                    balance -= amountToUse
                 case .income:
-                    balance += transaction.amount
+                    balance += amountToUse
                 case .transfer:
-                    balance -= transaction.amount
+                    balance -= amountToUse
                 case .adjustment:
-                    balance += transaction.amount
+                    balance += amountToUse
                 }
             }
         }
@@ -224,18 +257,21 @@ struct AccountListRow: View {
         // CRITICAL: Check tracker FIRST before accessing transactionType
         if let incoming = account.incomingTransfers {
             for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
+                var amountToAdd: Decimal = 0
                 if let destAmount = transfer.destinationAmount {
-                    balance += destAmount
+                    amountToAdd = destAmount
                 } else if let transferCurr = transfer.currencyRecord,
-                              let accountCurr = account.currencyRecord {
-                    let convertedAmount = CurrencyService.shared.convert(
+                          let accountCurr = account.currencyRecord {
+                    amountToAdd = CurrencyService.shared.convert(
                         amount: transfer.amount,
                         from: transferCurr,
                         to: accountCurr,
                         context: modelContext
                     )
-                    balance += convertedAmount
+                } else {
+                    amountToAdd = transfer.amount
                 }
+                balance += amountToAdd
             }
         }
 

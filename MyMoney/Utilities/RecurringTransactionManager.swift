@@ -98,8 +98,9 @@ class RecurringTransactionManager {
         // Genera le prossime occorrenze
         let startDate = lastInstanceDate ?? firstDate
         var currentDate = startDate
+        let includeStartDay = template.includeStartDayInCount
 
-        while let nextDate = rule.nextOccurrence(from: currentDate), nextDate <= endDate {
+        while let nextDate = rule.nextOccurrence(from: currentDate, includeStartDayInCount: includeStartDay), nextDate <= endDate {
             // Controlla se esiste già un'transaziona per questa data
             let alreadyExists = existingInstances.contains { instance in
                 return Calendar.current.isDate(instance.date, inSameDayAs: nextDate)
@@ -166,6 +167,9 @@ class RecurringTransactionManager {
 
         // Copy working day adjustment setting
         instance.adjustToWorkingDay = template.adjustToWorkingDay
+
+        // Copy includeStartDayInCount setting
+        instance.includeStartDayInCount = template.includeStartDayInCount
 
         // Copia destinationAmount per trasferimenti
         if template.transactionType == .transfer {

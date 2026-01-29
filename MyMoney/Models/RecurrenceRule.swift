@@ -65,16 +65,21 @@ struct RecurrenceRule: Codable, Hashable {
     }
 
     // Calculate next occurrence date from a given date
-    func nextOccurrence(from date: Date) -> Date? {
+    func nextOccurrence(from date: Date, includeStartDayInCount: Bool = false) -> Date? {
         let calendar = Calendar.current
+
+        // Se includeStartDayInCount è true, sottrai 1 dall'intervallo
+        // Esempio: "ogni 15 giorni" con includeStartDay = true significa +14 giorni
+        // perché il giorno di inizio conta come "giorno 1"
+        let adjustedInterval = includeStartDayInCount ? max(1, interval - 1) : interval
 
         switch unit {
         case .day:
-            return calendar.date(byAdding: .day, value: interval, to: date)
+            return calendar.date(byAdding: .day, value: adjustedInterval, to: date)
         case .month:
-            return calendar.date(byAdding: .month, value: interval, to: date)
+            return calendar.date(byAdding: .month, value: adjustedInterval, to: date)
         case .year:
-            return calendar.date(byAdding: .year, value: interval, to: date)
+            return calendar.date(byAdding: .year, value: adjustedInterval, to: date)
         }
     }
 

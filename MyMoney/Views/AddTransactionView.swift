@@ -51,6 +51,7 @@ struct AddTransactionView: View {
     @State private var hasEndDate = false
     @State private var recurrenceEndDate = Date()
     @State private var adjustToWorkingDay = false
+    @State private var includeStartDayInCount = false
 
     // MARK: - UI State
     @State private var hasSetDefaultAccount = false
@@ -138,7 +139,7 @@ struct AddTransactionView: View {
         var currentDate = selectedDate
 
         for _ in 0..<maxOccurrences {
-            guard let nextDate = currentRecurrenceRule.nextOccurrence(from: currentDate) else {
+            guard let nextDate = currentRecurrenceRule.nextOccurrence(from: currentDate, includeStartDayInCount: includeStartDayInCount) else {
                 break
             }
 
@@ -574,6 +575,27 @@ struct AddTransactionView: View {
                                 .padding(.vertical, 4)
                             }
 
+                            // Include start day in count toggle
+                            Toggle(isOn: $includeStartDayInCount) {
+                                HStack {
+                                    Image(systemName: "calendar.badge.clock")
+                                        .foregroundStyle(.orange)
+                                    Text("Includi Giorno Iniziale")
+                                }
+                            }
+
+                            if includeStartDayInCount {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "info.circle")
+                                        .foregroundStyle(.orange)
+                                        .font(.caption)
+                                    Text("Il giorno di inizio conta come 'giorno 1'. Es: ogni 15 giorni dal 2 feb = 16 feb (invece di 17 feb)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.vertical, 4)
+                            }
+
                             // Preview delle prossime occorrenze
                             VStack(alignment: .leading, spacing: 8) {
                                 // Prima transazione (la data selezionata)
@@ -848,20 +870,13 @@ struct AddTransactionView: View {
             transaction.recurrenceRule = currentRecurrenceRule
             transaction.recurrenceEndDate = hasEndDate ? recurrenceEndDate : nil
             transaction.adjustToWorkingDay = adjustToWorkingDay
+            transaction.includeStartDayInCount = includeStartDayInCount
         }
 
         modelContext.insert(transaction)
 
         // IMPORTANTE: Salvare PRIMA di updateBalance() per assicurare che le relazioni inverse siano stabilite
         try? modelContext.save()
-
-        print("📝 [DEBUG] AddTransaction - Transaction inserted and saved")
-        print("📝 [DEBUG] AddTransaction - transactionType: \(transactionType.rawValue)")
-        print("📝 [DEBUG] AddTransaction - amount: \(amountDecimal)")
-        print("📝 [DEBUG] AddTransaction - account: \(account.name)")
-        print("📝 [DEBUG] AddTransaction - destinationAccount: \(selectedDestinationAccount?.name ?? "nil")")
-        print("📝 [DEBUG] AddTransaction - isScheduled: \(isScheduled)")
-        print("📝 [DEBUG] AddTransaction - transaction.status: \(transaction.status.rawValue)")
 
         // Registra l'uso della valuta
         if let currencyRecord = currencyToUse {
@@ -876,18 +891,14 @@ struct AddTransactionView: View {
         // Update balance only for executed transactions
         // NOTA: Questo deve avvenire DOPO save() per assicurare che le relazioni siano stabilite
         if transaction.status == .executed {
-            print("📝 [DEBUG] AddTransaction - Calling updateBalance for SOURCE account: \(account.name)")
             account.updateBalance(context: modelContext)
 
             if let destinationAccount = selectedDestinationAccount {
-                print("📝 [DEBUG] AddTransaction - Calling updateBalance for DESTINATION account: \(destinationAccount.name)")
                 destinationAccount.updateBalance(context: modelContext)
             }
 
             // Salva di nuovo dopo l'aggiornamento dei bilanci
             try? modelContext.save()
-        } else {
-            print("📝 [DEBUG] AddTransaction - Skipping balance update (pending/scheduled transaction)")
         }
 
         // Generate recurring instances if this is a recurring template

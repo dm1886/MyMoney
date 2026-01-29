@@ -13,6 +13,11 @@ import SwiftData
 final class CurrencyService {
     static let shared = CurrencyService()
 
+    // In-memory cache to avoid repeated database queries
+    private var currencyCache: [String: CurrencyRecord] = [:]
+    private var exchangeRateCache: [String: Decimal] = [:]
+    private let cacheQueue = DispatchQueue(label: "com.moneytracker.currencyservice.cache")
+
     private init() {}
 
     // MARK: - Currency Conversion
@@ -31,7 +36,6 @@ final class CurrencyService {
         if let usdCurrency = getCurrency(byCode: "USD", context: context) {
             if let fromToUSD = getExchangeRate(from: from, to: usdCurrency, context: context),
                let usdToTo = getExchangeRate(from: usdCurrency, to: to, context: context) {
-                print("✓ [CurrencyService] Cross-conversion: \(from.code) → USD → \(to.code)")
                 return amount * fromToUSD * usdToTo
             }
         }
@@ -40,20 +44,29 @@ final class CurrencyService {
         if let eurCurrency = getCurrency(byCode: "EUR", context: context) {
             if let fromToEUR = getExchangeRate(from: from, to: eurCurrency, context: context),
                let eurToTo = getExchangeRate(from: eurCurrency, to: to, context: context) {
-                print("✓ [CurrencyService] Cross-conversion: \(from.code) → EUR → \(to.code)")
                 return amount * fromToEUR * eurToTo
             }
         }
 
-        print("⚠️ [CurrencyService] Missing exchange rate: \(from.code) → \(to.code)")
         return amount  // Fallback: no conversion
     }
 
     // MARK: - Exchange Rate Queries
 
     func getExchangeRate(from: CurrencyRecord, to: CurrencyRecord, context: ModelContext) -> Decimal? {
-        // Fetch all rates and filter in memory
-        // SwiftData doesn't support force unwrap (!) operator in predicates
+        let cacheKey = "\(from.code)_\(to.code)"
+
+        // Try cache first
+        var cachedRate: Decimal?
+        cacheQueue.sync {
+            cachedRate = exchangeRateCache[cacheKey]
+        }
+
+        if let cached = cachedRate {
+            return cached
+        }
+
+        // Fallback to database query
         let descriptor = FetchDescriptor<ExchangeRate>()
 
         do {
@@ -66,6 +79,13 @@ final class CurrencyService {
                     return false
                 }
                 return fromCurr.code == from.code && toCurr.code == to.code
+            }
+
+            if let rate = matchingRate?.rate {
+                // Cache for future use
+                cacheQueue.sync {
+                    exchangeRateCache[cacheKey] = rate
+                }
             }
 
             return matchingRate?.rate
@@ -133,20 +153,71 @@ final class CurrencyService {
             }
         }
 
+        // Invalidate cache for updated rates
+        let cacheKey = "\(from.code)_\(to.code)"
+        let inverseCacheKey = "\(to.code)_\(from.code)"
+        cacheQueue.sync {
+            exchangeRateCache.removeValue(forKey: cacheKey)
+            exchangeRateCache.removeValue(forKey: inverseCacheKey)
+        }
+
         if autoSave {
             try? context.save()
+        }
+    }
+
+    // MARK: - Cache Management
+
+    /// Populate cache with all currencies to avoid repeated I/O
+    func populateCache(context: ModelContext) {
+        let descriptor = FetchDescriptor<CurrencyRecord>()
+        guard let currencies = try? context.fetch(descriptor) else { return }
+
+        cacheQueue.sync {
+            for currency in currencies {
+                currencyCache[currency.code] = currency
+            }
+        }
+        print("✓ [CurrencyService] Cache populated with \(currencies.count) currencies")
+    }
+
+    /// Clear cache when data changes
+    func clearCache() {
+        cacheQueue.sync {
+            currencyCache.removeAll()
+            exchangeRateCache.removeAll()
         }
     }
 
     // MARK: - Currency Lookup
 
     func getCurrency(byCode code: String, context: ModelContext) -> CurrencyRecord? {
+        // Try cache first
+        var cachedCurrency: CurrencyRecord?
+        cacheQueue.sync {
+            cachedCurrency = currencyCache[code]
+        }
+
+        if let cached = cachedCurrency {
+            return cached
+        }
+
+        // Fallback to database query
         let predicate = #Predicate<CurrencyRecord> { currency in
             currency.code == code
         }
 
         let descriptor = FetchDescriptor<CurrencyRecord>(predicate: predicate)
-        return try? context.fetch(descriptor).first
+        guard let currency = try? context.fetch(descriptor).first else {
+            return nil
+        }
+
+        // Cache for future use
+        cacheQueue.sync {
+            currencyCache[code] = currency
+        }
+
+        return currency
     }
 
     func getOrCreateCurrency(fromEnum currency: Currency, context: ModelContext) -> CurrencyRecord? {

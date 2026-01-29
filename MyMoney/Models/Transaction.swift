@@ -35,6 +35,7 @@ final class Transaction {
     var recurrenceEndDate: Date?        // Data fine ripetizione (opzionale)
     var parentRecurringTransactionId: UUID?  // Link alla transazione template se questa è una transazione generata
     var adjustToWorkingDay: Bool = false  // If true, adjust to next working day (Mon-Fri) when date falls on weekend
+    var includeStartDayInCount: Bool = false  // Se true, il giorno di inizio conta come "giorno 1" (es. ogni 15 giorni dal 2 feb = 16 feb invece di 17 feb)
 
     init(
         transactionType: TransactionType,
