@@ -51,10 +51,16 @@ struct TotalBalanceWidget: View {
 
         if let incoming = account.incomingTransfers {
             for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
+                // IMPORTANTE: Usa destinationAmount salvato per preservare calcoli storici
                 if let destAmount = transfer.destinationAmount {
                     balance += destAmount
+                } else if let snapshot = transfer.exchangeRateSnapshot {
+                    // Usa snapshot del tasso se disponibile (preserva calcoli storici)
+                    let convertedAmount = transfer.amount * snapshot
+                    balance += convertedAmount
                 } else if let transferCurr = transfer.currencyRecord,
                           let accountCurr = account.currencyRecord {
+                    // Fallback: usa tasso corrente (solo per vecchie transazioni senza snapshot)
                     let convertedAmount = CurrencyService.shared.convert(
                         amount: transfer.amount,
                         from: transferCurr,

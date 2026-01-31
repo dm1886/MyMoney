@@ -210,10 +210,15 @@ struct BalanceView: View {
         if let incoming = account.incomingTransfers {
             for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
                 var amountToAdd: Decimal = 0
+                // IMPORTANTE: Usa destinationAmount salvato per preservare calcoli storici
                 if let destAmount = transfer.destinationAmount {
                     amountToAdd = destAmount
+                } else if let snapshot = transfer.exchangeRateSnapshot {
+                    // Usa snapshot del tasso se disponibile (preserva calcoli storici)
+                    amountToAdd = transfer.amount * snapshot
                 } else if let transferCurr = transfer.currencyRecord,
                           let accountCurr = account.currencyRecord {
+                    // Fallback: usa tasso corrente (solo per vecchie transazioni senza snapshot)
                     amountToAdd = CurrencyService.shared.convert(
                         amount: transfer.amount,
                         from: transferCurr,

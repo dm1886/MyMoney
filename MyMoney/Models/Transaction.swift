@@ -23,6 +23,10 @@ final class Transaction {
     var destinationAccount: Account?
     var destinationAmount: Decimal?     // Importo nel conto destinazione (per trasferimenti con conversione)
 
+    // MARK: - Exchange Rate Snapshot (to preserve historical rates)
+    var exchangeRateSnapshot: Decimal?  // Tasso di cambio al momento della creazione (per preservare calcoli storici)
+    var isCustomRate: Bool = false      // Se true, l'utente ha modificato manualmente il tasso
+
     // MARK: - Scheduled Transaction Fields
     var isScheduled: Bool = false
     // scheduledDate removed - use 'date' field for all date purposes

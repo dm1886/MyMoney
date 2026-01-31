@@ -35,6 +35,14 @@ struct IncomeVsExpensesWidget: View {
                   let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: monthDate)),
                   let endOfMonth = calendar.date(byAdding: DateComponents(month: 1, day: -1), to: calendar.date(byAdding: .month, value: 1, to: startOfMonth)!) else { continue }
 
+            // DEBUG: Stampa il range di date per questo mese
+            let debugFormatter = DateFormatter()
+            debugFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            debugFormatter.locale = Locale(identifier: "it_IT")
+            #if DEBUG
+            print("📊 [IncomeVsExpenses] Mese \(monthOffset): Range \(debugFormatter.string(from: startOfMonth)) - \(debugFormatter.string(from: endOfMonth))")
+            #endif
+
             let monthTransactions = transactions.filter { transaction in
                 guard !tracker.isDeleted(transaction.id) else { return false }
                 guard transaction.modelContext != nil else { return false }
@@ -44,11 +52,24 @@ struct IncomeVsExpensesWidget: View {
                     guard transaction.account?.id == accountId else { return false }
                 }
 
-                return transaction.date >= startOfMonth &&
-                       transaction.date <= endOfMonth &&
-                       transaction.status == .executed &&
-                       (transaction.transactionType == .income || transaction.transactionType == .expense)
+                let isInRange = transaction.date >= startOfMonth &&
+                                transaction.date <= endOfMonth &&
+                                transaction.status == .executed &&
+                                (transaction.transactionType == .income || transaction.transactionType == .expense)
+
+                // DEBUG: Stampa le transazioni trovate
+                #if DEBUG
+                if isInRange {
+                    print("📊   ✅ Trans [\(transaction.transactionType == .income ? "ENTRATA" : "USCITA")]: \(transaction.amount) - \(transaction.notes) - Data: \(debugFormatter.string(from: transaction.date))")
+                }
+                #endif
+
+                return isInRange
             }
+
+            #if DEBUG
+            print("📊 [IncomeVsExpenses] Totale transazioni trovate per questo mese: \(monthTransactions.count)")
+            #endif
 
             var income: Decimal = 0
             var expenses: Decimal = 0
@@ -74,8 +95,21 @@ struct IncomeVsExpensesWidget: View {
             formatter.dateFormat = "MMM"
             formatter.locale = Locale(identifier: "it_IT")
 
-            result.append((month: formatter.string(from: monthDate), income: income, expenses: expenses))
+            let monthName = formatter.string(from: monthDate)
+            result.append((month: monthName, income: income, expenses: expenses))
+
+            #if DEBUG
+            print("📊 [IncomeVsExpenses] RISULTATO \(monthName): Entrate=\(income), Uscite=\(expenses)")
+            print("📊 ─────────────────────────────────────")
+            #endif
         }
+
+        #if DEBUG
+        print("📊 [IncomeVsExpenses] RIEPILOGO FINALE:")
+        for data in result {
+            print("📊   \(data.month): Entrate=\(data.income), Uscite=\(data.expenses)")
+        }
+        #endif
 
         return result
     }

@@ -438,7 +438,29 @@ struct AddTransactionView: View {
                     } footer: {
                         if let sourceCurr = selectedAccount?.currencyRecord,
                            let destCurr = selectedDestinationAccount?.currencyRecord {
-                            Text("L'importo verrà convertito automaticamente da \(sourceCurr.code) a \(destCurr.code). Puoi modificare l'importo di destinazione se necessario.")
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("L'importo verrà convertito automaticamente da \(sourceCurr.code) a \(destCurr.code). Puoi modificare l'importo di destinazione se necessario.")
+
+                                // Mostra tasso di cambio effettivo
+                                if let parsed = parseAmount(amount),
+                                   parsed > 0,
+                                   let destAmount = finalDestinationAmount {
+                                    let effectiveRate = destAmount / parsed
+                                    HStack(spacing: 4) {
+                                        Image(systemName: isDestinationAmountManual ? "pencil.circle.fill" : "arrow.triangle.2.circlepath")
+                                            .font(.caption2)
+                                            .foregroundStyle(isDestinationAmountManual ? .orange : .blue)
+                                        Text("Tasso: 1 \(sourceCurr.code) = \(formatDecimal(effectiveRate)) \(destCurr.code)")
+                                            .font(.caption)
+                                        if isDestinationAmountManual {
+                                            Text("(personalizzato)")
+                                                .font(.caption)
+                                                .foregroundStyle(.orange)
+                                        }
+                                    }
+                                    .padding(.top, 2)
+                                }
+                            }
                         }
                     }
                 }
@@ -839,11 +861,36 @@ struct AddTransactionView: View {
         // Set destination amount for transfers with currency conversion
         if transactionType == .transfer && transferNeedsConversion {
             transaction.destinationAmount = finalDestinationAmount
+
+            // IMPORTANTE: Salva lo snapshot del tasso di cambio per preservare i calcoli storici
+            if let sourceCurr = currencyToUse,
+               let destCurr = selectedDestinationAccount?.currencyRecord,
+               let destAmount = finalDestinationAmount,
+               let parsedAmount = parseAmount(amount),
+               parsedAmount > 0 {
+                // Calcola il tasso effettivo usato
+                let effectiveRate = destAmount / parsedAmount
+                transaction.exchangeRateSnapshot = effectiveRate
+
+                // Marca come custom se l'utente ha modificato manualmente
+                transaction.isCustomRate = isDestinationAmountManual
+            }
         }
 
         // Set converted amount for expense/income with currency conversion
         if transactionType != .transfer && needsConversion {
             transaction.destinationAmount = convertedAmount
+
+            // Salva snapshot anche per expense/income con conversione
+            if let sourceCurr = currencyToUse,
+               let accountCurr = selectedAccount?.currencyRecord,
+               let converted = convertedAmount,
+               let parsedAmount = parseAmount(amount),
+               parsedAmount > 0 {
+                let effectiveRate = converted / parsedAmount
+                transaction.exchangeRateSnapshot = effectiveRate
+                transaction.isCustomRate = false  // Sempre automatico per expense/income
+            }
         }
 
         // Set scheduled transaction fields
