@@ -11,11 +11,13 @@ import BackgroundTasks
 
 @main
 struct MoneyTrackerApp: App {
-    @State private var appSettings = AppSettings.shared
     @Environment(\.scenePhase) private var scenePhase
 
     // Notification delegate
     private let notificationDelegate = NotificationDelegate()
+
+    // Use direct reference to shared instance
+    private var appSettings: AppSettings { AppSettings.shared }
 
     init() {
         // Register background tasks
@@ -59,13 +61,10 @@ struct MoneyTrackerApp: App {
 
             // NUOVO: Currency migration to SwiftData
             if CurrencyMigrationManager.shared.needsMigration() {
-                print("🔄 [App] Starting currency migration...")
                 do {
                     try CurrencyMigrationManager.shared.performMigration(context: context)
-                    print("✅ [App] Currency migration completed")
                 } catch {
                     print("❌ [App] Currency migration failed: \(error)")
-                    print("⚠️ [App] App will continue with legacy currency system")
                 }
             }
 
@@ -75,7 +74,6 @@ struct MoneyTrackerApp: App {
             // Download exchange rates only on first app launch
             let isFirstLaunch = !UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
             if isFirstLaunch {
-                print("🌐 [App] First launch detected - downloading exchange rates...")
                 UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
 
                 DispatchQueue.global(qos: .utility).async {
@@ -103,15 +101,11 @@ struct MoneyTrackerApp: App {
 
                         if let response = apiResponse {
                             try CurrencyAPIService.shared.parseCurrency(jsonString: response, context: backgroundContext)
-                            Swift.print("✅ [App] First launch exchange rates downloaded successfully")
                         }
                     } catch {
-                        Swift.print("⚠️ [App] First launch rate download failed: \(error)")
-                        Swift.print("   You can download rates manually from Settings")
+                        // Silently fail - user can download rates manually from Settings
                     }
                 }
-            } else {
-                print("ℹ️ [App] Not first launch - skipping automatic rate download")
             }
 
             return container
@@ -143,10 +137,7 @@ struct MoneyTrackerApp: App {
                         let descriptor = FetchDescriptor<Transaction>()
                         if let allTransactions = try? sharedModelContainer.mainContext.fetch(descriptor) {
                             let validIds = Set(allTransactions.map { $0.id })
-                            let orphanCount = await LocalNotificationManager.shared.cleanOrphanNotifications(validTransactionIds: validIds)
-                            if orphanCount > 0 {
-                                print("🧹 Cleaned \(orphanCount) orphan notification(s) on app launch")
-                            }
+                            _ = await LocalNotificationManager.shared.cleanOrphanNotifications(validTransactionIds: validIds)
                         }
 
                         TransactionScheduler.shared.startScheduler(container: sharedModelContainer)
@@ -203,7 +194,6 @@ struct MoneyTrackerApp: App {
             switch newPhase {
             case .background:
                 // App went to background - schedule background task
-                print("📱 App entering background - scheduling background task")
                 BackgroundTaskManager.shared.scheduleBackgroundTask()
 
             case .active:

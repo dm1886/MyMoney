@@ -93,12 +93,24 @@ struct NetWorthTrendWidget: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.title3)
-                    .foregroundStyle(.blue)
+                    .font(.title2)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.blue, .cyan],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
 
                 Text("Andamento Patrimonio")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .font(.headline.bold())
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.blue, .cyan],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
                 Spacer()
 
@@ -141,6 +153,7 @@ struct NetWorthTrendWidget: View {
                 .chartYAxis {
                     AxisMarks(position: .leading)
                 }
+                .drawingGroup() // Optimize rendering performance
             }
         }
         .padding()
@@ -153,7 +166,7 @@ struct NetWorthTrendWidget: View {
     }
 }
 
-// MARK: - Savings Rate Widget
+// MARK: - Savings Rate & Daily Average Combined Widget
 struct SavingsRateWidget: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.appSettings) var appSettings
@@ -164,12 +177,12 @@ struct SavingsRateWidget: View {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
     }
 
-    var savingsRate: Double {
-        guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
+    var monthlyStats: (savingsRate: Double, dailyAverage: Decimal, income: Decimal, expenses: Decimal) {
+        guard let preferredCurrency = preferredCurrencyRecord else { return (0, 0, 0, 0) }
 
         let calendar = Calendar.current
         let now = Date()
-        guard let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) else { return 0 }
+        guard let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) else { return (0, 0, 0, 0) }
 
         let tracker = DeletedTransactionTracker.shared
         let monthTransactions = transactions.filter { transaction in
@@ -200,112 +213,102 @@ struct SavingsRateWidget: View {
             }
         }
 
-        guard income > 0 else { return 0 }
-        let savings = income - expenses
-        return Double(truncating: savings as NSDecimalNumber) / Double(truncating: income as NSDecimalNumber) * 100
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "percent")
-                    .font(.title3)
-                    .foregroundStyle(.blue)
-
-                Text("Tasso Risparmio")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-            }
-
-            Text("\(Int(savingsRate))%")
-                .font(.system(size: 48, weight: .bold, design: .rounded))
-                .foregroundStyle(savingsRate >= 20 ? .green : savingsRate >= 10 ? .orange : .red)
-
-            Text("Questo Mese")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
-        )
-    }
-}
-
-// MARK: - Daily Average Widget
-struct DailyAverageWidget: View {
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.appSettings) var appSettings
-    @Query private var transactions: [Transaction]
-    @Query private var allCurrencies: [CurrencyRecord]
-
-    var preferredCurrencyRecord: CurrencyRecord? {
-        allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
-    }
-
-    var dailyAverage: Decimal {
-        guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
-
-        let calendar = Calendar.current
-        let now = Date()
-        guard let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) else { return 0 }
-
-        let tracker = DeletedTransactionTracker.shared
-        let monthTransactions = transactions.filter { transaction in
-            guard !tracker.isDeleted(transaction.id) else { return false }
-            guard transaction.modelContext != nil else { return false }
-            return transaction.date >= startOfMonth &&
-                   transaction.date <= now &&
-                   transaction.transactionType == .expense &&
-                   transaction.status == .executed
+        // Calculate savings rate
+        let savingsRate: Double
+        if income > 0 {
+            let savings = income - expenses
+            savingsRate = Double(truncating: savings as NSDecimalNumber) / Double(truncating: income as NSDecimalNumber) * 100
+        } else {
+            savingsRate = 0
         }
 
-        var total: Decimal = 0
-
-        for transaction in monthTransactions {
-            guard let transactionCurrency = transaction.currencyRecord else { continue }
-
-            let converted = CurrencyService.shared.convert(
-                amount: transaction.amount,
-                from: transactionCurrency,
-                to: preferredCurrency,
-                context: modelContext
-            )
-            total += converted
-        }
-
+        // Calculate daily average
         let dayOfMonth = calendar.component(.day, from: now)
-        guard dayOfMonth > 0 else { return 0 }
+        let dailyAverage = dayOfMonth > 0 ? expenses / Decimal(dayOfMonth) : 0
 
-        return total / Decimal(dayOfMonth)
+        return (savingsRate, dailyAverage, income, expenses)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Image(systemName: "calendar.badge.clock")
-                    .font(.title3)
-                    .foregroundStyle(.blue)
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.title2)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.mint, .green],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
 
-                Text("Media Giornaliera")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                Text("Risparmio & Spesa Media")
+                    .font(.headline.bold())
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.mint, .green],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
                 Spacer()
+
+                Text("Questo Mese")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
 
-            Text(formatAmount(dailyAverage))
-                .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
+            // Savings Rate & Daily Average Side by Side
+            HStack(spacing: 12) {
+                // Savings Rate Section
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\(Int(monthlyStats.savingsRate))%")
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .foregroundStyle(monthlyStats.savingsRate >= 20 ? .green : monthlyStats.savingsRate >= 10 ? .orange : .red)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
 
-            Text("Questo Mese")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                    Text("Risparmio")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+
+                    Text("(Entrate - Uscite) / Entrate")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(monthlyStats.savingsRate >= 20 ? Color.green.opacity(0.1) : monthlyStats.savingsRate >= 10 ? Color.orange.opacity(0.1) : Color.red.opacity(0.1))
+                )
+
+                // Daily Average Section
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(formatAmount(monthlyStats.dailyAverage))
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+
+                    Text("al giorno")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+
+                    Text("Spesa media del mese")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(.secondarySystemGroupedBackground))
+                )
+            }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -319,10 +322,19 @@ struct DailyAverageWidget: View {
     private func formatAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
+        formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 2
-        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
-        return "\(appSettings.preferredCurrencyEnum.symbol)\(amountString)"
+        formatter.groupingSeparator = "."
+        formatter.decimalSeparator = ","
+        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0"
+        return "\(preferredCurrencyRecord?.flagEmoji ?? "")\(amountString)"
+    }
+}
+
+// MARK: - Daily Average Widget (Legacy - kept for backwards compatibility)
+struct DailyAverageWidget: View {
+    var body: some View {
+        SavingsRateWidget()
     }
 }
 
@@ -421,15 +433,32 @@ struct MonthlyComparisonWidget: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "arrow.left.arrow.right.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.blue)
+                    .font(.title2)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.indigo, .purple],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
 
                 Text("Confronto Mensile")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .font(.headline.bold())
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.indigo, .purple],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
                 Spacer()
             }
+
+            Text("Confronta le spese di questo mese con quelle del mese precedente")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .padding(.bottom, 4)
 
             VStack(spacing: 16) {
                 HStack(spacing: 16) {
@@ -441,7 +470,15 @@ struct MonthlyComparisonWidget: View {
                         Text(formatAmount(comparison.thisMonth))
                             .font(.title3.bold())
                             .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(comparison.isIncrease ? Color.red.opacity(0.1) : Color.green.opacity(0.1))
+                    )
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -452,7 +489,15 @@ struct MonthlyComparisonWidget: View {
                         Text(formatAmount(comparison.lastMonth))
                             .font(.title3.bold())
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(.secondarySystemGroupedBackground))
+                    )
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
@@ -466,7 +511,7 @@ struct MonthlyComparisonWidget: View {
                         .font(.headline.bold())
                         .foregroundStyle(comparison.isIncrease ? .red : .green)
 
-                    Text(comparison.isIncrease ? "in più" : "in meno")
+                    Text(comparison.isIncrease ? "in più rispetto al mese scorso" : "in meno rispetto al mese scorso")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -488,20 +533,26 @@ struct MonthlyComparisonWidget: View {
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 0
+        formatter.groupingSeparator = "."
+        formatter.decimalSeparator = ","
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0"
-        return "\(appSettings.preferredCurrencyEnum.symbol)\(amountString)"
+        return "\(preferredCurrencyRecord?.flagEmoji ?? "")\(amountString)"
     }
 }
 
 // MARK: - Account Balances Widget
 struct AccountBalancesWidget: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.appSettings) var appSettings
     @Query private var accounts: [Account]
+    @Query private var allCurrencies: [CurrencyRecord]
 
-    var topAccounts: [Account] {
+    var preferredCurrencyRecord: CurrencyRecord? {
+        allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
+    }
+
+    var sortedAccounts: [Account] {
         accounts.sorted { calculateAccountBalance($0) > calculateAccountBalance($1) }
-            .prefix(5)
-            .map { $0 }
     }
 
     private func calculateAccountBalance(_ account: Account) -> Decimal {
@@ -543,17 +594,29 @@ struct AccountBalancesWidget: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "creditcard.fill")
-                    .font(.title3)
-                    .foregroundStyle(.blue)
+                    .font(.title2)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.teal, .blue],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
 
                 Text("Saldi Conti")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .font(.headline.bold())
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.teal, .blue],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
                 Spacer()
             }
 
-            if topAccounts.isEmpty {
+            if sortedAccounts.isEmpty {
                 Text("Nessun conto")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -561,7 +624,7 @@ struct AccountBalancesWidget: View {
                     .padding(.vertical, 20)
             } else {
                 VStack(spacing: 10) {
-                    ForEach(topAccounts) { account in
+                    ForEach(sortedAccounts) { account in
                         HStack {
                             ZStack {
                                 Circle()
@@ -602,14 +665,27 @@ struct AccountBalancesWidget: View {
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 0
+        formatter.groupingSeparator = "."
+        formatter.decimalSeparator = ","
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0"
-        return "\(currency.symbol)\(amountString)"
+
+        // Get flag emoji for the currency
+        if let currencyRecord = allCurrencies.first(where: { $0.code == currency.rawValue }) {
+            return "\(currencyRecord.flagEmoji)\(amountString)"
+        }
+        return "\(currency.flag)\(amountString)"
     }
 }
 
 // MARK: - Recent Transactions Widget
 struct RecentTransactionsWidget: View {
+    @Environment(\.appSettings) var appSettings
     @Query(sort: \Transaction.date, order: .reverse) private var transactions: [Transaction]
+    @Query private var allCurrencies: [CurrencyRecord]
+
+    var preferredCurrencyRecord: CurrencyRecord? {
+        allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
+    }
 
     var recentTransactions: [Transaction] {
         let tracker = DeletedTransactionTracker.shared
@@ -623,12 +699,24 @@ struct RecentTransactionsWidget: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "clock.arrow.circlepath")
-                    .font(.title3)
-                    .foregroundStyle(.blue)
+                    .font(.title2)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.pink, .red],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
 
                 Text("Transazioni Recenti")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .font(.headline.bold())
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.pink, .red],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
                 Spacer()
             }
@@ -640,34 +728,68 @@ struct RecentTransactionsWidget: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
             } else {
-                VStack(spacing: 10) {
+                VStack(spacing: 12) {
                     ForEach(recentTransactions) { transaction in
-                        HStack {
-                            ZStack {
-                                Circle()
-                                    .fill((transaction.category?.color ?? .blue).opacity(0.15))
-                                    .frame(width: 32, height: 32)
+                        VStack(spacing: 8) {
+                            HStack(alignment: .center, spacing: 10) {
+                                ZStack {
+                                    Circle()
+                                        .fill((transaction.category?.color ?? .blue).opacity(0.15))
+                                        .frame(width: 36, height: 36)
 
-                                Image(systemName: transaction.category?.icon ?? "questionmark")
-                                    .font(.caption)
-                                    .foregroundStyle(transaction.category?.color ?? .blue)
+                                    Image(systemName: transaction.category?.icon ?? "questionmark")
+                                        .font(.caption)
+                                        .foregroundStyle(transaction.category?.color ?? .blue)
+                                }
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack(spacing: 6) {
+                                        Text(transaction.category?.name ?? "Altro")
+                                            .font(.body.bold())
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+
+                                        Image(systemName: transactionTypeIcon(for: transaction))
+                                            .font(.caption2)
+                                            .foregroundStyle(transactionTypeColor(for: transaction))
+                                    }
+
+                                    if !transaction.notes.isEmpty {
+                                        Text(transaction.notes)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+
+                                    HStack(spacing: 6) {
+                                        if let account = transaction.account {
+                                            Text(account.name)
+                                                .font(.caption2)
+                                                .foregroundStyle(.tertiary)
+                                        }
+
+                                        Text("•")
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
+
+                                        Text(formatDateShort(transaction.date))
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+
+                                Spacer()
+
+                                Text(formatTransactionAmount(transaction))
+                                    .font(.body.bold())
+                                    .foregroundStyle(transactionTypeColor(for: transaction))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
                             }
 
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(transaction.category?.name ?? "Altro")
-                                    .font(.body)
-                                    .foregroundStyle(.primary)
-
-                                Text(transaction.date, style: .date)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                            if transaction != recentTransactions.last {
+                                Divider()
                             }
-
-                            Spacer()
-
-                            Text(formatTransactionAmount(transaction))
-                                .font(.body.bold())
-                                .foregroundStyle(transaction.transactionType == .expense ? .red : .green)
                         }
                     }
                 }
@@ -682,20 +804,59 @@ struct RecentTransactionsWidget: View {
         )
     }
 
+    private func transactionTypeIcon(for transaction: Transaction) -> String {
+        switch transaction.transactionType {
+        case .expense: return "arrow.down"
+        case .income: return "arrow.up"
+        case .transfer: return "arrow.left.arrow.right"
+        case .adjustment: return "slider.horizontal.3"
+        }
+    }
+
+    private func transactionTypeColor(for transaction: Transaction) -> Color {
+        switch transaction.transactionType {
+        case .expense: return .red
+        case .income: return .green
+        case .transfer: return .blue
+        case .adjustment: return .purple
+        }
+    }
+
     private func formatTransactionAmount(_ transaction: Transaction) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 2
+        formatter.groupingSeparator = "."
+        formatter.decimalSeparator = ","
         let amountString = formatter.string(from: transaction.amount as NSDecimalNumber) ?? "0"
+
         let sign = transaction.transactionType == .expense ? "-" : "+"
-        return "\(sign)\(transaction.currency.symbol)\(amountString)"
+
+        // Get flag emoji for the currency
+        if let currencyRecord = allCurrencies.first(where: { $0.code == transaction.currency.rawValue }) {
+            return "\(sign)\(currencyRecord.flagEmoji)\(amountString)"
+        }
+        return "\(sign)\(transaction.currency.flag)\(amountString)"
+    }
+
+    private func formatDateShort(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
+        formatter.dateStyle = .short
+        return formatter.string(from: date)
     }
 }
 
 // MARK: - Upcoming Bills Widget
 struct UpcomingBillsWidget: View {
+    @Environment(\.appSettings) var appSettings
     @Query private var transactions: [Transaction]
+    @Query private var allCurrencies: [CurrencyRecord]
+
+    var preferredCurrencyRecord: CurrencyRecord? {
+        allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
+    }
 
     var upcomingBills: [Transaction] {
         let now = Date()
@@ -717,12 +878,24 @@ struct UpcomingBillsWidget: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "bell.fill")
-                    .font(.title3)
-                    .foregroundStyle(.blue)
+                    .font(.title2)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.orange, .yellow],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
 
                 Text("Prossime Scadenze")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .font(.headline.bold())
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.orange, .yellow],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
                 Spacer()
 
@@ -738,34 +911,79 @@ struct UpcomingBillsWidget: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
             } else {
-                VStack(spacing: 10) {
+                VStack(spacing: 12) {
                     ForEach(upcomingBills) { transaction in
-                        HStack {
-                            ZStack {
-                                Circle()
-                                    .fill((transaction.category?.color ?? .blue).opacity(0.15))
-                                    .frame(width: 32, height: 32)
+                        VStack(spacing: 8) {
+                            HStack(alignment: .center, spacing: 10) {
+                                ZStack {
+                                    Circle()
+                                        .fill((transaction.category?.color ?? .blue).opacity(0.15))
+                                        .frame(width: 36, height: 36)
 
-                                Image(systemName: transaction.category?.icon ?? "questionmark")
-                                    .font(.caption)
-                                    .foregroundStyle(transaction.category?.color ?? .blue)
+                                    Image(systemName: transaction.category?.icon ?? "questionmark")
+                                        .font(.caption)
+                                        .foregroundStyle(transaction.category?.color ?? .blue)
+                                }
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack(spacing: 6) {
+                                        Text(transaction.category?.name ?? "Altro")
+                                            .font(.body.bold())
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+
+                                        // Transaction type badge
+                                        HStack(spacing: 3) {
+                                            Image(systemName: transactionTypeIcon(for: transaction))
+                                                .font(.system(size: 8))
+                                            Text(transactionTypeLabel(for: transaction))
+                                                .font(.system(size: 9, weight: .medium))
+                                        }
+                                        .foregroundStyle(transactionTypeColor(for: transaction))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(
+                                            Capsule()
+                                                .fill(transactionTypeColor(for: transaction).opacity(0.15))
+                                        )
+                                    }
+
+                                    if !transaction.notes.isEmpty {
+                                        Text(transaction.notes)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+
+                                    HStack(spacing: 6) {
+                                        if let account = transaction.account {
+                                            Text(account.name)
+                                                .font(.caption2)
+                                                .foregroundStyle(.tertiary)
+                                        }
+
+                                        Text("•")
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
+
+                                        Text(formatDate(transaction.date))
+                                            .font(.caption2)
+                                            .foregroundStyle(.orange)
+                                    }
+                                }
+
+                                Spacer()
+
+                                Text(formatAmount(transaction))
+                                    .font(.body.bold())
+                                    .foregroundStyle(transactionTypeColor(for: transaction))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
                             }
 
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(transaction.category?.name ?? "Altro")
-                                    .font(.body)
-                                    .foregroundStyle(.primary)
-
-                                Text(transaction.date, style: .date)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                            if transaction != upcomingBills.last {
+                                Divider()
                             }
-
-                            Spacer()
-
-                            Text(formatAmount(transaction))
-                                .font(.body.bold())
-                                .foregroundStyle(.primary)
                         }
                     }
                 }
@@ -780,12 +998,53 @@ struct UpcomingBillsWidget: View {
         )
     }
 
+    private func transactionTypeIcon(for transaction: Transaction) -> String {
+        switch transaction.transactionType {
+        case .expense: return "arrow.down"
+        case .income: return "arrow.up"
+        case .transfer: return "arrow.left.arrow.right"
+        case .adjustment: return "slider.horizontal.3"
+        }
+    }
+
+    private func transactionTypeLabel(for transaction: Transaction) -> String {
+        switch transaction.transactionType {
+        case .expense: return "Uscita"
+        case .income: return "Entrata"
+        case .transfer: return "Trasf"
+        case .adjustment: return "Ajust"
+        }
+    }
+
+    private func transactionTypeColor(for transaction: Transaction) -> Color {
+        switch transaction.transactionType {
+        case .expense: return .red
+        case .income: return .green
+        case .transfer: return .blue
+        case .adjustment: return .purple
+        }
+    }
+
     private func formatAmount(_ transaction: Transaction) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 2
+        formatter.groupingSeparator = "."
+        formatter.decimalSeparator = ","
         let amountString = formatter.string(from: transaction.amount as NSDecimalNumber) ?? "0"
-        return "\(transaction.currency.symbol)\(amountString)"
+
+        // Get flag emoji for the currency
+        if let currencyRecord = allCurrencies.first(where: { $0.code == transaction.currency.rawValue }) {
+            return "\(currencyRecord.flagEmoji)\(amountString)"
+        }
+        return "\(transaction.currency.flag)\(amountString)"
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
+        formatter.dateStyle = .medium
+        return formatter.string(from: date)
     }
 }

@@ -14,27 +14,40 @@ struct TodaySummaryWidget: View {
     @Query private var transactions: [Transaction]
     @Query private var allCurrencies: [CurrencyRecord]
     @Query private var exchangeRates: [ExchangeRate]
+    @State private var selectedDate = Date()
 
     var preferredCurrencyRecord: CurrencyRecord? {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
     }
 
-    var todayTransactions: [Transaction] {
+    var dayTransactions: [Transaction] {
         let tracker = DeletedTransactionTracker.shared
         return transactions.filter { transaction in
             guard !tracker.isDeleted(transaction.id) else { return false }
             guard transaction.modelContext != nil else { return false }
-            return Calendar.current.isDateInToday(transaction.date) && transaction.status != .pending
+            return Calendar.current.isDate(transaction.date, inSameDayAs: selectedDate) && transaction.status == .executed
         }
     }
 
-    var todayExpenses: Decimal {
+    var scheduledTransactions: [Transaction] {
+        let tracker = DeletedTransactionTracker.shared
+        return transactions.filter { transaction in
+            guard !tracker.isDeleted(transaction.id) else { return false }
+            guard transaction.modelContext != nil else { return false }
+            return Calendar.current.isDate(transaction.date, inSameDayAs: selectedDate) && transaction.status == .pending && transaction.isScheduled
+        }
+    }
+
+    var allDayTransactions: [Transaction] {
+        dayTransactions + scheduledTransactions
+    }
+
+    var dayExpenses: Decimal {
         _ = exchangeRates.count
         guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
-        let tracker = DeletedTransactionTracker.shared
 
-        return todayTransactions
-            .filter { !tracker.isDeleted($0.id) && $0.modelContext != nil && $0.transactionType == .expense }
+        return allDayTransactions
+            .filter { $0.transactionType == .expense }
             .reduce(0) { sum, transaction in
                 guard let transactionCurrency = transaction.currencyRecord else { return sum }
                 let convertedAmount = CurrencyService.shared.convert(
@@ -47,13 +60,12 @@ struct TodaySummaryWidget: View {
             }
     }
 
-    var todayIncome: Decimal {
+    var dayIncome: Decimal {
         _ = exchangeRates.count
         guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
-        let tracker = DeletedTransactionTracker.shared
 
-        return todayTransactions
-            .filter { !tracker.isDeleted($0.id) && $0.modelContext != nil && $0.transactionType == .income }
+        return allDayTransactions
+            .filter { $0.transactionType == .income }
             .reduce(0) { sum, transaction in
                 guard let transactionCurrency = transaction.currencyRecord else { return sum }
                 let convertedAmount = CurrencyService.shared.convert(
@@ -67,85 +79,160 @@ struct TodaySummaryWidget: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 12) {
+            // Header con navigazione date
             HStack {
-                Image(systemName: "calendar.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.blue)
-
-                Text("Oggi")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                Button {
+                    withAnimation {
+                        selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
+                    }
+                } label: {
+                    Image(systemName: "chevron.left.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.orange, .red],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+                .buttonStyle(.plain)
 
                 Spacer()
+
+                VStack(spacing: 2) {
+                    Text(formatDate(selectedDate))
+                        .font(.headline.bold())
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.orange, .red],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+
+                    Text("\(allDayTransactions.count) transazioni")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    withAnimation {
+                        selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
+                    }
+                } label: {
+                    Image(systemName: "chevron.right.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.orange, .red],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+                .buttonStyle(.plain)
             }
 
-            HStack(spacing: 16) {
+            // Entrate e Uscite - verticale
+            VStack(spacing: 8) {
                 // Entrate
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(.green)
-                        Text("Entrate")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text(formatAmount(todayIncome))
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                HStack {
+                    Image(systemName: "arrow.up.circle.fill")
                         .foregroundStyle(.green)
+                    Text("Entrate")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(formatAmount(dayIncome))
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(.green)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
                 .background(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 10)
                         .fill(Color.green.opacity(0.1))
                 )
 
                 // Uscite
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(.red)
-                        Text("Uscite")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text(formatAmount(todayExpenses))
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                HStack {
+                    Image(systemName: "arrow.down.circle.fill")
                         .foregroundStyle(.red)
+                    Text("Uscite")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(formatAmount(dayExpenses))
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
                 .background(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 10)
                         .fill(Color.red.opacity(0.1))
+                )
+
+                // Bilancio
+                HStack {
+                    Image(systemName: dayIncome - dayExpenses >= 0 ? "checkmark.circle.fill" : "minus.circle.fill")
+                        .foregroundStyle(dayIncome - dayExpenses >= 0 ? .green : .red)
+                    Text("Bilancio")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(formatAmount(dayIncome - dayExpenses))
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(dayIncome - dayExpenses >= 0 ? .green : .red)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(.secondarySystemGroupedBackground))
                 )
             }
 
-            // Bilancio
-            HStack {
-                Image(systemName: todayIncome - todayExpenses >= 0 ? "checkmark.circle.fill" : "minus.circle.fill")
-                    .foregroundStyle(todayIncome - todayExpenses >= 0 ? .green : .red)
+            // Previste (solo se ci sono)
+            if !scheduledTransactions.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Previste (\(scheduledTransactions.count))")
+                        .font(.caption.bold())
+                        .foregroundStyle(.orange)
 
-                Text("Bilancio")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Text(formatAmount(todayIncome - todayExpenses))
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(todayIncome - todayExpenses >= 0 ? .green : .red)
+                    ForEach(scheduledTransactions.prefix(3)) { transaction in
+                        HStack(spacing: 6) {
+                            Image(systemName: transactionIcon(for: transaction))
+                                .font(.caption2)
+                                .foregroundStyle(transactionColor(for: transaction))
+                            Text(transaction.notes.isEmpty ? transaction.category?.name ?? "Transazione" : transaction.notes)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(formatShortAmount(transaction.amount))
+                                .font(.caption2)
+                                .foregroundStyle(transactionColor(for: transaction))
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.orange.opacity(0.05))
+                )
             }
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.secondarySystemGroupedBackground))
-            )
         }
         .padding()
         .frame(maxWidth: .infinity)
@@ -156,12 +243,57 @@ struct TodaySummaryWidget: View {
         )
     }
 
+    private func formatDate(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Oggi"
+        } else if calendar.isDateInYesterday(date) {
+            return "Ieri"
+        } else if calendar.isDateInTomorrow(date) {
+            return "Domani"
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "d MMM"
+            formatter.locale = Locale(identifier: "it_IT")
+            return formatter.string(from: date)
+        }
+    }
+
+    private func transactionIcon(for transaction: Transaction) -> String {
+        switch transaction.transactionType {
+        case .expense: return "arrow.down"
+        case .income: return "arrow.up"
+        case .transfer: return "arrow.left.arrow.right"
+        case .adjustment: return "slider.horizontal.3"
+        }
+    }
+
+    private func transactionColor(for transaction: Transaction) -> Color {
+        switch transaction.transactionType {
+        case .expense: return .red
+        case .income: return .green
+        case .transfer: return .blue
+        case .adjustment: return .purple
+        }
+    }
+
     private func formatAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
+        formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 2
-        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
-        return "\(appSettings.preferredCurrencyEnum.symbol)\(amountString)"
+        formatter.groupingSeparator = "."
+        formatter.decimalSeparator = ","
+        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0"
+        return "\(preferredCurrencyRecord?.flagEmoji ?? "")\(amountString)"
+    }
+
+    private func formatShortAmount(_ amount: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 0
+        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0"
+        return amountString
     }
 }

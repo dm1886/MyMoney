@@ -134,12 +134,24 @@ struct DailyTrendWidget: View {
         VStack(spacing: 16) {
             HStack {
                 Image(systemName: "chart.xyaxis.line")
-                    .font(.title3)
-                    .foregroundStyle(.blue)
+                    .font(.title2)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.blue, .purple],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
 
                 Text("Andamento")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .font(.headline.bold())
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.blue, .purple],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
                 Spacer()
 
@@ -256,6 +268,7 @@ struct DailyTrendWidget: View {
                         }
                     }
                     .frame(height: 220)
+                    .drawingGroup() // Optimize rendering performance
                     .animation(.easeInOut(duration: 0.5), value: selectedPeriod)
                 }
             }

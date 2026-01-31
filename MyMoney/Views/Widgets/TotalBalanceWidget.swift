@@ -74,18 +74,39 @@ struct TotalBalanceWidget: View {
             HStack {
                 Image(systemName: "dollarsign.circle.fill")
                     .font(.title2)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.green, .blue],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
 
                 Text("Saldo Totale")
                     .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.green, .blue],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
                 Spacer()
             }
 
-            Text(formatAmount(totalBalance))
-                .font(.system(size: 40, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if let currencyRecord = preferredCurrencyRecord {
+                    Text(currencyRecord.flagEmoji)
+                        .font(.system(size: 32))
+                }
+
+                Text(formatAmount(totalBalance))
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+            }
 
             HStack {
                 Text("\(accounts.count) conti")
@@ -94,9 +115,11 @@ struct TotalBalanceWidget: View {
 
                 Spacer()
 
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                if let currencyRecord = preferredCurrencyRecord {
+                    Text(currencyRecord.code)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .padding()
@@ -111,9 +134,11 @@ struct TotalBalanceWidget: View {
     private func formatAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
+        formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 2
-        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
-        return "\(appSettings.preferredCurrencyEnum.symbol)\(amountString)"
+        formatter.groupingSeparator = "."
+        formatter.decimalSeparator = ","
+        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0"
+        return amountString
     }
 }

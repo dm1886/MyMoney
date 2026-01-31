@@ -66,12 +66,24 @@ struct TopCategoriesWidget: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "list.number")
-                    .font(.title3)
-                    .foregroundStyle(.blue)
+                    .font(.title2)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.yellow, .orange],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
 
                 Text("Top Categorie")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .font(.headline.bold())
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.yellow, .orange],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
                 Spacer()
 
@@ -145,7 +157,9 @@ struct TopCategoriesWidget: View {
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 0
+        formatter.groupingSeparator = "."
+        formatter.decimalSeparator = ","
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0"
-        return "\(appSettings.preferredCurrencyEnum.symbol)\(amountString)"
+        return "\(preferredCurrencyRecord?.flagEmoji ?? "")\(amountString)"
     }
 }

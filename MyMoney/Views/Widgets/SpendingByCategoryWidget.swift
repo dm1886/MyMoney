@@ -15,6 +15,14 @@ struct SpendingByCategoryWidget: View {
     @Query private var transactions: [Transaction]
     @Query private var categories: [Category]
     @Query private var allCurrencies: [CurrencyRecord]
+    @State private var selectedPeriod: SpendingPeriod = .month
+
+    enum SpendingPeriod: String, CaseIterable {
+        case today = "Oggi"
+        case yesterday = "Ieri"
+        case month = "Mese"
+        case year = "Anno"
+    }
 
     var preferredCurrencyRecord: CurrencyRecord? {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
@@ -25,21 +33,23 @@ struct SpendingByCategoryWidget: View {
 
         let calendar = Calendar.current
         let now = Date()
-        guard let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) else { return [] }
+
+        let (startDate, endDate) = getDateRange(for: selectedPeriod, calendar: calendar, now: now)
+        guard let start = startDate, let end = endDate else { return [] }
 
         let tracker = DeletedTransactionTracker.shared
-        let monthTransactions = transactions.filter { transaction in
+        let periodTransactions = transactions.filter { transaction in
             guard !tracker.isDeleted(transaction.id) else { return false }
             guard transaction.modelContext != nil else { return false }
-            return transaction.date >= startOfMonth &&
-                   transaction.date <= now &&
+            return transaction.date >= start &&
+                   transaction.date <= end &&
                    transaction.transactionType == .expense &&
                    transaction.status == .executed
         }
 
         var categoryTotals: [UUID: Decimal] = [:]
 
-        for transaction in monthTransactions {
+        for transaction in periodTransactions {
             guard let category = transaction.category,
                   let transactionCurrency = transaction.currencyRecord else { continue }
 
@@ -66,23 +76,58 @@ struct SpendingByCategoryWidget: View {
         .map { $0 }
     }
 
+    private func getDateRange(for period: SpendingPeriod, calendar: Calendar, now: Date) -> (start: Date?, end: Date?) {
+        switch period {
+        case .today:
+            let start = calendar.startOfDay(for: now)
+            return (start, now)
+        case .yesterday:
+            guard let yesterday = calendar.date(byAdding: .day, value: -1, to: now) else { return (nil, nil) }
+            let start = calendar.startOfDay(for: yesterday)
+            let end = calendar.date(byAdding: .day, value: 1, to: start)
+            return (start, end)
+        case .month:
+            guard let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) else { return (nil, nil) }
+            return (startOfMonth, now)
+        case .year:
+            guard let startOfYear = calendar.date(from: calendar.dateComponents([.year], from: now)) else { return (nil, nil) }
+            return (startOfYear, now)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "chart.pie.fill")
-                    .font(.title3)
-                    .foregroundStyle(.blue)
+                    .font(.title2)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.purple, .pink],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
 
                 Text("Spese per Categoria")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .font(.headline.bold())
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.purple, .pink],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
                 Spacer()
-
-                Text("Questo Mese")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
             }
+
+            Picker("Periodo", selection: $selectedPeriod) {
+                ForEach(SpendingPeriod.allCases, id: \.self) { period in
+                    Text(period.rawValue).tag(period)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
 
             if categorySpending.isEmpty {
                 VStack(spacing: 8) {
@@ -110,6 +155,7 @@ struct SpendingByCategoryWidget: View {
                 }
                 .frame(height: 160)
                 .chartLegend(.hidden)
+                .drawingGroup() // Optimize rendering performance
 
                 VStack(spacing: 8) {
                     ForEach(Array(categorySpending.enumerated()), id: \.offset) { index, item in
@@ -150,7 +196,9 @@ struct SpendingByCategoryWidget: View {
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 0
+        formatter.groupingSeparator = "."
+        formatter.decimalSeparator = ","
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0"
-        return "\(appSettings.preferredCurrencyEnum.symbol)\(amountString)"
+        return "\(preferredCurrencyRecord?.flagEmoji ?? "")\(amountString)"
     }
 }

@@ -15,109 +15,121 @@ struct HomeViewNew: View {
     @State private var showingAddWidget = false
     @State private var editMode: EditMode = .inactive
 
+    // Centralized queries to avoid duplicate queries in each widget
+    @Query private var transactions: [Transaction]
+    @Query private var accounts: [Account]
+    @Query private var categories: [Category]
+    @Query private var allCurrencies: [CurrencyRecord]
+    @Query private var exchangeRates: [ExchangeRate]
+    @Query private var budgets: [Budget]
+
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    // Header
-                    VStack(spacing: 8) {
-                        Text("Benvenuto in")
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
+                // Header Section
+                VStack(spacing: 8) {
+                    Text("Benvenuto in")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
 
-                        Text("MoneyTracker")
-                            .font(.system(size: 42, weight: .bold, design: .rounded))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.blue, .purple],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
+                    Text("MoneyTracker")
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.blue, .purple],
+                                startPoint: .leading,
+                                endPoint: .trailing
                             )
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
+                        )
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
 
                 // Widgets Section
-                Section {
-                    if widgetManager.widgets.isEmpty {
-                        // Empty state
-                        VStack(spacing: 20) {
-                            Image(systemName: "square.grid.3x3.fill")
-                                .font(.system(size: 60))
-                                .foregroundStyle(.secondary)
+                if widgetManager.widgets.isEmpty {
+                    // Empty state
+                    VStack(spacing: 20) {
+                        Image(systemName: "square.grid.3x3.fill")
+                            .font(.system(size: 60))
+                            .foregroundStyle(.secondary)
 
-                            Text("Personalizza la tua Home")
-                                .font(.title2.bold())
-                                .foregroundStyle(.primary)
+                        Text("Personalizza la tua Home")
+                            .font(.title2.bold())
+                            .foregroundStyle(.primary)
 
-                            Text("Aggiungi widget per vedere statistiche, grafici e informazioni importanti")
-                                .font(.body)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 40)
+                        Text("Aggiungi widget per vedere statistiche, grafici e informazioni importanti")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
 
-                            Button {
-                                showingAddWidget = true
-                            } label: {
-                                HStack {
-                                    Image(systemName: "plus.circle.fill")
-                                    Text("Aggiungi Widget")
-                                }
-                                .font(.headline)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 12)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(appSettings.accentColor)
-                                )
+                        Button {
+                            showingAddWidget = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "plus.circle.fill")
+                                Text("Aggiungi Widget")
                             }
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(appSettings.accentColor)
+                            )
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 60)
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                    } else {
-                        ForEach(widgetManager.widgets) { widget in
-                            HStack(spacing: 0) {
-                                if editMode == .active {
-                                    Button {
-                                        withAnimation {
-                                            widgetManager.removeWidget(widget)
-                                        }
-                                    } label: {
-                                        Image(systemName: "minus.circle.fill")
-                                            .font(.title2)
-                                            .foregroundStyle(.red)
-                                    }
-                                    .padding(.trailing, 8)
-                                    .transition(.scale.combined(with: .opacity))
-                                }
-
-                                widgetView(for: widget)
-                                    .opacity(editMode == .active ? 0.8 : 1.0)
-                            }
-                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                            .contextMenu {
-                                Button(role: .destructive) {
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 60)
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                } else {
+                    ForEach(widgetManager.widgets) { widget in
+                        HStack(spacing: 0) {
+                            if editMode == .active {
+                                Button {
                                     withAnimation {
                                         widgetManager.removeWidget(widget)
                                     }
                                 } label: {
-                                    Label("Rimuovi", systemImage: "trash")
+                                    Image(systemName: "minus.circle.fill")
+                                        .font(.title2)
+                                        .foregroundStyle(.red)
                                 }
+                                .padding(.trailing, 8)
+                                .transition(.scale.combined(with: .opacity))
+                            }
+
+                            widgetView(for: widget)
+                                .opacity(editMode == .active ? 0.8 : 1.0)
+                                .id(widget.id)
+                        }
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                withAnimation {
+                                    widgetManager.removeWidget(widget)
+                                }
+                            } label: {
+                                Label("Rimuovi", systemImage: "trash")
                             }
                         }
-                        .onMove { source, destination in
-                            withAnimation {
-                                widgetManager.moveWidget(from: source, to: destination)
-                            }
+                    }
+                    .onMove { source, destination in
+                        withAnimation {
+                            widgetManager.moveWidget(from: source, to: destination)
+                        }
+                    }
+                    .onDelete { indexSet in
+                        for index in indexSet {
+                            widgetManager.removeWidget(widgetManager.widgets[index])
                         }
                     }
                 }
@@ -125,18 +137,13 @@ struct HomeViewNew: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
+            .environment(\.editMode, $editMode)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     if !widgetManager.widgets.isEmpty {
-                        Button {
-                            withAnimation {
-                                editMode = editMode == .active ? .inactive : .active
-                            }
-                        } label: {
-                            Text(editMode == .active ? "Fine" : "Modifica")
-                                .foregroundStyle(appSettings.accentColor)
-                        }
+                        EditButton()
+                            .foregroundStyle(appSettings.accentColor)
                     }
                 }
 
@@ -150,7 +157,6 @@ struct HomeViewNew: View {
                     }
                 }
             }
-            .environment(\.editMode, $editMode)
             .sheet(isPresented: $showingAddWidget) {
                 AddWidgetSheet()
             }

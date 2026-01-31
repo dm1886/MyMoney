@@ -14,6 +14,8 @@ struct IncomeVsExpensesWidget: View {
     @Environment(\.appSettings) var appSettings
     @Query private var transactions: [Transaction]
     @Query private var allCurrencies: [CurrencyRecord]
+    @Query private var accounts: [Account]
+    @State private var selectedAccountId: UUID?
 
     var preferredCurrencyRecord: CurrencyRecord? {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
@@ -36,6 +38,12 @@ struct IncomeVsExpensesWidget: View {
             let monthTransactions = transactions.filter { transaction in
                 guard !tracker.isDeleted(transaction.id) else { return false }
                 guard transaction.modelContext != nil else { return false }
+
+                // Filter by account if one is selected
+                if let accountId = selectedAccountId {
+                    guard transaction.account?.id == accountId else { return false }
+                }
+
                 return transaction.date >= startOfMonth &&
                        transaction.date <= endOfMonth &&
                        transaction.status == .executed &&
@@ -76,18 +84,63 @@ struct IncomeVsExpensesWidget: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "arrow.up.arrow.down.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.blue)
+                    .font(.title2)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.green, .red],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
 
                 Text("Entrate vs Uscite")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .font(.headline.bold())
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.green, .red],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
 
                 Spacer()
 
                 Text("Ultimi 6 Mesi")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+            }
+
+            Menu {
+                Button {
+                    selectedAccountId = nil
+                } label: {
+                    Label("Tutti i Conti", systemImage: selectedAccountId == nil ? "checkmark" : "")
+                }
+
+                Divider()
+
+                ForEach(accounts) { account in
+                    Button {
+                        selectedAccountId = account.id
+                    } label: {
+                        Label(account.name, systemImage: selectedAccountId == account.id ? "checkmark" : "")
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(selectedAccountId == nil ? "Tutti i Conti" : (accounts.first(where: { $0.id == selectedAccountId })?.name ?? "Tutti"))
+                        .font(.caption)
+                        .foregroundStyle(.blue)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.blue.opacity(0.1))
+                )
             }
 
             if monthlyData.isEmpty {
@@ -125,6 +178,7 @@ struct IncomeVsExpensesWidget: View {
                 .chartYAxis {
                     AxisMarks(position: .leading)
                 }
+                .drawingGroup() // Optimize rendering performance
             }
         }
         .padding()

@@ -178,7 +178,6 @@ final class CurrencyService {
                 currencyCache[currency.code] = currency
             }
         }
-        print("✓ [CurrencyService] Cache populated with \(currencies.count) currencies")
     }
 
     /// Clear cache when data changes
@@ -246,7 +245,6 @@ final class CurrencyService {
         currency.usageCount += 1
         currency.lastUsedDate = Date()
         try? context.save()
-        print("📊 [CurrencyService] Recorded usage: \(currency.code) (count: \(currency.usageCount))")
     }
 
     // MARK: - Last Update Date
