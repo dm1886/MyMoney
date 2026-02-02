@@ -90,6 +90,8 @@ struct HomeViewNew: View {
                     .listRowSeparator(.hidden)
                 } else {
                     ForEach($widgetManager.widgets) { $widget in
+                        let widgetIndex = widgetManager.widgets.firstIndex(where: { $0.id == widget.id }) ?? 0
+
                         HStack(spacing: 0) {
                             if editMode == .active {
                                 Button {
@@ -105,15 +107,19 @@ struct HomeViewNew: View {
                                 .transition(.scale.combined(with: .opacity))
                             }
 
-                            widgetView(for: widget)
-                                .opacity(editMode == .active ? 0.8 : 1.0)
-                                .id(widget.id)
-                                .onLongPressGesture(minimumDuration: 0.5) {
-                                    withAnimation(.spring(response: 0.3)) {
-                                        editMode = .active
-                                    }
-                                    HapticManager.shared.medium() 
+                            // Wrap each widget with AsyncWidgetWrapper
+                            // Stagger loading with 50ms delay per widget
+                            AsyncWidgetWrapper(delayMilliseconds: UInt64(widgetIndex * 50)) {
+                                widgetView(for: widget)
+                            }
+                            .opacity(editMode == .active ? 0.8 : 1.0)
+                            .id(widget.id)
+                            .onLongPressGesture(minimumDuration: 0.5) {
+                                withAnimation(.spring(response: 0.3)) {
+                                    editMode = .active
                                 }
+                                HapticManager.shared.medium()
+                            }
                         }
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                         .listRowBackground(Color.clear)
