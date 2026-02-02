@@ -9,12 +9,23 @@ import SwiftUI
 import SwiftData
 import Charts
 
+// MARK: - Net Worth Period Selection
+enum NetWorthPeriod: String, CaseIterable {
+    case threeMonths = "3 Mesi"
+    case sixMonths = "6 Mesi"
+    case year = "Anno"
+}
+
 // MARK: - Net Worth Trend Widget
 struct NetWorthTrendWidget: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.appSettings) var appSettings
-    @Query private var accounts: [Account]
-    @Query private var allCurrencies: [CurrencyRecord]
+
+    // PERFORMANCE: Accept data as parameters instead of @Query
+    let accounts: [Account]
+    let allCurrencies: [CurrencyRecord]
+
+    @State private var selectedPeriod: NetWorthPeriod = .sixMonths
 
     var preferredCurrencyRecord: CurrencyRecord? {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
@@ -27,16 +38,26 @@ struct NetWorthTrendWidget: View {
         let now = Date()
         var result: [(month: String, netWorth: Decimal)] = []
 
-        for monthOffset in (0..<6).reversed() {
+        let monthCount: Int
+        switch selectedPeriod {
+        case .threeMonths:
+            monthCount = 3
+        case .sixMonths:
+            monthCount = 6
+        case .year:
+            monthCount = 12
+        }
+
+        for monthOffset in (0..<monthCount).reversed() {
             guard let monthDate = calendar.date(byAdding: .month, value: -monthOffset, to: now) else { continue }
 
             var totalNetWorth: Decimal = 0
 
             for account in accounts {
                 guard let accountCurrency = account.currencyRecord else { continue }
-                let accountBalance = calculateAccountBalance(account)
+                // Use pre-calculated currentBalance instead of recalculating
                 let converted = CurrencyService.shared.convert(
-                    amount: accountBalance,
+                    amount: account.currentBalance,
                     from: accountCurrency,
                     to: preferredCurrency,
                     context: modelContext
@@ -52,47 +73,6 @@ struct NetWorthTrendWidget: View {
         }
 
         return result
-    }
-
-    private func calculateAccountBalance(_ account: Account) -> Decimal {
-        var balance = account.initialBalance
-        let tracker = DeletedTransactionTracker.shared
-
-        if let accountTransactions = account.transactions {
-            for transaction in accountTransactions where !tracker.isDeleted(transaction.id) && transaction.modelContext != nil && transaction.status == .executed {
-                switch transaction.transactionType {
-                case .expense: balance -= transaction.amount
-                case .income: balance += transaction.amount
-                case .transfer: balance -= transaction.amount
-                case .adjustment: balance += transaction.amount
-                }
-            }
-        }
-
-        if let incoming = account.incomingTransfers {
-            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
-                // IMPORTANTE: Usa destinationAmount salvato per preservare calcoli storici
-                if let destAmount = transfer.destinationAmount {
-                    balance += destAmount
-                } else if let snapshot = transfer.exchangeRateSnapshot {
-                    // Usa snapshot del tasso se disponibile (preserva calcoli storici)
-                    let convertedAmount = transfer.amount * snapshot
-                    balance += convertedAmount
-                } else if let transferCurr = transfer.currencyRecord,
-                          let accountCurr = account.currencyRecord {
-                    // Fallback: usa tasso corrente (solo per vecchie transazioni senza snapshot)
-                    let convertedAmount = CurrencyService.shared.convert(
-                        amount: transfer.amount,
-                        from: transferCurr,
-                        to: accountCurr,
-                        context: modelContext
-                    )
-                    balance += convertedAmount
-                }
-            }
-        }
-
-        return balance
     }
 
     var body: some View {
@@ -119,10 +99,37 @@ struct NetWorthTrendWidget: View {
                     )
 
                 Spacer()
+            }
 
-                Text("Ultimi 6 Mesi")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+            // Period Selector
+            Menu {
+                ForEach(NetWorthPeriod.allCases, id: \.self) { period in
+                    Button {
+                        selectedPeriod = period
+                    } label: {
+                        HStack {
+                            Text(period.rawValue)
+                            if selectedPeriod == period {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(selectedPeriod.rawValue)
+                        .font(.caption)
+                        .foregroundStyle(.blue)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.blue.opacity(0.1))
+                )
             }
 
             if monthlyNetWorth.isEmpty {
@@ -172,12 +179,25 @@ struct NetWorthTrendWidget: View {
     }
 }
 
+// MARK: - Savings Rate Period Selection
+enum SavingsPeriod: String, CaseIterable {
+    case thisMonth = "Questo Mese"
+    case lastMonth = "Mese Scorso"
+    case threeMonths = "3 Mesi"
+    case sixMonths = "6 Mesi"
+    case year = "Anno"
+}
+
 // MARK: - Savings Rate & Daily Average Combined Widget
 struct SavingsRateWidget: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.appSettings) var appSettings
-    @Query private var transactions: [Transaction]
-    @Query private var allCurrencies: [CurrencyRecord]
+
+    // PERFORMANCE: Accept data as parameters instead of @Query
+    let transactions: [Transaction]
+    let allCurrencies: [CurrencyRecord]
+
+    @State private var selectedPeriod: SavingsPeriod = .thisMonth
 
     var preferredCurrencyRecord: CurrencyRecord? {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
@@ -188,14 +208,40 @@ struct SavingsRateWidget: View {
 
         let calendar = Calendar.current
         let now = Date()
-        guard let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) else { return (0, 0, 0, 0) }
+
+        // Calculate date range based on selected period
+        let (startDate, endDate): (Date, Date)
+
+        switch selectedPeriod {
+        case .thisMonth:
+            guard let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) else { return (0, 0, 0, 0) }
+            startDate = startOfMonth
+            endDate = now
+        case .lastMonth:
+            guard let startOfThisMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)),
+                  let startOfLastMonth = calendar.date(byAdding: .month, value: -1, to: startOfThisMonth) else { return (0, 0, 0, 0) }
+            startDate = startOfLastMonth
+            endDate = calendar.date(byAdding: .day, value: -1, to: startOfThisMonth) ?? now
+        case .threeMonths:
+            guard let threeMonthsAgo = calendar.date(byAdding: .month, value: -3, to: now) else { return (0, 0, 0, 0) }
+            startDate = threeMonthsAgo
+            endDate = now
+        case .sixMonths:
+            guard let sixMonthsAgo = calendar.date(byAdding: .month, value: -6, to: now) else { return (0, 0, 0, 0) }
+            startDate = sixMonthsAgo
+            endDate = now
+        case .year:
+            guard let oneYearAgo = calendar.date(byAdding: .year, value: -1, to: now) else { return (0, 0, 0, 0) }
+            startDate = oneYearAgo
+            endDate = now
+        }
 
         let tracker = DeletedTransactionTracker.shared
         let monthTransactions = transactions.filter { transaction in
             guard !tracker.isDeleted(transaction.id) else { return false }
             guard transaction.modelContext != nil else { return false }
-            return transaction.date >= startOfMonth &&
-                   transaction.date <= now &&
+            return transaction.date >= startDate &&
+                   transaction.date <= endDate &&
                    transaction.status == .executed
         }
 
@@ -228,9 +274,10 @@ struct SavingsRateWidget: View {
             savingsRate = 0
         }
 
-        // Calculate daily average
-        let dayOfMonth = calendar.component(.day, from: now)
-        let dailyAverage = dayOfMonth > 0 ? expenses / Decimal(dayOfMonth) : 0
+        // Calculate daily average based on period length
+        let daysDifference = calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 1
+        let numberOfDays = max(daysDifference, 1)
+        let dailyAverage = expenses / Decimal(numberOfDays)
 
         return (savingsRate, dailyAverage, income, expenses)
     }
@@ -259,10 +306,37 @@ struct SavingsRateWidget: View {
                     )
 
                 Spacer()
+            }
 
-                Text("Questo Mese")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+            // Period Selector
+            Menu {
+                ForEach(SavingsPeriod.allCases, id: \.self) { period in
+                    Button {
+                        selectedPeriod = period
+                    } label: {
+                        HStack {
+                            Text(period.rawValue)
+                            if selectedPeriod == period {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(selectedPeriod.rawValue)
+                        .font(.caption)
+                        .foregroundStyle(.blue)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.blue.opacity(0.1))
+                )
             }
 
             // Savings Rate & Daily Average Side by Side
@@ -326,21 +400,20 @@ struct SavingsRateWidget: View {
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 0
-        formatter.maximumFractionDigits = 2
-        formatter.groupingSeparator = "."
-        formatter.decimalSeparator = ","
-        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0"
-        return "\(preferredCurrencyRecord?.flagEmoji ?? "")\(amountString)"
+        let symbol = preferredCurrencyRecord?.displaySymbol ?? "$"
+        let flag = preferredCurrencyRecord?.flagEmoji ?? ""
+        return "\(symbol)\(FormatterCache.formatCurrency(amount)) \(flag)"
     }
 }
 
 // MARK: - Daily Average Widget (Legacy - kept for backwards compatibility)
 struct DailyAverageWidget: View {
+    // PERFORMANCE: Accept data as parameters to pass to SavingsRateWidget
+    let transactions: [Transaction]
+    let allCurrencies: [CurrencyRecord]
+
     var body: some View {
-        SavingsRateWidget()
+        SavingsRateWidget(transactions: transactions, allCurrencies: allCurrencies)
     }
 }
 
@@ -348,8 +421,10 @@ struct DailyAverageWidget: View {
 struct MonthlyComparisonWidget: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.appSettings) var appSettings
-    @Query private var transactions: [Transaction]
-    @Query private var allCurrencies: [CurrencyRecord]
+
+    // PERFORMANCE: Accept data as parameters instead of @Query
+    let transactions: [Transaction]
+    let allCurrencies: [CurrencyRecord]
 
     var preferredCurrencyRecord: CurrencyRecord? {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
@@ -542,7 +617,9 @@ struct MonthlyComparisonWidget: View {
         formatter.groupingSeparator = "."
         formatter.decimalSeparator = ","
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0"
-        return "\(preferredCurrencyRecord?.flagEmoji ?? "")\(amountString)"
+        let symbol = preferredCurrencyRecord?.displaySymbol ?? "$"
+        let flag = preferredCurrencyRecord?.flagEmoji ?? ""
+        return "\(symbol)\(amountString) \(flag)"
     }
 }
 
@@ -550,56 +627,23 @@ struct MonthlyComparisonWidget: View {
 struct AccountBalancesWidget: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.appSettings) var appSettings
-    @Query private var accounts: [Account]
-    @Query private var allCurrencies: [CurrencyRecord]
+
+    // PERFORMANCE: Accept data as parameters instead of @Query
+    let accounts: [Account]
+    let allCurrencies: [CurrencyRecord]
 
     var preferredCurrencyRecord: CurrencyRecord? {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
     }
 
-    var sortedAccounts: [Account] {
-        accounts.sorted { calculateAccountBalance($0) > calculateAccountBalance($1) }
-    }
-
-    private func calculateAccountBalance(_ account: Account) -> Decimal {
-        var balance = account.initialBalance
-        let tracker = DeletedTransactionTracker.shared
-
-        if let accountTransactions = account.transactions {
-            for transaction in accountTransactions where !tracker.isDeleted(transaction.id) && transaction.modelContext != nil && transaction.status == .executed {
-                switch transaction.transactionType {
-                case .expense: balance -= transaction.amount
-                case .income: balance += transaction.amount
-                case .transfer: balance -= transaction.amount
-                case .adjustment: balance += transaction.amount
-                }
-            }
+    // Raggruppa conti per tipologia
+    var accountsByType: [(type: AccountType, accounts: [Account])] {
+        let grouped = Dictionary(grouping: accounts, by: { $0.accountType })
+        return AccountType.allCases.compactMap { type in
+            guard let accountsForType = grouped[type], !accountsForType.isEmpty else { return nil }
+            let sorted = accountsForType.sorted { $0.currentBalance > $1.currentBalance }
+            return (type: type, accounts: sorted)
         }
-
-        if let incoming = account.incomingTransfers {
-            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
-                // IMPORTANTE: Usa destinationAmount salvato per preservare calcoli storici
-                if let destAmount = transfer.destinationAmount {
-                    balance += destAmount
-                } else if let snapshot = transfer.exchangeRateSnapshot {
-                    // Usa snapshot del tasso se disponibile (preserva calcoli storici)
-                    let convertedAmount = transfer.amount * snapshot
-                    balance += convertedAmount
-                } else if let transferCurr = transfer.currencyRecord,
-                          let accountCurr = account.currencyRecord {
-                    // Fallback: usa tasso corrente (solo per vecchie transazioni senza snapshot)
-                    let convertedAmount = CurrencyService.shared.convert(
-                        amount: transfer.amount,
-                        from: transferCurr,
-                        to: accountCurr,
-                        context: modelContext
-                    )
-                    balance += convertedAmount
-                }
-            }
-        }
-
-        return balance
     }
 
     var body: some View {
@@ -628,36 +672,61 @@ struct AccountBalancesWidget: View {
                 Spacer()
             }
 
-            if sortedAccounts.isEmpty {
+            if accounts.isEmpty {
                 Text("Nessun conto")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
             } else {
-                VStack(spacing: 10) {
-                    ForEach(sortedAccounts) { account in
-                        HStack {
-                            ZStack {
-                                Circle()
-                                    .fill(account.color.opacity(0.15))
-                                    .frame(width: 32, height: 32)
-
-                                Image(systemName: account.icon)
+                VStack(spacing: 16) {
+                    ForEach(accountsByType, id: \.type) { typeGroup in
+                        VStack(alignment: .leading, spacing: 8) {
+                            // Header tipologia
+                            HStack(spacing: 6) {
+                                Image(systemName: typeGroup.type.icon)
                                     .font(.caption)
-                                    .foregroundStyle(account.color)
+                                    .foregroundStyle(.secondary)
+                                Text(typeGroup.type.rawValue)
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+                                    .textCase(.uppercase)
                             }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color(.secondarySystemGroupedBackground))
+                            )
 
-                            Text(account.name)
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
+                            // Conti della tipologia
+                            VStack(spacing: 8) {
+                                ForEach(typeGroup.accounts) { account in
+                                    HStack {
+                                        ZStack {
+                                            Circle()
+                                                .fill(account.color.opacity(0.15))
+                                                .frame(width: 32, height: 32)
 
-                            Spacer()
+                                            Image(systemName: account.icon)
+                                                .font(.caption)
+                                                .foregroundStyle(account.color)
+                                        }
 
-                            Text(formatAmount(calculateAccountBalance(account), currency: account.currency))
-                                .font(.body.bold())
-                                .foregroundStyle(.primary)
+                                        Text(account.name)
+                                            .font(.body)
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+
+                                        Spacer()
+
+                                        Text(formatAmount(account.currentBalance, currency: account.currency))
+                                            .font(.body.bold())
+                                            .foregroundStyle(account.currentBalance < 0 ? .red : .primary)
+                                    }
+                                }
+                            }
+                            .padding(.leading, 8)
                         }
                     }
                 }
@@ -681,19 +750,23 @@ struct AccountBalancesWidget: View {
         formatter.decimalSeparator = ","
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0"
 
-        // Get flag emoji for the currency
+        // Get symbol and flag emoji for the currency
         if let currencyRecord = allCurrencies.first(where: { $0.code == currency.rawValue }) {
-            return "\(currencyRecord.flagEmoji)\(amountString)"
+            return "\(currencyRecord.displaySymbol)\(amountString) \(currencyRecord.flagEmoji)"
         }
-        return "\(currency.flag)\(amountString)"
+        // Fallback: use $ only for USD
+        let fallbackSymbol = currency.rawValue == "USD" ? "$" : currency.rawValue
+        return "\(fallbackSymbol)\(amountString) \(currency.flag)"
     }
 }
 
 // MARK: - Recent Transactions Widget
 struct RecentTransactionsWidget: View {
     @Environment(\.appSettings) var appSettings
-    @Query(sort: \Transaction.date, order: .reverse) private var transactions: [Transaction]
-    @Query private var allCurrencies: [CurrencyRecord]
+
+    // PERFORMANCE: Accept data as parameters instead of @Query
+    let transactions: [Transaction]
+    let allCurrencies: [CurrencyRecord]
 
     var preferredCurrencyRecord: CurrencyRecord? {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
@@ -845,26 +918,27 @@ struct RecentTransactionsWidget: View {
 
         let sign = transaction.transactionType == .expense ? "-" : "+"
 
-        // Get flag emoji for the currency
+        // Get symbol and flag emoji for the currency
         if let currencyRecord = allCurrencies.first(where: { $0.code == transaction.currency.rawValue }) {
-            return "\(sign)\(currencyRecord.flagEmoji)\(amountString)"
+            return "\(sign)\(currencyRecord.displaySymbol)\(amountString) \(currencyRecord.flagEmoji)"
         }
-        return "\(sign)\(transaction.currency.flag)\(amountString)"
+        // Fallback: use $ only for USD
+        let fallbackSymbol = transaction.currency.rawValue == "USD" ? "$" : transaction.currency.rawValue
+        return "\(sign)\(fallbackSymbol)\(amountString) \(transaction.currency.flag)"
     }
 
     private func formatDateShort(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "it_IT")
-        formatter.dateStyle = .short
-        return formatter.string(from: date)
+        return FormatterCache.italianDateShort.string(from: date)
     }
 }
 
 // MARK: - Upcoming Bills Widget
 struct UpcomingBillsWidget: View {
     @Environment(\.appSettings) var appSettings
-    @Query private var transactions: [Transaction]
-    @Query private var allCurrencies: [CurrencyRecord]
+
+    // PERFORMANCE: Accept data as parameters instead of @Query
+    let transactions: [Transaction]
+    let allCurrencies: [CurrencyRecord]
 
     var preferredCurrencyRecord: CurrencyRecord? {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
@@ -1046,17 +1120,16 @@ struct UpcomingBillsWidget: View {
         formatter.decimalSeparator = ","
         let amountString = formatter.string(from: transaction.amount as NSDecimalNumber) ?? "0"
 
-        // Get flag emoji for the currency
+        // Get symbol and flag emoji for the currency
         if let currencyRecord = allCurrencies.first(where: { $0.code == transaction.currency.rawValue }) {
-            return "\(currencyRecord.flagEmoji)\(amountString)"
+            return "\(currencyRecord.displaySymbol)\(amountString) \(currencyRecord.flagEmoji)"
         }
-        return "\(transaction.currency.flag)\(amountString)"
+        // Fallback: use $ only for USD
+        let fallbackSymbol = transaction.currency.rawValue == "USD" ? "$" : transaction.currency.rawValue
+        return "\(fallbackSymbol)\(amountString) \(transaction.currency.flag)"
     }
 
     private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "it_IT")
-        formatter.dateStyle = .medium
-        return formatter.string(from: date)
+        return FormatterCache.italianDate.string(from: date)
     }
 }

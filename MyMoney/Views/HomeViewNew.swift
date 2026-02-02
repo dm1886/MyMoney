@@ -11,7 +11,7 @@ import SwiftData
 struct HomeViewNew: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.appSettings) var appSettings
-    @State private var widgetManager = WidgetManager.shared
+    @Bindable var widgetManager = WidgetManager.shared
     @State private var showingAddWidget = false
     @State private var editMode: EditMode = .inactive
 
@@ -89,7 +89,7 @@ struct HomeViewNew: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                 } else {
-                    ForEach(widgetManager.widgets) { widget in
+                    ForEach($widgetManager.widgets) { $widget in
                         HStack(spacing: 0) {
                             if editMode == .active {
                                 Button {
@@ -108,6 +108,12 @@ struct HomeViewNew: View {
                             widgetView(for: widget)
                                 .opacity(editMode == .active ? 0.8 : 1.0)
                                 .id(widget.id)
+                                .onLongPressGesture(minimumDuration: 0.5) {
+                                    withAnimation(.spring(response: 0.3)) {
+                                        editMode = .active
+                                    }
+                                    HapticManager.shared.medium() 
+                                }
                         }
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                         .listRowBackground(Color.clear)
@@ -140,20 +146,24 @@ struct HomeViewNew: View {
             .environment(\.editMode, $editMode)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    if !widgetManager.widgets.isEmpty {
-                        EditButton()
-                            .foregroundStyle(appSettings.accentColor)
-                    }
-                }
-
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showingAddWidget = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(appSettings.accentColor)
+                    if editMode == .active {
+                        Button("Fine") {
+                            withAnimation {
+                                editMode = .inactive
+                            }
+                            HapticManager.shared.success()
+                        }
+                        .foregroundStyle(appSettings.accentColor)
+                        .fontWeight(.semibold)
+                    } else {
+                        Button {
+                            showingAddWidget = true
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(appSettings.accentColor)
+                        }
                     }
                 }
             }
@@ -167,35 +177,35 @@ struct HomeViewNew: View {
     private func widgetView(for widget: WidgetModel) -> some View {
         switch widget.type {
         case .totalBalance:
-            TotalBalanceWidget()
+            TotalBalanceWidget(accounts: accounts, allCurrencies: allCurrencies)
         case .todaySummary:
-            TodaySummaryWidget()
+            TodaySummaryWidget(transactions: transactions, allCurrencies: allCurrencies)
         case .budgetProgress:
-            BudgetProgressWidget()
+            BudgetProgressWidget(budgets: budgets, transactions: transactions, allCurrencies: allCurrencies)
         case .spendingByCategory:
-            SpendingByCategoryWidget()
+            SpendingByCategoryWidget(transactions: transactions, categories: categories, allCurrencies: allCurrencies)
         case .quickStats:
-            QuickStatsWidget()
+            QuickStatsWidget(accounts: accounts, transactions: transactions)
         case .incomeVsExpenses:
-            IncomeVsExpensesWidget()
+            IncomeVsExpensesWidget(transactions: transactions, allCurrencies: allCurrencies, accounts: accounts)
         case .netWorthTrend:
-            NetWorthTrendWidget()
+            NetWorthTrendWidget(accounts: accounts, allCurrencies: allCurrencies)
         case .topCategories:
-            TopCategoriesWidget()
+            TopCategoriesWidget(transactions: transactions, categories: categories, allCurrencies: allCurrencies)
         case .savingsRate:
-            SavingsRateWidget()
+            SavingsRateWidget(transactions: transactions, allCurrencies: allCurrencies)
         case .dailyAverage:
-            DailyAverageWidget()
+            DailyAverageWidget(transactions: transactions, allCurrencies: allCurrencies)
         case .monthlyComparison:
-            MonthlyComparisonWidget()
+            MonthlyComparisonWidget(transactions: transactions, allCurrencies: allCurrencies)
         case .accountBalances:
-            AccountBalancesWidget()
+            AccountBalancesWidget(accounts: accounts, allCurrencies: allCurrencies)
         case .recentTransactions:
-            RecentTransactionsWidget()
+            RecentTransactionsWidget(transactions: transactions, allCurrencies: allCurrencies)
         case .upcomingBills:
-            UpcomingBillsWidget()
+            UpcomingBillsWidget(transactions: transactions, allCurrencies: allCurrencies)
         case .dailyTrend:
-            DailyTrendWidget()
+            DailyTrendWidget(transactions: transactions, allCurrencies: allCurrencies)
         }
     }
 }

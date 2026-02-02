@@ -12,9 +12,12 @@ import Charts
 struct SpendingByCategoryWidget: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.appSettings) var appSettings
-    @Query private var transactions: [Transaction]
-    @Query private var categories: [Category]
-    @Query private var allCurrencies: [CurrencyRecord]
+
+    // PERFORMANCE: Accept data as parameters instead of @Query
+    let transactions: [Transaction]
+    let categories: [Category]
+    let allCurrencies: [CurrencyRecord]
+
     @State private var selectedPeriod: SpendingPeriod = .month
 
     enum SpendingPeriod: String, CaseIterable {
@@ -192,13 +195,8 @@ struct SpendingByCategoryWidget: View {
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 0
-        formatter.maximumFractionDigits = 0
-        formatter.groupingSeparator = "."
-        formatter.decimalSeparator = ","
-        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0"
-        return "\(preferredCurrencyRecord?.flagEmoji ?? "")\(amountString)"
+        let symbol = preferredCurrencyRecord?.displaySymbol ?? "$"
+        let flag = preferredCurrencyRecord?.flagEmoji ?? ""
+        return "\(symbol)\(FormatterCache.formatCurrency(amount)) \(flag)"
     }
 }

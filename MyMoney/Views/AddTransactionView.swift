@@ -935,44 +935,44 @@ struct AddTransactionView: View {
             category.recordUsage()
         }
 
-        // Update balance only for executed transactions
-        // NOTA: Questo deve avvenire DOPO save() per assicurare che le relazioni siano stabilite
-        if transaction.status == .executed {
-            account.updateBalance(context: modelContext)
+        // Haptic feedback for successful transaction save (immediate feedback)
+        HapticManager.shared.transactionSaved()
 
-            if let destinationAccount = selectedDestinationAccount {
-                destinationAccount.updateBalance(context: modelContext)
+        // Dismiss UI immediately for better UX (don't make user wait)
+        dismiss()
+
+        // ⚡️ PERFORMANCE: Do heavy operations asynchronously after dismiss
+        Task { @MainActor in
+            // Update balance only for executed transactions
+            // NOTA: Questo deve avvenire DOPO save() per assicurare che le relazioni siano stabilite
+            if transaction.status == .executed {
+                account.updateBalance(context: modelContext)
+
+                if let destinationAccount = selectedDestinationAccount {
+                    destinationAccount.updateBalance(context: modelContext)
+                }
+
+                // Salva di nuovo dopo l'aggiornamento dei bilanci
+                try? modelContext.save()
             }
 
-            // Salva di nuovo dopo l'aggiornamento dei bilanci
-            try? modelContext.save()
-        }
-
-        // Generate recurring instances if this is a recurring template
-        if isRecurring && isScheduled {
-            Task {
+            // Generate recurring instances if this is a recurring template
+            if isRecurring && isScheduled {
                 await RecurringTransactionManager.shared.generateInstances(
                     for: transaction,
                     monthsAhead: 12,
                     modelContext: modelContext
                 )
-            }
-        } else if isScheduled {
-            // Schedule local notification for single scheduled transactions
-            Task {
+            } else if isScheduled {
+                // Schedule local notification for single scheduled transactions
                 await LocalNotificationManager.shared.scheduleNotification(for: transaction)
             }
+
+            LogManager.shared.success("Transaction created successfully", category: "Transaction")
+
+            // Notify TodayView to refresh its transaction list
+            NotificationCenter.default.post(name: .transactionsDidChange, object: nil)
         }
-
-        LogManager.shared.success("Transaction created successfully", category: "Transaction")
-
-        // Haptic feedback for successful transaction save
-        HapticManager.shared.transactionSaved()
-
-        // Notify TodayView to refresh its transaction list
-        NotificationCenter.default.post(name: .transactionsDidChange, object: nil)
-
-        dismiss()
     }
 
     private func formatDecimal(_ amount: Decimal) -> String {

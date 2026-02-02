@@ -30,6 +30,8 @@ struct BackupView: View {
     @State private var showingAlert = false
     @State private var isExporting = false
     @State private var isImporting = false
+    @State private var selectedExportOption: BackupExportOption = .full
+    @State private var showingExportOptions = false
 
     var body: some View {
         List {
@@ -71,6 +73,26 @@ struct BackupView: View {
 
             // MARK: - Backup Section
             Section {
+                // Selezione opzione export
+                Picker("Cosa Esportare", selection: $selectedExportOption) {
+                    ForEach(BackupExportOption.allCases) { option in
+                        HStack {
+                            Image(systemName: option.icon)
+                            Text(option.rawValue)
+                        }
+                        .tag(option)
+                    }
+                }
+
+                // Descrizione opzione selezionata
+                HStack {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.blue)
+                    Text(selectedExportOption.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 // Export Backup
                 Button {
                     exportBackup()
@@ -81,7 +103,7 @@ struct BackupView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Esporta Backup")
                                 .foregroundStyle(.primary)
-                            Text("Salva tutti i dati in un file")
+                            Text("Salva i dati selezionati in un file")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -120,8 +142,25 @@ struct BackupView: View {
             } header: {
                 Text("Gestione Backup")
             } footer: {
-                Text("⚠️ L'importazione sostituirà TUTTI i dati esistenti")
-                    .foregroundStyle(.red)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("💡 Scegli cosa esportare:")
+                        .font(.caption.bold())
+                        .foregroundStyle(.blue)
+
+                    Text("• Solo Conti: Esporta la struttura dei conti senza transazioni")
+                        .font(.caption)
+
+                    Text("• Conti + Transazioni: Include tutte le transazioni (normali, ricorrenti, programmate)")
+                        .font(.caption)
+
+                    Text("• Backup Completo: Tutto incluso (categorie, valute, tassi, impostazioni)")
+                        .font(.caption)
+
+                    Text("⚠️ L'importazione sostituirà TUTTI i dati esistenti")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .padding(.top, 4)
+                }
             }
 
             // MARK: - Info Section
@@ -168,7 +207,7 @@ struct BackupView: View {
             isPresented: $showingExportPicker,
             document: BackupDocument(data: exportFileURL.flatMap { try? Data(contentsOf: $0) } ?? Data()),
             contentType: .json,
-            defaultFilename: BackupManager.shared.getBackupFileName()
+            defaultFilename: BackupManager.shared.getBackupFileName(option: selectedExportOption)
         ) { result in
             handleExportResult(result)
         }
@@ -205,7 +244,8 @@ struct BackupView: View {
                     categories: categories,
                     categoryGroups: categoryGroups,
                     currencyRecords: currencyRecords,
-                    exchangeRates: exchangeRates
+                    exchangeRates: exchangeRates,
+                    option: selectedExportOption
                 )
 
                 // Salva temporaneamente

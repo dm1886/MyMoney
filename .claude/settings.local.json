@@ -5,7 +5,8 @@
       "Bash(xcodebuild:*)",
       "Bash(open:*)",
       "Bash(git add:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(grep:*)"
     ]
   }
 }

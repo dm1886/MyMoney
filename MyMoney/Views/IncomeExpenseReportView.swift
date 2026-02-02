@@ -46,6 +46,7 @@ struct IncomeExpenseReportView: View {
     @Environment(\.appSettings) var appSettings
     @Query private var transactions: [Transaction]
     @Query private var accounts: [Account]
+    @Query private var allCurrencies: [CurrencyRecord]
 
     @State private var selectedPeriod: TimePeriod = .thisMonth
     @State private var selectedAccounts: Set<UUID> = []
@@ -56,6 +57,10 @@ struct IncomeExpenseReportView: View {
     // Custom date range
     @State private var customStartDate = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     @State private var customEndDate = Date()
+
+    var preferredCurrencyRecord: CurrencyRecord? {
+        allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
+    }
 
     var dateRange: (start: Date, end: Date) {
         let calendar = Calendar.current
@@ -169,18 +174,58 @@ struct IncomeExpenseReportView: View {
     }
 
     var totalIncome: Decimal {
-        let total = filteredTransactions
-            .filter { $0.transactionType == .income }
-            .reduce(0) { $0 + $1.amount }
-        print("   💰 TOTAL INCOME CALCOLATO: \(total)")
+        guard let preferredCurrency = preferredCurrencyRecord else {
+            let total = filteredTransactions
+                .filter { $0.transactionType == .income }
+                .reduce(0) { $0 + $1.amount }
+            print("   💰 TOTAL INCOME CALCOLATO (no conversion): \(total)")
+            return total
+        }
+
+        var total: Decimal = 0
+
+        for transaction in filteredTransactions where transaction.transactionType == .income {
+            guard let transactionCurrency = transaction.currencyRecord else { continue }
+
+            let converted = CurrencyService.shared.convert(
+                amount: transaction.amount,
+                from: transactionCurrency,
+                to: preferredCurrency,
+                context: modelContext
+            )
+
+            total += converted
+        }
+
+        print("   💰 TOTAL INCOME CALCOLATO (with conversion): \(total)")
         return total
     }
 
     var totalExpense: Decimal {
-        let total = filteredTransactions
-            .filter { $0.transactionType == .expense }
-            .reduce(0) { $0 + $1.amount }
-        print("   💸 TOTAL EXPENSE CALCOLATO: \(total)")
+        guard let preferredCurrency = preferredCurrencyRecord else {
+            let total = filteredTransactions
+                .filter { $0.transactionType == .expense }
+                .reduce(0) { $0 + $1.amount }
+            print("   💸 TOTAL EXPENSE CALCOLATO (no conversion): \(total)")
+            return total
+        }
+
+        var total: Decimal = 0
+
+        for transaction in filteredTransactions where transaction.transactionType == .expense {
+            guard let transactionCurrency = transaction.currencyRecord else { continue }
+
+            let converted = CurrencyService.shared.convert(
+                amount: transaction.amount,
+                from: transactionCurrency,
+                to: preferredCurrency,
+                context: modelContext
+            )
+
+            total += converted
+        }
+
+        print("   💸 TOTAL EXPENSE CALCOLATO (with conversion): \(total)")
         return total
     }
 
@@ -620,12 +665,9 @@ struct IncomeExpenseReportView: View {
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
-        return "\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
+        let symbol = preferredCurrencyRecord?.displaySymbol ?? "$"
+        let flag = preferredCurrencyRecord?.flagEmoji ?? ""
+        return "\(symbol)\(FormatterCache.formatCurrency(amount)) \(flag)"
     }
 
     private func formatPercentage(_ amount: Decimal, of total: Decimal) -> String {
@@ -676,11 +718,18 @@ struct PeriodButton: View {
 // MARK: - Income Expense Summary Card
 
 struct IncomeExpenseSummaryCard: View {
+    @Environment(\.appSettings) var appSettings
+    @Query private var allCurrencies: [CurrencyRecord]
+
     let title: String
     let amount: Decimal
     let color: Color
     let icon: String
     let currency: String
+
+    var preferredCurrencyRecord: CurrencyRecord? {
+        allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -717,12 +766,9 @@ struct IncomeExpenseSummaryCard: View {
     }
 
     private func formatAmount(_ amount: Decimal, currency: String) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
-        return "\(currency) \(amountString)"
+        let symbol = preferredCurrencyRecord?.displaySymbol ?? "$"
+        let flag = preferredCurrencyRecord?.flagEmoji ?? ""
+        return "\(symbol)\(FormatterCache.formatCurrency(amount)) \(flag)"
     }
 }
 
@@ -731,6 +777,7 @@ struct IncomeExpenseSummaryCard: View {
 struct AccountFilterSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appSettings) var appSettings
+    @Query private var allCurrencies: [CurrencyRecord]
 
     let accounts: [Account]
     @Binding var selectedAccounts: Set<UUID>
@@ -861,12 +908,10 @@ struct AccountFilterSheet: View {
     }
 
     private func formatAmount(_ amount: Decimal, currency: String) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
-        return "\(currency) \(amountString)"
+        let currencyRecord = allCurrencies.first { $0.code == currency }
+        let symbol = currencyRecord?.displaySymbol ?? (currency == "USD" ? "$" : currency)
+        let flag = currencyRecord?.flagEmoji ?? ""
+        return "\(symbol)\(FormatterCache.formatCurrency(amount)) \(flag)"
     }
 }
 

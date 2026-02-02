@@ -11,8 +11,24 @@ import SwiftData
 struct BudgetProgressWidget: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.appSettings) var appSettings
-    @Query private var budgets: [Budget]
-    @Query private var transactions: [Transaction]
+
+    // PERFORMANCE: Accept data as parameters instead of @Query
+    let budgets: [Budget]
+    let transactions: [Transaction]
+    let allCurrencies: [CurrencyRecord]
+
+    // Ordina i budget dal più vicino al massimo (percentuale più alta)
+    private var sortedBudgets: [Budget] {
+        budgets.sorted { budget1, budget2 in
+            let spent1 = budget1.spent(transactions: transactions, context: modelContext)
+            let spent2 = budget2.spent(transactions: transactions, context: modelContext)
+
+            let progress1 = budget1.amount > 0 ? Double(truncating: spent1 as NSDecimalNumber) / Double(truncating: budget1.amount as NSDecimalNumber) : 0
+            let progress2 = budget2.amount > 0 ? Double(truncating: spent2 as NSDecimalNumber) / Double(truncating: budget2.amount as NSDecimalNumber) : 0
+
+            return progress1 > progress2  // Più alto per primo
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -77,15 +93,15 @@ struct BudgetProgressWidget: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 20)
             } else {
-                let columns = [
-                    GridItem(.flexible(), spacing: 12),
-                    GridItem(.flexible(), spacing: 12)
-                ]
-
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(budgets.prefix(4)) { budget in
-                        BudgetProgressCard(budget: budget)
+                // ScrollView orizzontale con budget ordinati per percentuale
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(sortedBudgets) { budget in
+                            BudgetProgressCard(budget: budget, transactions: transactions, allCurrencies: allCurrencies)
+                                .frame(width: 100)
+                        }
                     }
+                    .padding(.horizontal, 4)
                 }
             }
         }
@@ -101,9 +117,10 @@ struct BudgetProgressWidget: View {
 
 struct BudgetProgressCard: View {
     let budget: Budget
+    let transactions: [Transaction]
+    let allCurrencies: [CurrencyRecord]
     @Environment(\.modelContext) private var modelContext
     @Environment(\.appSettings) var appSettings
-    @Query private var transactions: [Transaction]
 
     var spentAmount: Decimal {
         budget.spent(transactions: transactions, context: modelContext)
@@ -121,69 +138,55 @@ struct BudgetProgressCard: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            // Circular Progress
-            ZStack {
-                // Background Circle
-                Circle()
-                    .stroke(Color.gray.opacity(0.2), lineWidth: 12)
-                    .frame(width: 110, height: 110)
+        // Circular Progress - Compatto
+        ZStack {
+            // Background Circle
+            Circle()
+                .stroke(Color.gray.opacity(0.2), lineWidth: 8)
+                .frame(width: 90, height: 90)
 
-                // Progress Circle
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(
-                        progressColor,
-                        style: StrokeStyle(lineWidth: 12, lineCap: .round)
-                    )
-                    .frame(width: 110, height: 110)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.spring(response: 0.8, dampingFraction: 0.7), value: progress)
+            // Progress Circle
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(
+                    progressColor,
+                    style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                )
+                .frame(width: 90, height: 90)
+                .rotationEffect(.degrees(-90))
+                .animation(.spring(response: 0.8, dampingFraction: 0.7), value: progress)
 
-                // Center Content
-                VStack(spacing: 2) {
-                    if let icon = budget.category?.icon {
-                        Image(systemName: icon)
-                            .font(.system(size: 24))
-                            .foregroundStyle(budget.category?.color ?? .blue)
-                    }
-
-                    Text("\(Int(progress * 100))%")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundStyle(progressColor)
+            // Center Content - Solo icona, percentuale e nome
+            VStack(spacing: 1) {
+                if let icon = budget.category?.icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 18))
+                        .foregroundStyle(budget.category?.color ?? .blue)
                 }
-            }
 
-            // Budget Info
-            VStack(spacing: 4) {
-                Text(budget.category?.name ?? "Categoria")
-                    .font(.caption.bold())
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                Text(formatAmount(spentAmount))
-                    .font(.caption)
+                Text("\(Int(progress * 100))%")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundStyle(progressColor)
 
-                Text("di \(formatAmount(budget.amount))")
-                    .font(.caption2)
+                Text(budget.category?.name ?? "Budget")
+                    .font(.system(size: 8, weight: .medium))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 70)
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity)
+        .padding(8)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.secondarySystemGroupedBackground))
         )
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 0
-        formatter.maximumFractionDigits = 0
-        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0"
-        return "\(appSettings.preferredCurrencyEnum.symbol)\(amountString)"
+        let currencyRecord = allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
+        let symbol = currencyRecord?.displaySymbol ?? "$"
+        let flag = currencyRecord?.flagEmoji ?? ""
+        return "\(symbol)\(FormatterCache.formatCurrency(amount)) \(flag)"
     }
 }

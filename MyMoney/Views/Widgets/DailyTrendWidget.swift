@@ -18,9 +18,11 @@ enum TrendPeriod: String, CaseIterable {
 struct DailyTrendWidget: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.appSettings) var appSettings
-    @Query private var transactions: [Transaction]
-    @Query private var allCurrencies: [CurrencyRecord]
-    @Query private var exchangeRates: [ExchangeRate]
+
+    // PERFORMANCE: Accept data as parameters instead of @Query
+    let transactions: [Transaction]
+    let allCurrencies: [CurrencyRecord]
+
     @State private var selectedPeriod: TrendPeriod = .month
 
     var preferredCurrencyRecord: CurrencyRecord? {
@@ -34,8 +36,15 @@ struct DailyTrendWidget: View {
         let income: Double
     }
 
+    var totalExpenses: Double {
+        dailyData.reduce(0) { $0 + $1.expenses }
+    }
+
+    var totalIncome: Double {
+        dailyData.reduce(0) { $0 + $1.income }
+    }
+
     var dailyData: [DailyData] {
-        _ = exchangeRates.count
         guard let preferredCurrency = preferredCurrencyRecord else { return [] }
 
         let calendar = Calendar.current
@@ -182,70 +191,125 @@ struct DailyTrendWidget: View {
                     HStack(spacing: 20) {
                         HStack(spacing: 6) {
                             Circle()
-                                .fill(Color.red)
-                                .frame(width: 8, height: 8)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.red, .orange],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: 10, height: 10)
                             Text("Spese")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.caption.bold())
+                                .foregroundStyle(.red)
                         }
 
                         HStack(spacing: 6) {
                             Circle()
-                                .fill(Color.green)
-                                .frame(width: 8, height: 8)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.blue, .cyan],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: 10, height: 10)
                             Text("Entrate")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.caption.bold())
+                                .foregroundStyle(.blue)
                         }
                     }
 
                     Chart {
                         ForEach(dailyData) { data in
-                            // Expenses Line
-                            LineMark(
-                                x: .value("Data", data.date),
-                                y: .value("Spese", data.expenses)
-                            )
-                            .foregroundStyle(Color.red)
-                            .lineStyle(StrokeStyle(lineWidth: 2.5))
-                            .interpolationMethod(.catmullRom)
-
+                            // Expenses Area + Line
                             AreaMark(
                                 x: .value("Data", data.date),
                                 y: .value("Spese", data.expenses)
                             )
                             .foregroundStyle(
                                 LinearGradient(
-                                    colors: [Color.red.opacity(0.25), Color.red.opacity(0.0)],
+                                    colors: [Color.red.opacity(0.3), Color.red.opacity(0.0)],
                                     startPoint: .top,
                                     endPoint: .bottom
                                 )
                             )
                             .interpolationMethod(.catmullRom)
 
-                            // Income Line
                             LineMark(
                                 x: .value("Data", data.date),
-                                y: .value("Entrate", data.income)
+                                y: .value("Spese", data.expenses)
                             )
-                            .foregroundStyle(Color.green)
-                            .lineStyle(StrokeStyle(lineWidth: 2.5))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.red, .orange],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .lineStyle(StrokeStyle(lineWidth: 3))
                             .interpolationMethod(.catmullRom)
+                            .symbol {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [.red, .orange],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                                    .frame(width: 8, height: 8)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.white, lineWidth: 2)
+                                    )
+                            }
 
+                            // Income Area + Line
                             AreaMark(
                                 x: .value("Data", data.date),
                                 y: .value("Entrate", data.income)
                             )
                             .foregroundStyle(
                                 LinearGradient(
-                                    colors: [Color.green.opacity(0.25), Color.green.opacity(0.0)],
+                                    colors: [Color.blue.opacity(0.3), Color.blue.opacity(0.0)],
                                     startPoint: .top,
                                     endPoint: .bottom
                                 )
                             )
                             .interpolationMethod(.catmullRom)
+
+                            LineMark(
+                                x: .value("Data", data.date),
+                                y: .value("Entrate", data.income)
+                            )
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.blue, .cyan],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .lineStyle(StrokeStyle(lineWidth: 3, dash: [8, 4]))
+                            .interpolationMethod(.catmullRom)
+                            .symbol {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [.blue, .cyan],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                                    .frame(width: 8, height: 8)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.white, lineWidth: 2)
+                                    )
+                            }
                         }
                     }
+                    .chartYScale(domain: .automatic(includesZero: true))  // Forza partenza da 0
                     .chartXAxis {
                         AxisMarks(values: xAxisStride()) { value in
                             if let date = value.as(Date.self) {

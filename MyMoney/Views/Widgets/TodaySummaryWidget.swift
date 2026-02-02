@@ -11,9 +11,11 @@ import SwiftData
 struct TodaySummaryWidget: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.appSettings) var appSettings
-    @Query private var transactions: [Transaction]
-    @Query private var allCurrencies: [CurrencyRecord]
-    @Query private var exchangeRates: [ExchangeRate]
+
+    // PERFORMANCE: Accept data as parameters instead of @Query
+    let transactions: [Transaction]
+    let allCurrencies: [CurrencyRecord]
+
     @State private var selectedDate = Date()
 
     var preferredCurrencyRecord: CurrencyRecord? {
@@ -43,7 +45,6 @@ struct TodaySummaryWidget: View {
     }
 
     var dayExpenses: Decimal {
-        _ = exchangeRates.count
         guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
 
         return allDayTransactions
@@ -61,7 +62,6 @@ struct TodaySummaryWidget: View {
     }
 
     var dayIncome: Decimal {
-        _ = exchangeRates.count
         guard let preferredCurrency = preferredCurrencyRecord else { return 0 }
 
         return allDayTransactions
@@ -278,14 +278,9 @@ struct TodaySummaryWidget: View {
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 0
-        formatter.maximumFractionDigits = 2
-        formatter.groupingSeparator = "."
-        formatter.decimalSeparator = ","
-        let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0"
-        return "\(preferredCurrencyRecord?.flagEmoji ?? "")\(amountString)"
+        let symbol = preferredCurrencyRecord?.displaySymbol ?? "$"
+        let flag = preferredCurrencyRecord?.flagEmoji ?? ""
+        return "\(symbol)\(FormatterCache.formatCurrency(amount)) \(flag)"
     }
 
     private func formatShortAmount(_ amount: Decimal) -> String {

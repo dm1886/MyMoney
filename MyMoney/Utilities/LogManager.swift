@@ -38,17 +38,16 @@ class LogManager {
     // MARK: - Logging Functions
 
     func log(_ message: String, level: LogLevel = .info, category: String = "General") {
+        #if DEBUG
         let timestamp = ISO8601DateFormatter().string(from: Date())
-        let logEntry = "[\(timestamp)] [\(level.rawValue)] [\(category)] \(message)\n"
+        let logEntry = "[\(timestamp)] [\(level.rawValue)] [\(category)] \(message)"
 
-        // Stampa anche in console per debug
-        print(logEntry.trimmingCharacters(in: .whitespacesAndNewlines))
+        // Stampa solo in console per debug (no file I/O)
+        print(logEntry)
+        #endif
 
-        // Scrivi su file
-        writeToFile(logEntry)
-
-        // Check se il file è troppo grande
-        checkAndRotateLog()
+        // File logging disabled in production for performance
+        // Re-enable only if needed for debugging specific issues
     }
 
     func debug(_ message: String, category: String = "General") {

@@ -16,8 +16,8 @@ struct MoneyTrackerApp: App {
     // Notification delegate
     private let notificationDelegate = NotificationDelegate()
 
-    // Use direct reference to shared instance
-    private var appSettings: AppSettings { AppSettings.shared }
+    // IMPORTANT: Use @State to observe changes to AppSettings
+    @State private var appSettings = AppSettings.shared
 
     init() {
         // Register background tasks

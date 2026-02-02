@@ -59,4 +59,40 @@ final class CurrencyRecord {
         guard let lastUsed = lastUsedDate else { return false }
         return Date().timeIntervalSince(lastUsed) < 30 * 24 * 60 * 60  // 30 days
     }
+
+    /// Returns the appropriate symbol for display
+    /// Use "$" only for USD, otherwise use the code for currencies that have "$" in their symbol
+    var displaySymbol: String {
+        #if DEBUG
+        print("🔍 [CurrencyRecord] displaySymbol for \(code):")
+        print("   - symbol: '\(symbol)'")
+        print("   - symbol.isEmpty: \(symbol.isEmpty)")
+        print("   - symbol.contains('$'): \(symbol.contains("$"))")
+        #endif
+
+        if code == "USD" {
+            #if DEBUG
+            print("   ✅ Returning '$' (USD)")
+            #endif
+            return "$"
+        } else if symbol.contains("$") {
+            // If symbol contains $ but it's not USD (like "MOP$", "AU$", etc.), use the code
+            #if DEBUG
+            print("   ⚠️ Symbol contains '$' but not USD - Returning code: '\(code)'")
+            #endif
+            return code
+        } else if !symbol.isEmpty {
+            // Use the symbol for other currencies (€, £, ¥, etc.)
+            #if DEBUG
+            print("   ✅ Returning symbol: '\(symbol)'")
+            #endif
+            return symbol
+        } else {
+            // Fallback: use code if symbol is empty
+            #if DEBUG
+            print("   ⚠️ Fallback - Symbol empty, returning code: '\(code)'")
+            #endif
+            return code
+        }
+    }
 }

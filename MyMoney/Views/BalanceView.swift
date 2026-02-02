@@ -244,7 +244,7 @@ struct BalanceView: View {
                     positiveBalance: positiveBalance,
                     negativeBalance: negativeBalance,
                     weeklyExpenses: weeklyExpenses,
-                    currencySymbol: preferredCurrencyRecord?.symbol ?? "EUR"
+                    currencySymbol: preferredCurrencyRecord?.displaySymbol ?? "EUR"
                 )
                 .padding(.bottom, 16)
 
@@ -453,24 +453,29 @@ struct BalanceView: View {
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
+        formatter.groupingSeparator = "."
+        formatter.decimalSeparator = ","
 
         let displayAmount = abs(amount)
-        let amountString = formatter.string(from: displayAmount as NSDecimalNumber) ?? "0.00"
+        let amountString = formatter.string(from: displayAmount as NSDecimalNumber) ?? "0,00"
+
+        let symbol = preferredCurrencyRecord?.displaySymbol ?? (appSettings.preferredCurrencyEnum.rawValue == "USD" ? "$" : appSettings.preferredCurrencyEnum.rawValue)
+        let flag = preferredCurrencyRecord?.flagEmoji ?? appSettings.preferredCurrencyEnum.flag
 
         // Per debiti (carte di credito, passività), mostra + o - in base al segno effettivo
         if isDebt {
             if amount < 0 {
                 // Negativo = debito
-                return "-\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
+                return "-\(symbol)\(amountString) \(flag)"
             } else if amount > 0 {
                 // Positivo = credito
-                return "+\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
+                return "+\(symbol)\(amountString) \(flag)"
             } else {
                 // Zero
-                return "\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
+                return "\(symbol)\(amountString) \(flag)"
             }
         } else {
-            return "\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
+            return "\(symbol)\(amountString) \(flag)"
         }
     }
 
@@ -495,28 +500,23 @@ struct AccountRow: View {
     let exchangeRatesCount: Int  // Per aggiornamenti reattivi
 
     private func displayBalance(for accountBalance: Decimal) -> String {
-        guard let accountCurrency = account.currencyRecord,
-              let preferredCurr = preferredCurrencyRecord else {
-            return "\(preferredCurrency.rawValue) 0.00"
-        }
-
-        let convertedBalance = CurrencyService.shared.convert(
-            amount: accountBalance,
-            from: accountCurrency,
-            to: preferredCurr,
-            context: modelContext
-        )
-
         // For credit cards and liabilities, show absolute value (debts are stored as negative)
-        let displayAmount = (account.accountType == .creditCard || account.accountType == .liability) ? abs(convertedBalance) : convertedBalance
+        let displayAmount = (account.accountType == .creditCard || account.accountType == .liability) ? abs(accountBalance) : accountBalance
 
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
+        formatter.groupingSeparator = "."
+        formatter.decimalSeparator = ","
 
-        let amountString = formatter.string(from: displayAmount as NSDecimalNumber) ?? "0.00"
-        return "\(preferredCurrency.rawValue) \(amountString)"
+        let amountString = formatter.string(from: displayAmount as NSDecimalNumber) ?? "0,00"
+
+        // Usa la currency del conto, non quella preferita
+        let symbol = account.currencyRecord?.displaySymbol ?? (account.currency.rawValue == "USD" ? "$" : account.currency.rawValue)
+        let flag = account.currencyRecord?.flagEmoji ?? account.currency.flag
+
+        return "\(symbol)\(amountString) \(flag)"
     }
 
     private func balanceColor(for balance: Decimal) -> Color {
@@ -635,14 +635,14 @@ struct AccountRow: View {
 
             VStack(alignment: .trailing, spacing: 4) {
                 Text(displayBalance(for: balance))
-                    .font(.body)
+                    .font(.body.bold())
                     .foregroundStyle(balanceColor(for: balance))
 
-                if account.currency != preferredCurrency {
-                    let displayedBalance = (account.accountType == .creditCard || account.accountType == .liability) ? abs(balance) : balance
-                    Text("\(account.currency.rawValue) \(formatDecimal(displayedBalance))")
+                // Mostra saldo convertito nella valuta preferita solo se diversa
+                if let convertedText = convertedBalanceText(for: balance) {
+                    Text(convertedText)
                         .font(.caption)
-                        .foregroundStyle(balanceColor(for: balance))
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -654,6 +654,36 @@ struct AccountRow: View {
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
         return formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
+    }
+
+    private func convertedBalanceText(for balance: Decimal) -> String? {
+        guard let accountCurrency = account.currencyRecord,
+              let preferredCurr = preferredCurrencyRecord,
+              accountCurrency.code != preferredCurr.code else {
+            return nil
+        }
+
+        let convertedBalance = CurrencyService.shared.convert(
+            amount: balance,
+            from: accountCurrency,
+            to: preferredCurr,
+            context: modelContext
+        )
+
+        let displayAmount = (account.accountType == .creditCard || account.accountType == .liability) ? abs(convertedBalance) : convertedBalance
+
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        formatter.groupingSeparator = "."
+        formatter.decimalSeparator = ","
+
+        let amountString = formatter.string(from: displayAmount as NSDecimalNumber) ?? "0,00"
+        let symbol = preferredCurr.displaySymbol
+        let flag = preferredCurr.flagEmoji
+
+        return "\(symbol)\(amountString) \(flag)"
     }
 }
 

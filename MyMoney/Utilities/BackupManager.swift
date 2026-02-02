@@ -10,6 +10,38 @@ import Foundation
 import SwiftData
 import UniformTypeIdentifiers
 
+// MARK: - Export Options
+
+enum BackupExportOption: String, CaseIterable, Identifiable {
+    case accountsOnly = "Solo Conti"
+    case accountsWithTransactions = "Conti + Tutte le Transazioni"
+    case full = "Backup Completo"
+
+    var id: String { rawValue }
+
+    var description: String {
+        switch self {
+        case .accountsOnly:
+            return "Esporta solo i conti (senza transazioni)"
+        case .accountsWithTransactions:
+            return "Esporta conti con tutte le transazioni (incluse ricorrenti e programmate)"
+        case .full:
+            return "Esporta tutto: conti, transazioni, categorie, valute, tassi di cambio, impostazioni"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .accountsOnly:
+            return "creditcard"
+        case .accountsWithTransactions:
+            return "list.bullet.rectangle"
+        case .full:
+            return "externaldrive.fill"
+        }
+    }
+}
+
 struct BackupData: Codable {
     let version: String
     let createdAt: Date
@@ -125,19 +157,55 @@ final class BackupManager {
         categories: [Category],
         categoryGroups: [CategoryGroup],
         currencyRecords: [CurrencyRecord],
-        exchangeRates: [ExchangeRate]
+        exchangeRates: [ExchangeRate],
+        option: BackupExportOption = .full
     ) throws -> Data {
-        LogManager.shared.info("Creating backup with \(accounts.count) accounts, \(transactions.count) transactions, \(categories.count) categories, \(categoryGroups.count) groups, \(currencyRecords.count) currencies, \(exchangeRates.count) rates", category: "Backup")
+        LogManager.shared.info("Creating \(option.rawValue) backup", category: "Backup")
+
+        // Filtra i dati in base all'opzione selezionata
+        let transactionsToExport: [Transaction]
+        let categoriesToExport: [Category]
+        let categoryGroupsToExport: [CategoryGroup]
+        let currenciesToExport: [CurrencyRecord]
+        let ratesToExport: [ExchangeRate]
+
+        switch option {
+        case .accountsOnly:
+            // Solo conti, niente altro
+            transactionsToExport = []
+            categoriesToExport = []
+            categoryGroupsToExport = []
+            currenciesToExport = []
+            ratesToExport = []
+
+        case .accountsWithTransactions:
+            // Conti + Transazioni (tutte, incluse ricorrenti e programmate)
+            transactionsToExport = transactions
+            categoriesToExport = categories  // Necessarie per le transazioni
+            categoryGroupsToExport = categoryGroups  // Necessari per le categorie
+            currenciesToExport = currencyRecords  // Necessarie per conti e transazioni
+            ratesToExport = exchangeRates  // Necessari per conversioni
+
+        case .full:
+            // Tutto
+            transactionsToExport = transactions
+            categoriesToExport = categories
+            categoryGroupsToExport = categoryGroups
+            currenciesToExport = currencyRecords
+            ratesToExport = exchangeRates
+        }
+
+        LogManager.shared.info("Exporting: \(accounts.count) accounts, \(transactionsToExport.count) transactions, \(categoriesToExport.count) categories, \(categoryGroupsToExport.count) groups, \(currenciesToExport.count) currencies, \(ratesToExport.count) rates", category: "Backup")
 
         let backupData = BackupData(
-            version: "2.0.0",  // Updated version
+            version: "2.0.0",
             createdAt: Date(),
             accounts: accounts.map { convertToBackup($0) },
-            transactions: transactions.map { convertToBackup($0) },
-            categories: categories.map { convertToBackup($0) },
-            categoryGroups: categoryGroups.map { convertToBackup($0) },
-            currencyRecords: currencyRecords.map { convertToBackup($0) },
-            exchangeRates: exchangeRates.map { convertToBackup($0) },
+            transactions: transactionsToExport.map { convertToBackup($0) },
+            categories: categoriesToExport.map { convertToBackup($0) },
+            categoryGroups: categoryGroupsToExport.map { convertToBackup($0) },
+            currencyRecords: currenciesToExport.map { convertToBackup($0) },
+            exchangeRates: ratesToExport.map { convertToBackup($0) },
             settings: SettingsBackup(
                 preferredCurrency: AppSettings.shared.preferredCurrency,
                 themeMode: AppSettings.shared.themeMode.rawValue
@@ -149,7 +217,7 @@ final class BackupManager {
         encoder.dateEncodingStrategy = .iso8601
 
         let data = try encoder.encode(backupData)
-        LogManager.shared.success("Backup created successfully (\(data.count) bytes)", category: "Backup")
+        LogManager.shared.success("\(option.rawValue) backup created successfully (\(data.count) bytes)", category: "Backup")
         return data
     }
 
@@ -468,10 +536,19 @@ final class BackupManager {
 
     // MARK: - File Management
 
-    func getBackupFileName() -> String {
+    func getBackupFileName(option: BackupExportOption = .full) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        return "MoneyTracker_Backup_\(formatter.string(from: Date())).json"
+        let optionSuffix: String
+        switch option {
+        case .accountsOnly:
+            optionSuffix = "Accounts"
+        case .accountsWithTransactions:
+            optionSuffix = "Accounts_Transactions"
+        case .full:
+            optionSuffix = "Full"
+        }
+        return "MoneyTracker_\(optionSuffix)_\(formatter.string(from: Date())).json"
     }
 
     static let backupFileType = UTType(exportedAs: "com.moneytracker.backup")

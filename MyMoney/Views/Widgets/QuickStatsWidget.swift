@@ -10,8 +10,10 @@ import SwiftData
 
 struct QuickStatsWidget: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var accounts: [Account]
-    @Query private var transactions: [Transaction]
+
+    // PERFORMANCE: Accept data as parameters instead of @Query
+    let accounts: [Account]
+    let transactions: [Transaction]
 
     var todayTransactions: [Transaction] {
         let tracker = DeletedTransactionTracker.shared
