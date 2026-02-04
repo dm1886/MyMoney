@@ -7,7 +7,6 @@
 
 import SwiftUI
 import SwiftData
-import AuthenticationServices
 import UniformTypeIdentifiers
 
 struct BackupView: View {
@@ -18,8 +17,6 @@ struct BackupView: View {
     @Query private var categoryGroups: [CategoryGroup]
     @Query private var currencyRecords: [CurrencyRecord]
     @Query private var exchangeRates: [ExchangeRate]
-
-    @State private var authManager = AuthenticationManager.shared
 
     @State private var showingExportPicker = false
     @State private var showingImportPicker = false
@@ -35,42 +32,6 @@ struct BackupView: View {
 
     var body: some View {
         List {
-            // MARK: - Authentication Section
-            Section {
-                if authManager.isAuthenticated {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Autenticato come")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(authManager.displayName)
-                                .font(.headline)
-                        }
-
-                        Spacer()
-
-                        Button("Esci") {
-                            authManager.signOut()
-                        }
-                        .foregroundStyle(.red)
-                    }
-                } else {
-                    SignInWithAppleButton(.signIn) { request in
-                        request.requestedScopes = [.fullName, .email]
-                    } onCompletion: { result in
-                        authManager.handleSignInWithAppleCompletion(result)
-                    }
-                    .signInWithAppleButtonStyle(.black)
-                    .frame(height: 44)
-                }
-            } header: {
-                Text("Account Apple")
-            } footer: {
-                if !authManager.isAuthenticated {
-                    Text("Accedi con Apple ID per abilitare backup automatici su iCloud")
-                }
-            }
-
             // MARK: - Backup Section
             Section {
                 // Selezione opzione export

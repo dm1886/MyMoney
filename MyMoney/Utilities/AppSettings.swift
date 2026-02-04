@@ -9,9 +9,17 @@ import Foundation
 import SwiftUI
 
 enum ThemeMode: String, CaseIterable, Codable {
-    case system = "Sistema"
-    case light = "Chiaro"
-    case dark = "Scuro"
+    case system = "system"
+    case light = "light"
+    case dark = "dark"
+    
+    var displayName: String {
+        switch self {
+        case .system: return "Sistema"
+        case .light: return "Chiaro"
+        case .dark: return "Scuro"
+        }
+    }
 
     var colorScheme: ColorScheme? {
         switch self {

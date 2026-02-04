@@ -211,7 +211,7 @@ struct SettingsView: View {
                                 case .dark:
                                     Image(systemName: "moon.fill")
                                 }
-                                Text(mode.rawValue)
+                                Text(mode.displayName)
                             }
                             .tag(mode)
                         }

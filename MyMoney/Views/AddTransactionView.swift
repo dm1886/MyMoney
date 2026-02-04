@@ -863,8 +863,8 @@ struct AddTransactionView: View {
             transaction.destinationAmount = finalDestinationAmount
 
             // IMPORTANTE: Salva lo snapshot del tasso di cambio per preservare i calcoli storici
-            if let sourceCurr = currencyToUse,
-               let destCurr = selectedDestinationAccount?.currencyRecord,
+            if let _ = currencyToUse,
+               let _ = selectedDestinationAccount?.currencyRecord,
                let destAmount = finalDestinationAmount,
                let parsedAmount = parseAmount(amount),
                parsedAmount > 0 {
@@ -882,8 +882,8 @@ struct AddTransactionView: View {
             transaction.destinationAmount = convertedAmount
 
             // Salva snapshot anche per expense/income con conversione
-            if let sourceCurr = currencyToUse,
-               let accountCurr = selectedAccount?.currencyRecord,
+            if let _ = currencyToUse,
+               let _ = selectedAccount?.currencyRecord,
                let converted = convertedAmount,
                let parsedAmount = parseAmount(amount),
                parsedAmount > 0 {

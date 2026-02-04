@@ -62,7 +62,7 @@ struct IncomeVsExpensesWidget: View {
         // Per 1M mostra i giorni, per gli altri periodi mostra i mesi
         if selectedPeriod == .month {
             // Mostra i giorni del mese corrente
-            guard let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) else { return [] }
+            guard calendar.date(from: calendar.dateComponents([.year, .month], from: now)) != nil else { return [] }
             let dayOfMonth = calendar.component(.day, from: now)
 
             for dayOffset in (0..<dayOfMonth).reversed() {
