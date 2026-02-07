@@ -26,6 +26,10 @@ final class Transaction {
     // MARK: - Exchange Rate Snapshot (to preserve historical rates)
     var exchangeRateSnapshot: Decimal?  // Tasso di cambio al momento della creazione (per preservare calcoli storici)
     var isCustomRate: Bool = false      // Se true, l'utente ha modificato manualmente il tasso
+    
+    // MARK: - Liability Payment Fields
+    var interestAmount: Decimal?        // Importo interesse per pagamenti passività
+    var interestPercentage: Decimal?    // Percentuale interesse usata (per storico)
 
     // MARK: - Scheduled Transaction Fields
     var isScheduled: Bool = false
@@ -101,6 +105,7 @@ enum TransactionType: String, Codable {
     case expense = "Uscita"
     case income = "Entrata"
     case transfer = "Trasferimento"
+    case liabilityPayment = "Pagamento Passività"
     case adjustment = "Aggiustamento"
 
     var icon: String {
@@ -108,6 +113,7 @@ enum TransactionType: String, Codable {
         case .expense: return "arrow.down.circle.fill"
         case .income: return "arrow.up.circle.fill"
         case .transfer: return "arrow.left.arrow.right.circle.fill"
+        case .liabilityPayment: return "creditcard.and.123"
         case .adjustment: return "slider.horizontal.3"
         }
     }
@@ -117,6 +123,7 @@ enum TransactionType: String, Codable {
         case .expense: return "#FF3B30"
         case .income: return "#34C759"
         case .transfer: return "#007AFF"
+        case .liabilityPayment: return "#FF9500"  // Orange
         case .adjustment: return "#5856D6"
         }
     }

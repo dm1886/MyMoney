@@ -561,12 +561,12 @@ struct IncomeExpenseReportView: View {
                 // Testo al centro
                 VStack(spacing: 4) {
                     if totalIncome > 0 && totalExpense > 0 {
-                        Text("Totale")
+                        Text("Saldo Netto")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
-                        Text(formatAmount(totalIncome + totalExpense))
+                        Text(formatAmount(netBalance))
                             .font(.headline.bold())
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(netBalance >= 0 ? .green : .red)
                     } else if totalIncome > 0 {
                         Text("100%")
                             .font(.title.bold())

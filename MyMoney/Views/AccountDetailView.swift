@@ -115,6 +115,9 @@ struct AccountDetailView: View {
                     balance += amountToUse
                 case .transfer:
                     balance -= amountToUse
+                case .liabilityPayment:
+                    let totalPayment = amountToUse + (transaction.interestAmount ?? 0)
+                    balance -= totalPayment
                 case .adjustment:
                     balance += amountToUse
                 }
@@ -561,9 +564,16 @@ struct AccountTransactionRow: View {
 
                 // Info
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(transaction.category?.name ?? transaction.transactionType.rawValue)
+                    Text(displayTitle)
                         .font(.body.bold())
                         .foregroundStyle(.primary)
+                    
+                    // Dettagli trasferimento (se applicabile)
+                    if let transferDetail = transferDetail {
+                        Text(transferDetail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     HStack(spacing: 4) {
                         Text(transaction.date.formatted(date: .omitted, time: .shortened))
@@ -603,6 +613,31 @@ struct AccountTransactionRow: View {
         )
     }
 
+    private var displayTitle: String {
+        // Per i trasferimenti, mostra solo "Trasferimento"
+        if transaction.transactionType == .transfer {
+            return "Trasferimento"
+        }
+        
+        // Per gli altri tipi, mostra categoria o tipo
+        return transaction.category?.name ?? transaction.transactionType.rawValue
+    }
+    
+    private var transferDetail: String? {
+        // Dettagli del trasferimento (conti coinvolti)
+        guard transaction.transactionType == .transfer else { return nil }
+        
+        if transaction.account?.id == account.id {
+            // Trasferimento in uscita
+            return "→ \(transaction.destinationAccount?.name ?? "Sconosciuto")"
+        } else if transaction.destinationAccount?.id == account.id {
+            // Trasferimento in entrata
+            return "← \(transaction.account?.name ?? "Sconosciuto")"
+        }
+        
+        return nil
+    }
+    
     private var iconBackgroundColor: Color {
         return (transaction.category?.color ?? appSettings.accentColor).opacity(0.15)
     }
@@ -616,6 +651,7 @@ struct AccountTransactionRow: View {
         case .expense: return "cart"
         case .income: return "dollarsign.circle"
         case .transfer: return "arrow.left.arrow.right"
+        case .liabilityPayment: return "creditcard.and.123"
         case .adjustment: return "plus.minus"
         }
     }
@@ -632,6 +668,8 @@ struct AccountTransactionRow: View {
             return .green.opacity(0.15)
         case .transfer:
             return .blue.opacity(0.15)
+        case .liabilityPayment:
+            return .orange.opacity(0.15)
         case .adjustment:
             return .orange.opacity(0.15)
         }
@@ -643,6 +681,8 @@ struct AccountTransactionRow: View {
             return .red
         case .income:
             return .green
+        case .liabilityPayment:
+            return .orange
         case .transfer:
             return .blue
         case .adjustment:
@@ -777,6 +817,8 @@ struct TransactionRow: View {
             return "+\(displayAmount)"
         case .transfer:
             return "-\(displayAmount)"
+        case .liabilityPayment:
+            return "-\(displayAmount)"
         case .adjustment:
             // Amount is already signed
             let sign = transaction.amount >= 0 ? "+" : "-"
@@ -790,6 +832,8 @@ struct TransactionRow: View {
             return .red
         case .income:
             return .green
+        case .liabilityPayment:
+            return .orange
         case .transfer:
             return .blue
         case .adjustment:

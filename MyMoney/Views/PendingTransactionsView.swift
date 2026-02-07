@@ -69,6 +69,27 @@ struct PendingTransactionCard: View {
         guard !isDeleted else { return false }
         return transaction.date < Date()
     }
+    
+    private var displayTitle: String {
+        // Per i trasferimenti, mostra solo "Trasferimento"
+        if transaction.transactionType == .transfer {
+            return "Trasferimento"
+        }
+        
+        // Per gli altri tipi, mostra categoria o tipo
+        return transaction.category?.name ?? transaction.transactionType.rawValue
+    }
+    
+    private var transferDetail: String? {
+        // Dettagli del trasferimento (conti coinvolti)
+        guard transaction.transactionType == .transfer else { return nil }
+        
+        if let sourceAccount = transaction.account, let destAccount = transaction.destinationAccount {
+            return "\(sourceAccount.name) → \(destAccount.name)"
+        }
+        
+        return nil
+    }
 
     var body: some View {
         // CRITICAL: Check if deleted before rendering
@@ -105,8 +126,15 @@ struct PendingTransactionCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(transaction.category?.name ?? transaction.transactionType.rawValue)
+                    Text(displayTitle)
                         .font(.headline)
+                    
+                    // Dettagli trasferimento (se applicabile)
+                    if let transferDetail = transferDetail {
+                        Text(transferDetail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     HStack(spacing: 4) {
                         Image(systemName: "clock")

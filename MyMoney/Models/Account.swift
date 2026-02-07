@@ -133,6 +133,10 @@ final class Account {
                 balance += amountToUse
             case .transfer:
                 balance -= amountToUse
+            case .liabilityPayment:
+                // Per pagamento passività: sottrae amount + interestAmount dal conto origine
+                let totalPayment = amountToUse + (transaction.interestAmount ?? 0)
+                balance -= totalPayment
             case .adjustment:
                 balance += amountToUse
             }
@@ -144,27 +148,33 @@ final class Account {
                 guard !tracker.isDeleted(transfer.id) else { continue }
                 guard transfer.modelContext != nil else { continue }
                 guard transfer.status == .executed else { continue }
-                guard transfer.transactionType == .transfer else { continue }
 
                 var convertedAmount = transfer.amount
+                
+                // Gestisci sia transfer che liabilityPayment
+                if transfer.transactionType == .transfer {
+                    if let destAmount = transfer.destinationAmount {
+                        convertedAmount = destAmount
+                    } else if let snapshot = transfer.exchangeRateSnapshot {
+                        // Usa snapshot del tasso se disponibile (preserva calcoli storici)
+                        convertedAmount = transfer.amount * snapshot
+                    } else if let ctx = context,
+                              let transferCurr = transfer.currencyRecord,
+                              let accountCurr = currencyRecord {
+                        convertedAmount = CurrencyService.shared.convert(
+                            amount: transfer.amount,
+                            from: transferCurr,
+                            to: accountCurr,
+                            context: ctx
+                        )
+                    }
 
-                if let destAmount = transfer.destinationAmount {
-                    convertedAmount = destAmount
-                } else if let snapshot = transfer.exchangeRateSnapshot {
-                    // Usa snapshot del tasso se disponibile (preserva calcoli storici)
-                    convertedAmount = transfer.amount * snapshot
-                } else if let ctx = context,
-                          let transferCurr = transfer.currencyRecord,
-                          let accountCurr = currencyRecord {
-                    convertedAmount = CurrencyService.shared.convert(
-                        amount: transfer.amount,
-                        from: transferCurr,
-                        to: accountCurr,
-                        context: ctx
-                    )
+                    balance += convertedAmount
+                } else if transfer.transactionType == .liabilityPayment {
+                    // Per liability payment: aggiungi solo l'importo del debito (senza interesse)
+                    // L'interesse è già stato sottratto come spesa separata
+                    balance += convertedAmount
                 }
-
-                balance += convertedAmount
             }
         }
 

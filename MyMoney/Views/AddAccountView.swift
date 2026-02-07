@@ -81,9 +81,33 @@ struct AddAccountView: View {
                     HStack {
                         Text(balanceLabel)
                         Spacer()
-                        TextField("0.00", text: $initialBalance)
+                        TextField("0,00", text: $initialBalance)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
+                            .onChange(of: initialBalance) { oldValue, newValue in
+                                // Filtra caratteri non validi: permetti solo numeri, virgola e segno meno
+                                let filtered = newValue.filter { "0123456789,-".contains($0) }
+                                
+                                // Assicurati che ci sia al massimo una virgola
+                                let commaCount = filtered.filter { $0 == "," }.count
+                                if commaCount > 1 {
+                                    var result = ""
+                                    var commaFound = false
+                                    for char in filtered {
+                                        if char == "," {
+                                            if !commaFound {
+                                                result.append(char)
+                                                commaFound = true
+                                            }
+                                        } else {
+                                            result.append(char)
+                                        }
+                                    }
+                                    initialBalance = result
+                                } else if filtered != newValue {
+                                    initialBalance = filtered
+                                }
+                            }
                         Text(selectedCurrencyRecord?.symbol ?? "€")
                             .foregroundStyle(.secondary)
                     }
@@ -187,7 +211,11 @@ struct AddAccountView: View {
     }
 
     private func saveAccount() {
-        var balance = Decimal(string: initialBalance.replacingOccurrences(of: ",", with: ".")) ?? 0
+        // Rimuovi TUTTI i punti (separatori migliaia) e sostituisci virgola con punto per il parsing
+        let cleanedBalance = initialBalance
+            .replacingOccurrences(of: ".", with: "")  // Rimuovi punti delle migliaia
+            .replacingOccurrences(of: ",", with: ".")  // Virgola decimale → punto per Decimal
+        var balance = Decimal(string: cleanedBalance) ?? 0
 
         // For credit cards: respect the isPositiveBalance toggle
         // For liabilities: always store as negative (debt)
@@ -211,7 +239,10 @@ struct AddAccountView: View {
         // Parse credit limit (only for credit cards)
         var limit: Decimal? = nil
         if selectedType == .creditCard {
-            limit = Decimal(string: creditLimit.replacingOccurrences(of: ",", with: "."))
+            let cleanedLimit = creditLimit
+                .replacingOccurrences(of: ".", with: "")
+                .replacingOccurrences(of: ",", with: ".")
+            limit = Decimal(string: cleanedLimit)
         }
 
         let account = Account(

@@ -52,6 +52,17 @@ struct TransactionTypeSelectionView: View {
                         selectedType = .transfer
                         dismiss()
                     }
+                    
+                    TransactionTypeButton(
+                        type: .liabilityPayment,
+                        title: "Pagamento Passività",
+                        subtitle: "Paga debiti e carte di credito",
+                        icon: "creditcard.and.123",
+                        color: .orange
+                    ) {
+                        selectedType = .liabilityPayment
+                        dismiss()
+                    }
                 }
                 .padding()
 

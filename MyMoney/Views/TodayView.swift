@@ -198,6 +198,8 @@ struct TodayView: View {
                 signedAmount = -convertedAmount
             case .income:
                 signedAmount = convertedAmount
+            case .liabilityPayment:
+                signedAmount = -convertedAmount
             case .transfer, .adjustment:
                 signedAmount = 0  // Mai raggiunto (già escluso sopra)
             }
@@ -1286,6 +1288,7 @@ struct TransactionRowView: View {
         case .expense: return "cart"
         case .income: return "dollarsign.circle"
         case .transfer: return "arrow.left.arrow.right"
+        case .liabilityPayment: return "creditcard.and.123"
         case .adjustment: return "plus.minus"
         }
     }
@@ -1301,6 +1304,8 @@ struct TransactionRowView: View {
             return .green.opacity(0.15)
         case .transfer:
             return .blue.opacity(0.15)
+        case .liabilityPayment:
+            return .orange.opacity(0.15)
         case .adjustment:
             return .orange.opacity(0.15)
         }
@@ -1317,6 +1322,8 @@ struct TransactionRowView: View {
             return .green
         case .transfer:
             return .blue
+        case .liabilityPayment:
+            return .orange
         case .adjustment:
             return .orange
         }
@@ -1332,6 +1339,8 @@ struct TransactionRowView: View {
             return .green
         case .transfer:
             return .blue
+        case .liabilityPayment:
+            return .orange
         case .adjustment:
             return .orange
         }

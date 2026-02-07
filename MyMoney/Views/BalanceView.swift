@@ -198,6 +198,9 @@ struct BalanceView: View {
                     balance += amountToUse
                 case .transfer:
                     balance -= amountToUse
+                case .liabilityPayment:
+                    let totalPayment = amountToUse + (transaction.interestAmount ?? 0)
+                    balance -= totalPayment
                 case .adjustment:
                     balance += amountToUse
                 }
@@ -566,6 +569,9 @@ struct AccountRow: View {
                     balance += amountToUse
                 case .transfer:
                     balance -= amountToUse
+                case .liabilityPayment:
+                    let totalPayment = amountToUse + (transaction.interestAmount ?? 0)
+                    balance -= totalPayment
                 case .adjustment:
                     balance += amountToUse
                 }

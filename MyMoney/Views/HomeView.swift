@@ -55,6 +55,9 @@ struct HomeView: View {
                     balance += transaction.amount
                 case .transfer:
                     balance -= transaction.amount
+                case .liabilityPayment:
+                    let totalPayment = transaction.amount + (transaction.interestAmount ?? 0)
+                    balance -= totalPayment
                 case .adjustment:
                     balance += transaction.amount
                 }

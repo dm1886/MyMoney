@@ -70,6 +70,62 @@ struct ResocontoView: View {
                         }
                         .padding(.vertical, 4)
                     }
+                    
+                    NavigationLink {
+                        CategoryExpensesReportView()
+                    } label: {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.orange.opacity(0.15))
+                                    .frame(width: 44, height: 44)
+
+                                Image(systemName: "chart.pie.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(.orange)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Spese per Categoria")
+                                    .font(.body.bold())
+                                    .foregroundStyle(.primary)
+
+                                Text("Visualizza le spese raggruppate per categoria")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    
+                    NavigationLink {
+                        RecurringTransactionsReportView()
+                    } label: {
+                        HStack(spacing: 16) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.purple.opacity(0.15))
+                                    .frame(width: 44, height: 44)
+
+                                Image(systemName: "repeat.circle.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(.purple)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Transazioni Ricorrenti")
+                                    .font(.body.bold())
+                                    .foregroundStyle(.primary)
+
+                                Text("Analizza le operazioni ripetitive previste")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
                 } header: {
                     HStack(spacing: 6) {
                         Image(systemName: "chart.bar.doc.horizontal.fill")

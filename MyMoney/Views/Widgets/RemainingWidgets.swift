@@ -894,6 +894,7 @@ struct RecentTransactionsWidget: View {
         case .expense: return "arrow.down"
         case .income: return "arrow.up"
         case .transfer: return "arrow.left.arrow.right"
+        case .liabilityPayment: return "creditcard.and.123"
         case .adjustment: return "slider.horizontal.3"
         }
     }
@@ -903,6 +904,7 @@ struct RecentTransactionsWidget: View {
         case .expense: return .red
         case .income: return .green
         case .transfer: return .blue
+        case .liabilityPayment: return .orange
         case .adjustment: return .purple
         }
     }
@@ -1089,6 +1091,7 @@ struct UpcomingBillsWidget: View {
         case .expense: return "arrow.down"
         case .income: return "arrow.up"
         case .transfer: return "arrow.left.arrow.right"
+        case .liabilityPayment: return "creditcard.and.123"
         case .adjustment: return "slider.horizontal.3"
         }
     }
@@ -1098,6 +1101,7 @@ struct UpcomingBillsWidget: View {
         case .expense: return "Uscita"
         case .income: return "Entrata"
         case .transfer: return "Trasf"
+        case .liabilityPayment: return "Pag Pass"
         case .adjustment: return "Ajust"
         }
     }
@@ -1107,6 +1111,7 @@ struct UpcomingBillsWidget: View {
         case .expense: return .red
         case .income: return .green
         case .transfer: return .blue
+        case .liabilityPayment: return .orange
         case .adjustment: return .purple
         }
     }

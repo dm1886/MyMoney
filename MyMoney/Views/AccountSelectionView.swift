@@ -48,6 +48,9 @@ struct AccountSelectionView: View {
                 filtered = accounts.filter { account in
                     account.accountType != .liability && account.accountType != .asset
                 }
+            case .liabilityPayment:
+                // Per pagamenti passività, mostra tutti i conti
+                filtered = accounts
             case .transfer, .adjustment:
                 // Per trasferimenti e aggiustamenti, mostra tutti i conti
                 filtered = accounts
@@ -247,6 +250,9 @@ struct AccountListRow: View {
                     balance += amountToUse
                 case .transfer:
                     balance -= amountToUse
+                case .liabilityPayment:
+                    let totalPayment = amountToUse + (transaction.interestAmount ?? 0)
+                    balance -= totalPayment
                 case .adjustment:
                     balance += amountToUse
                 }

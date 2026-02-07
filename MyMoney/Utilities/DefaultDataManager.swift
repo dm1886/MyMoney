@@ -16,6 +16,7 @@ class DefaultDataManager {
         let shoppingGroup = CategoryGroup(name: "Shopping", icon: "bag.fill", colorHex: "#FF2D55", sortOrder: 4)
         let travelGroup = CategoryGroup(name: "Viaggi", icon: "airplane", colorHex: "#5856D6", sortOrder: 5)
         let incomeGroup = CategoryGroup(name: "Entrate", icon: "dollarsign.circle.fill", colorHex: "#34C759", sortOrder: 6)
+        let financeGroup = CategoryGroup(name: "Spese Finanziarie", icon: "banknote.fill", colorHex: "#FF3B30", sortOrder: 7)
 
         context.insert(foodGroup)
         context.insert(transportGroup)
@@ -23,6 +24,7 @@ class DefaultDataManager {
         context.insert(shoppingGroup)
         context.insert(travelGroup)
         context.insert(incomeGroup)
+        context.insert(financeGroup)
 
         let foodCategories = [
             Category(name: "Caffè", icon: "cup.and.saucer.fill", colorHex: "#8B4513", categoryGroup: foodGroup),
@@ -67,8 +69,13 @@ class DefaultDataManager {
             Category(name: "Regalo", icon: "gift.fill", colorHex: "#FF2D55", categoryGroup: incomeGroup),
             Category(name: "Investimenti", icon: "chart.line.uptrend.xyaxis", colorHex: "#5856D6", categoryGroup: incomeGroup)
         ]
+        
+        let financeCategories = [
+            Category(name: "Interessi Passivi", icon: "percent", colorHex: "#FF3B30", categoryGroup: financeGroup),
+            Category(name: "Commissioni Bancarie", icon: "building.columns.fill", colorHex: "#FF9500", categoryGroup: financeGroup)
+        ]
 
-        for category in foodCategories + transportCategories + homeCategories + shoppingCategories + travelCategories + incomeCategories {
+        for category in foodCategories + transportCategories + homeCategories + shoppingCategories + travelCategories + incomeCategories + financeCategories {
             context.insert(category)
         }
     }

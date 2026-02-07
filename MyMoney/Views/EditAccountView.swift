@@ -42,10 +42,13 @@ struct EditAccountView: View {
         _photoData = State(initialValue: account.imageData)
 
         // Convert Decimal to String properly (use absolute value for display)
+        // IMPORTANTE: Nessun separatore migliaia, solo virgola decimale
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 2
+        formatter.groupingSeparator = ""  // NESSUN separatore migliaia
+        formatter.decimalSeparator = ","
         let absBalance = abs(account.initialBalance)
         let balanceString = formatter.string(from: absBalance as NSDecimalNumber) ?? "0"
         _initialBalance = State(initialValue: balanceString)
@@ -93,9 +96,33 @@ struct EditAccountView: View {
                     HStack {
                         Text(selectedCurrencyRecord?.code ?? selectedCurrency.rawValue)
                             .foregroundStyle(.secondary)
-                        TextField("0.00", text: $initialBalance)
-                            .keyboardType(.numbersAndPunctuation)
+                        TextField("0,00", text: $initialBalance)
+                            .keyboardType(.decimalPad)
                             .font(.title3.bold())
+                            .onChange(of: initialBalance) { oldValue, newValue in
+                                // Filtra caratteri non validi: permetti solo numeri, virgola e segno meno
+                                let filtered = newValue.filter { "0123456789,-".contains($0) }
+                                
+                                // Assicurati che ci sia al massimo una virgola
+                                let commaCount = filtered.filter { $0 == "," }.count
+                                if commaCount > 1 {
+                                    var result = ""
+                                    var commaFound = false
+                                    for char in filtered {
+                                        if char == "," {
+                                            if !commaFound {
+                                                result.append(char)
+                                                commaFound = true
+                                            }
+                                        } else {
+                                            result.append(char)
+                                        }
+                                    }
+                                    initialBalance = result
+                                } else if filtered != newValue {
+                                    initialBalance = filtered
+                                }
+                            }
                     }
 
                     // Toggle for positive balance (only for credit cards)
@@ -233,9 +260,11 @@ struct EditAccountView: View {
         }
 
         // Update initial balance - CRITICAL: parse correctly and update balance
+        // Rimuovi TUTTI i punti (separatori migliaia) e sostituisci virgola con punto per il parsing
         let cleanedBalance = initialBalance
-            .replacingOccurrences(of: ",", with: ".")
             .trimmingCharacters(in: .whitespaces)
+            .replacingOccurrences(of: ".", with: "")  // Rimuovi punti delle migliaia
+            .replacingOccurrences(of: ",", with: ".")  // Virgola decimale → punto per Decimal
 
         if var balanceDecimal = Decimal(string: cleanedBalance) {
             // For credit cards: respect the isPositiveBalance toggle

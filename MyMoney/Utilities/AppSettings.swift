@@ -93,12 +93,8 @@ final class AppSettings {
     }
 
     // Backward compatibility - deprecato ma mantenuto per non rompere codice esistente
-    var isDarkMode: Bool = false {
-        didSet {
-            // Quando isDarkMode cambia, aggiorna themeMode
-            themeMode = isDarkMode ? .dark : .light
-        }
-    }
+    // IMPORTANTE: Non ha più didSet per evitare conflitti con themeMode
+    var isDarkMode: Bool = false
 
     var hasCompletedOnboarding: Bool = false {
         didSet {
@@ -169,7 +165,8 @@ final class AppSettings {
             self.themeMode = oldDarkMode ? .dark : .system
         }
 
-        self.isDarkMode = (themeMode == .dark)
+        // Non aggiorniamo più isDarkMode per evitare conflitti con themeMode
+        // isDarkMode è deprecato e rimane a false di default
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         self.accentColorHex = UserDefaults.standard.string(forKey: "accentColorHex") ?? "#007AFF"
         self.recurringDetectionEnabled = UserDefaults.standard.bool(forKey: "recurringDetectionEnabled")

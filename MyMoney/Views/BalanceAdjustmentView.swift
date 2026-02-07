@@ -23,7 +23,11 @@ struct BalanceAdjustmentView: View {
     }
 
     var newBalance: Decimal? {
-        Decimal(string: newBalanceText.replacingOccurrences(of: ",", with: "."))
+        // Rimuovi TUTTI i punti (separatori migliaia) e sostituisci virgola con punto per il parsing
+        let cleanedText = newBalanceText
+            .replacingOccurrences(of: ".", with: "")  // Rimuovi punti delle migliaia
+            .replacingOccurrences(of: ",", with: ".")  // Virgola decimale → punto per Decimal
+        return Decimal(string: cleanedText)
     }
 
     var difference: Decimal? {
@@ -65,6 +69,12 @@ struct BalanceAdjustmentView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Aggiusta Saldo")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                // Inizializza il campo con il saldo attuale formattato SENZA punti delle migliaia
+                if newBalanceText.isEmpty {
+                    newBalanceText = formatAmountForEditing(currentBalance)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Annulla") {
@@ -261,8 +271,8 @@ struct BalanceAdjustmentView: View {
                     .font(.system(size: 28, weight: .semibold))
                     .foregroundStyle(.secondary)
 
-                TextField("0.00", text: $newBalanceText)
-                    .keyboardType(.numbersAndPunctuation)
+                TextField("0,00", text: $newBalanceText)
+                    .keyboardType(.decimalPad)
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .multilineTextAlignment(.leading)
                     .padding(12)
@@ -270,6 +280,31 @@ struct BalanceAdjustmentView: View {
                         RoundedRectangle(cornerRadius: 12)
                             .fill(Color(.secondarySystemGroupedBackground))
                     )
+                    .onChange(of: newBalanceText) { oldValue, newValue in
+                        // Filtra caratteri non validi: permetti solo numeri, virgola e segno meno
+                        let filtered = newValue.filter { "0123456789,-".contains($0) }
+                        
+                        // Assicurati che ci sia al massimo una virgola
+                        let commaCount = filtered.filter { $0 == "," }.count
+                        if commaCount > 1 {
+                            // Rimuovi virgole extra
+                            var result = ""
+                            var commaFound = false
+                            for char in filtered {
+                                if char == "," {
+                                    if !commaFound {
+                                        result.append(char)
+                                        commaFound = true
+                                    }
+                                } else {
+                                    result.append(char)
+                                }
+                            }
+                            newBalanceText = result
+                        } else if filtered != newValue {
+                            newBalanceText = filtered
+                        }
+                    }
 
                 if let currencyRecord = account.currencyRecord {
                     Text(currencyRecord.flagEmoji)
@@ -424,6 +459,18 @@ struct BalanceAdjustmentView: View {
     }
 
     // MARK: - Formatting
+    
+    /// Formatta un importo per l'editing: solo virgola decimale, SENZA punti delle migliaia
+    private func formatAmountForEditing(_ amount: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        formatter.groupingSeparator = ""  // NESSUN separatore migliaia
+        formatter.decimalSeparator = ","
+        
+        return formatter.string(from: amount as NSDecimalNumber) ?? "0,00"
+    }
 
     private func formatAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()

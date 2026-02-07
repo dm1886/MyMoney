@@ -264,6 +264,7 @@ struct TodaySummaryWidget: View {
         case .expense: return "arrow.down"
         case .income: return "arrow.up"
         case .transfer: return "arrow.left.arrow.right"
+        case .liabilityPayment: return "creditcard.and.123"
         case .adjustment: return "slider.horizontal.3"
         }
     }
@@ -273,6 +274,7 @@ struct TodaySummaryWidget: View {
         case .expense: return .red
         case .income: return .green
         case .transfer: return .blue
+        case .liabilityPayment: return .orange
         case .adjustment: return .purple
         }
     }

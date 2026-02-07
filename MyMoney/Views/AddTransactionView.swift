@@ -8,6 +8,11 @@
 import SwiftUI
 import SwiftData
 
+enum InterestMode: String, CaseIterable {
+    case percentage = "Percentuale"
+    case manual = "Manuale"
+}
+
 struct AddTransactionView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -39,6 +44,11 @@ struct AddTransactionView: View {
     @State private var selectedTransactionCurrencyRecord: CurrencyRecord?
     @State private var destinationAmount = ""  // Importo manuale per destinazione
     @State private var isDestinationAmountManual = false  // Se true, usa valore manuale invece di conversione automatica
+    
+    // MARK: - Liability Payment States
+    @State private var interestMode: InterestMode = .percentage
+    @State private var interestPercentage = ""
+    @State private var interestAmount = ""
 
     // MARK: - Scheduled Transaction States
     @State private var isScheduled = false
@@ -123,6 +133,53 @@ struct AddTransactionView: View {
             return parseAmount(destinationAmount)
         }
         return autoConvertedDestinationAmount
+    }
+    
+    // MARK: - Liability Payment Logic
+    
+    var calculatedInterest: Decimal? {
+        guard transactionType == .liabilityPayment else { return nil }
+        
+        if interestMode == .manual {
+            return parseAmount(interestAmount)
+        } else {
+            // Percentuale sul debito totale del conto destinazione
+            guard let percentage = parseAmount(interestPercentage),
+                  let destAccount = selectedDestinationAccount else {
+                return nil
+            }
+            
+            let currentDebt = abs(destAccount.currentBalance)
+            return (currentDebt * percentage) / 100
+        }
+    }
+    
+    var totalLiabilityPayment: Decimal? {
+        guard transactionType == .liabilityPayment,
+              let debtAmount = parseAmount(amount),
+              let interest = calculatedInterest else {
+            return nil
+        }
+        return debtAmount + interest
+    }
+    
+    var liabilityPaymentCurrencyMismatch: Bool {
+        guard transactionType == .liabilityPayment,
+              let sourceAccount = selectedAccount,
+              let destAccount = selectedDestinationAccount,
+              let sourceCurr = sourceAccount.currencyRecord,
+              let destCurr = destAccount.currencyRecord else {
+            return false
+        }
+        return sourceCurr.code != destCurr.code
+    }
+    
+    var isValidLiabilityDestination: Bool {
+        guard transactionType == .liabilityPayment,
+              let destAccount = selectedDestinationAccount else {
+            return false
+        }
+        return destAccount.accountType == .liability || destAccount.accountType == .creditCard
     }
 
     // MARK: - Recurring Transaction Helpers
@@ -306,11 +363,64 @@ struct AddTransactionView: View {
                         Text("Trasferimento")
                     }
                 }
+                
+                // CONTI - Per pagamento passività
+                if transactionType == .liabilityPayment {
+                    Section {
+                        NavigationLink {
+                            AccountSelectionView(
+                                selectedAccount: $selectedAccount,
+                                showNavigationBar: false,
+                                transactionType: transactionType,
+                                title: "Da Conto"
+                            )
+                        } label: {
+                            accountRowLabel(title: "Da Conto", account: selectedAccount)
+                        }
+                        .id(selectedAccount?.id)
+
+                        NavigationLink {
+                            AccountSelectionView(
+                                selectedAccount: $selectedDestinationAccount,
+                                showNavigationBar: false,
+                                transactionType: transactionType,
+                                title: "Conto Passività"
+                            )
+                        } label: {
+                            accountRowLabel(title: "Conto Passività", account: selectedDestinationAccount)
+                        }
+                        .id(selectedDestinationAccount?.id)
+                        
+                        // Warning per valute diverse
+                        if liabilityPaymentCurrencyMismatch {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.orange)
+                                Text("I conti devono avere la stessa valuta")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                        
+                        // Warning per tipo conto errato
+                        if selectedDestinationAccount != nil && !isValidLiabilityDestination {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.red)
+                                Text("Il conto destinazione deve essere Passività o Carta di Credito")
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            }
+                        }
+                    } header: {
+                        Text("Pagamento Passività")
+                    }
+                }
 
                 // IMPORTO
                 Section {
                     HStack {
-                        Text(transactionType == .transfer ? "Importo da prelevare" : "Importo")
+                        Text(transactionType == .transfer ? "Importo da prelevare" : transactionType == .liabilityPayment ? "Importo Debito" : "Importo")
                         Spacer()
                         TextField("0.00", text: $amount)
                             .keyboardType(.decimalPad)
@@ -461,6 +571,99 @@ struct AddTransactionView: View {
                                     .padding(.top, 2)
                                 }
                             }
+                        }
+                    }
+                }
+                
+                // INTERESSI - Per pagamento passività
+                if transactionType == .liabilityPayment {
+                    Section {
+                        Picker("Modalità Calcolo", selection: $interestMode) {
+                            ForEach(InterestMode.allCases, id: \.self) { mode in
+                                Text(mode.rawValue).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        
+                        if interestMode == .percentage {
+                            HStack {
+                                Text("Percentuale Interesse")
+                                Spacer()
+                                TextField("0.0", text: $interestPercentage)
+                                    .keyboardType(.decimalPad)
+                                    .multilineTextAlignment(.trailing)
+                                    .font(.body)
+                                Text("%")
+                                    .foregroundStyle(.secondary)
+                            }
+                            
+                            if let destAccount = selectedDestinationAccount {
+                                HStack {
+                                    Text("Debito Attuale")
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Text("\(destAccount.currencyRecord?.symbol ?? "€")\(formatDecimal(abs(destAccount.currentBalance)))")
+                                        .foregroundStyle(.red)
+                                        .font(.caption)
+                                }
+                            }
+                        } else {
+                            HStack {
+                                Text("Importo Interesse")
+                                Spacer()
+                                TextField("0.00", text: $interestAmount)
+                                    .keyboardType(.decimalPad)
+                                    .multilineTextAlignment(.trailing)
+                                    .font(.body)
+                                Text(selectedAccount?.currencyRecord?.symbol ?? "€")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        
+                        // Riepilogo
+                        if let debtAmount = parseAmount(amount),
+                           let interest = calculatedInterest,
+                           let total = totalLiabilityPayment {
+                            VStack(spacing: 8) {
+                                Divider()
+                                
+                                HStack {
+                                    Text("Debito da pagare")
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Text("\(selectedAccount?.currencyRecord?.symbol ?? "€")\(formatDecimal(debtAmount))")
+                                        .font(.body)
+                                }
+                                
+                                HStack {
+                                    Text("Interesse")
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Text("\(selectedAccount?.currencyRecord?.symbol ?? "€")\(formatDecimal(interest))")
+                                        .font(.body)
+                                        .foregroundStyle(.orange)
+                                }
+                                
+                                Divider()
+                                
+                                HStack {
+                                    Text("Totale da dedurre")
+                                        .font(.headline)
+                                    Spacer()
+                                    Text("\(selectedAccount?.currencyRecord?.symbol ?? "€")\(formatDecimal(total))")
+                                        .font(.title3.bold())
+                                        .foregroundStyle(.red)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    } header: {
+                        Text("Interessi")
+                    } footer: {
+                        if interestMode == .percentage {
+                            Text("L'interesse viene calcolato come percentuale del debito totale del conto passività.")
+                        } else {
+                            Text("Inserisci manualmente l'importo dell'interesse da pagare.")
                         }
                     }
                 }
@@ -828,6 +1031,32 @@ struct AddTransactionView: View {
         if transactionType == .transfer {
             return selectedDestinationAccount != nil
         }
+        
+        if transactionType == .liabilityPayment {
+            // Conto destinazione obbligatorio
+            guard selectedDestinationAccount != nil else { return false }
+            
+            // Deve essere Passività o Carta di Credito
+            guard isValidLiabilityDestination else { return false }
+            
+            // Valute devono essere uguali
+            guard !liabilityPaymentCurrencyMismatch else { return false }
+            
+            // Interesse valido (percentuale o manuale)
+            if interestMode == .percentage {
+                guard !interestPercentage.isEmpty,
+                      let _ = parseAmount(interestPercentage) else {
+                    return false
+                }
+            } else {
+                guard !interestAmount.isEmpty,
+                      let _ = parseAmount(interestAmount) else {
+                    return false
+                }
+            }
+            
+            return true
+        }
 
         return true
     }
@@ -878,7 +1107,7 @@ struct AddTransactionView: View {
         }
 
         // Set converted amount for expense/income with currency conversion
-        if transactionType != .transfer && needsConversion {
+        if transactionType != .transfer && transactionType != .liabilityPayment && needsConversion {
             transaction.destinationAmount = convertedAmount
 
             // Salva snapshot anche per expense/income con conversione
@@ -890,6 +1119,35 @@ struct AddTransactionView: View {
                 let effectiveRate = converted / parsedAmount
                 transaction.exchangeRateSnapshot = effectiveRate
                 transaction.isCustomRate = false  // Sempre automatico per expense/income
+            }
+        }
+        
+        // Set liability payment fields and create interest expense
+        if transactionType == .liabilityPayment {
+            if let interest = calculatedInterest {
+                transaction.interestAmount = interest
+                
+                if interestMode == .percentage, let percentage = parseAmount(interestPercentage) {
+                    transaction.interestPercentage = percentage
+                }
+                
+                // Crea transazione spesa separata per l'interesse
+                let interestTransaction = Transaction(
+                    transactionType: .expense,
+                    amount: interest,
+                    currency: currencyEnumToUse,
+                    date: selectedDate,
+                    notes: "Interessi su pagamento passività - \(selectedDestinationAccount?.name ?? "")",
+                    account: account,
+                    category: categories.first { $0.name == "Interessi Passivi" },
+                    destinationAccount: nil
+                )
+                interestTransaction.currencyRecord = currencyToUse
+                interestTransaction.status = transaction.status  // Stesso status della transazione principale
+                
+                modelContext.insert(interestTransaction)
+                
+                LogManager.shared.info("Created interest expense: \(interest)", category: "LiabilityPayment")
             }
         }
 

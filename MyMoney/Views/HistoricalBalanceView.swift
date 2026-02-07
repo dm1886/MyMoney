@@ -171,6 +171,10 @@ struct HistoricalBalanceView: View {
                 case .transfer:
                     // Trasferimento in uscita
                     balance -= amount
+                case .liabilityPayment:
+                    // Pagamento passività: sottrae amount + interesse
+                    let totalPayment = amount + (transaction.interestAmount ?? 0)
+                    balance -= totalPayment
                 case .adjustment:
                     // L'aggiustamento può essere positivo o negativo
                     // Usa il segno dell'importo
@@ -343,7 +347,7 @@ struct TransactionHistoryRow: View {
         if transaction.account?.id == account.id {
             // Conto principale
             switch transaction.transactionType {
-            case .expense, .transfer:
+            case .expense, .transfer, .liabilityPayment:
                 sign = "-"
             case .income:
                 sign = "+"
@@ -366,6 +370,8 @@ struct TransactionHistoryRow: View {
                 return transaction.category?.icon ?? "cart"
             case .income:
                 return transaction.category?.icon ?? "dollarsign.circle"
+            case .liabilityPayment:
+                return "creditcard.and.123"
             case .transfer:
                 return "arrow.up.right"
             case .adjustment:
@@ -385,6 +391,8 @@ struct TransactionHistoryRow: View {
                 return .green
             case .transfer:
                 return .blue
+            case .liabilityPayment:
+                return .orange
             case .adjustment:
                 return .orange
             }
@@ -400,7 +408,7 @@ struct TransactionHistoryRow: View {
     private var amountColor: Color {
         if transaction.account?.id == account.id {
             switch transaction.transactionType {
-            case .expense, .transfer:
+            case .expense, .transfer, .liabilityPayment:
                 return .red
             case .income:
                 return .green
