@@ -11,5 +11,9 @@
 		<string>fetch</string>
 		<string>processing</string>
 	</array>
+	<key>NSFaceIDUsageDescription</key>
+	<string>MyMoney utilizza Face ID per proteggere i tuoi dati finanziari sensibili e garantire che solo tu possa accedere alle tue informazioni personali.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>MyMoney richiede l'accesso alla tua libreria foto per permetterti di personalizzare i tuoi conti e categorie con immagini personali.</string>
 </dict>
 </plist>
