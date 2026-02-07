@@ -11,6 +11,7 @@ import SwiftData
 struct CategoryPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.appSettings) var appSettings
     @Query(sort: \CategoryGroup.sortOrder) private var categoryGroups: [CategoryGroup]
 
     @Binding var selectedCategory: Category?
@@ -20,6 +21,7 @@ struct CategoryPickerView: View {
     @State private var showingNewGroupSheet = false
     @State private var searchText = ""
     @State private var selectedCategoryForDetail: Category?
+    @State private var showingGroupedView = false
 
     var filteredGroups: [CategoryGroup] {
         // Prima filtra per applicabilità al tipo di transazione
@@ -44,6 +46,19 @@ struct CategoryPickerView: View {
     }
 
     var body: some View {
+        Group {
+            if appSettings.groupedCategoryView {
+                GroupedCategoryPickerView(selectedCategory: $selectedCategory) { category in
+                    selectedCategory = category
+                    dismiss()
+                }
+            } else {
+                listView
+            }
+        }
+    }
+    
+    private var listView: some View {
         NavigationStack {
             List {
                 ForEach(filteredGroups) { group in

@@ -141,6 +141,12 @@ final class AppSettings {
             UserDefaults.standard.set(balanceHeaderStyle.rawValue, forKey: "balanceHeaderStyle")
         }
     }
+    
+    var groupedCategoryView: Bool = false {
+        didSet {
+            UserDefaults.standard.set(groupedCategoryView, forKey: "groupedCategoryView")
+        }
+    }
 
     // iCloud sync status (read-only, just for display)
     var lastICloudSync: Date? {
@@ -187,6 +193,9 @@ final class AppSettings {
            let style = BalanceHeaderStyle(rawValue: savedStyle) {
             self.balanceHeaderStyle = style
         }
+        
+        // Load groupedCategoryView
+        self.groupedCategoryView = UserDefaults.standard.bool(forKey: "groupedCategoryView")
     }
 
     var preferredCurrencyEnum: Currency {

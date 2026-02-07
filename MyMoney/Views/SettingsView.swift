@@ -134,10 +134,23 @@ struct SettingsView: View {
                             }
                         }
                     }
+                    
+                    Toggle(isOn: $settings.groupedCategoryView) {
+                        HStack {
+                            Image(systemName: "square.grid.2x2.fill")
+                                .foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Vista Categorie Raggruppata")
+                                Text(settings.groupedCategoryView ? "Griglia con gruppi" : "Lista completa")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 } header: {
                     Text("Personalizzazione")
                 } footer: {
-                    Text("Scegli il colore principale dell'app, gestisci le categorie e personalizza la visualizzazione del bilancio.")
+                    Text("Scegli il colore principale dell'app, gestisci le categorie e personalizza la visualizzazione del bilancio. La vista raggruppata mostra le categorie organizzate per gruppi con indicatori budget.")
                 }
 
                 Section {
