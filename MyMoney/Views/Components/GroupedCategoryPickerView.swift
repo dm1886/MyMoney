@@ -19,6 +19,8 @@ struct GroupedCategoryPickerView: View {
     @Binding var selectedCategory: Category?
     let onSelect: (Category) -> Void
     
+    @State private var showingAddGroup = false
+    
     private let columns = [
         GridItem(.flexible()),
         GridItem(.flexible()),
@@ -30,6 +32,50 @@ struct GroupedCategoryPickerView: View {
         NavigationStack {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 16) {
+                    // Add Group Button
+                    Button {
+                        showingAddGroup = true
+                    } label: {
+                        VStack(spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.blue.opacity(0.15))
+                                    .frame(width: 60, height: 60)
+                                
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 28))
+                                    .foregroundStyle(.blue)
+                            }
+                            
+                            VStack(spacing: 4) {
+                                Text("Nuovo Gruppo")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.primary)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(height: 32, alignment: .top)
+                                
+                                Text("Aggiungi")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 140)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color(.secondarySystemGroupedBackground))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    
+                    // Existing Groups
                     ForEach(sortedGroups) { group in
                         NavigationLink {
                             CategoryGridView(
@@ -62,6 +108,9 @@ struct GroupedCategoryPickerView: View {
                         dismiss()
                     }
                 }
+            }
+            .sheet(isPresented: $showingAddGroup) {
+                AddCategoryGroupView()
             }
         }
     }
@@ -178,6 +227,10 @@ struct GroupCardLabel: View {
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(.secondarySystemGroupedBackground))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                )
         )
     }
 }
@@ -195,7 +248,10 @@ struct CategoryGridView: View {
     let modelContext: ModelContext
     let onSelect: (Category) -> Void
     
+    @State private var showingAddCategory = false
+    
     private let columns = [
+        GridItem(.flexible()),
         GridItem(.flexible()),
         GridItem(.flexible()),
         GridItem(.flexible())
@@ -203,42 +259,87 @@ struct CategoryGridView: View {
     
     var body: some View {
         NavigationStack {
-            Group {
-                if sortedCategories.isEmpty {
-                    VStack(spacing: 16) {
-                        Image(systemName: "tray")
-                            .font(.system(size: 48))
-                            .foregroundStyle(.secondary)
-                        Text("Nessuna categoria in questo gruppo")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ScrollView {
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(sortedCategories) { category in
-                                CategoryCard(
-                                    category: category,
-                                    budgetStatus: getBudgetStatus(for: category),
-                                    isSelected: selectedCategory?.id == category.id
-                                ) {
-                                    onSelect(category)
-                                }
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 16) {
+                    // Add Category Button
+                    Button {
+                        showingAddCategory = true
+                    } label: {
+                        VStack(spacing: 8) {
+                            // Icon container con altezza fissa
+                            ZStack {
+                                Circle()
+                                    .fill(Color.blue.opacity(0.15))
+                                    .frame(width: 46, height: 46)
+                                
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundStyle(.blue)
                             }
+                            .frame(height: 56)
+                            
+                            // Text container con altezza fissa
+                            VStack(spacing: 2) {
+                                Text("Nuova Categoria")
+                                    .font(.caption)
+                                    .foregroundStyle(.primary)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(height: 28, alignment: .top)
+                                
+                                Text(" ")
+                                    .font(.caption2)
+                                    .frame(height: 14)
+                            }
+                            .frame(height: 42)
                         }
-                        .padding()
+                        .frame(maxWidth: .infinity, minHeight: 114)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(.secondarySystemGroupedBackground))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    
+                    // Existing Categories
+                    ForEach(sortedCategories) { category in
+                        CategoryCard(
+                            category: category,
+                            budgetStatus: getBudgetStatus(for: category),
+                            isSelected: selectedCategory?.id == category.id
+                        ) {
+                            onSelect(category)
+                        }
+                    }
+                    
+                    // Empty state if no categories
+                    if sortedCategories.isEmpty {
+                        VStack(spacing: 16) {
+                            Image(systemName: "tray")
+                                .font(.system(size: 48))
+                                .foregroundStyle(.secondary)
+                            Text("Nessuna categoria in questo gruppo")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                        .gridCellColumns(4)
                     }
                 }
+                .padding()
             }
             .navigationTitle(group.name)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Indietro") {
-                        dismiss()
-                    }
-                }
+            .sheet(isPresented: $showingAddCategory) {
+                AddCategoryView(preselectedGroup: group)
             }
         }
     }
@@ -282,6 +383,7 @@ struct CategoryCard: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 8) {
+                // Icon container con altezza fissa
                 ZStack {
                     // Budget progress ring
                     if let status = budgetStatus {
@@ -324,27 +426,42 @@ struct CategoryCard: View {
                             .frame(width: 56, height: 56)
                     }
                 }
+                .frame(height: 56)
                 
+                // Text container con altezza fissa
                 VStack(spacing: 2) {
                     Text(category.name)
                         .font(.caption)
                         .foregroundStyle(.primary)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(height: 28, alignment: .top)
                     
-                    // Mostra percentuale budget
-                    if let status = budgetStatus {
-                        Text("\(Int(status.percentage))%")
-                            .font(.caption2.bold())
-                            .foregroundStyle(status.color)
+                    // Mostra percentuale budget con altezza fissa
+                    Group {
+                        if let status = budgetStatus {
+                            Text("\(Int(status.percentage))%")
+                                .font(.caption2.bold())
+                                .foregroundStyle(status.color)
+                        } else {
+                            Text(" ")
+                                .font(.caption2)
+                        }
                     }
+                    .frame(height: 14)
                 }
+                .frame(height: 42)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 114)
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(isSelected ? Color.blue.opacity(0.1) : Color(.secondarySystemGroupedBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    )
             )
         }
         .buttonStyle(.plain)
