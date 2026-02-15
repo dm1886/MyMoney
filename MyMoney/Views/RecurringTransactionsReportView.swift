@@ -27,6 +27,7 @@ struct RecurringTransactionGroup: Identifiable {
     let name: String
     let transactions: [Transaction]
     let total: Decimal
+    let occurrences: Int
     let icon: String
     let color: Color
 }
@@ -55,31 +56,16 @@ struct RecurringTransactionsReportView: View {
         allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
     }
     
-    // Filtra solo transazioni ricorrenti
+    // Filtra solo transazioni ricorrenti template (non istanze)
     var recurringTransactions: [Transaction] {
         allTransactions.filter { transaction in
-            // Solo transazioni ricorrenti (template o istanze)
-            guard transaction.isRecurring || transaction.parentRecurringTransactionId != nil else {
+            // Solo transazioni ricorrenti template (non istanze generate)
+            guard transaction.isRecurring, transaction.recurrenceRule != nil else {
                 return false
             }
             
-            // Filtra per periodo
-            switch selectedPeriod {
-            case .daily:
-                guard let rule = transaction.recurrenceRule, rule.unit == .day else {
-                    return false
-                }
-            case .monthly:
-                guard let rule = transaction.recurrenceRule, rule.unit == .month else {
-                    return false
-                }
-            case .yearly:
-                guard let rule = transaction.recurrenceRule, rule.unit == .year else {
-                    return false
-                }
-            case .all:
-                break
-            }
+            // NON filtriamo più per tipo di ricorrenza (daily/monthly/yearly)
+            // Il periodo selezionato determina solo l'intervallo temporale per il calcolo delle occorrenze
             
             // Filtra per conti
             if !selectedAccounts.isEmpty {
@@ -106,8 +92,104 @@ struct RecurringTransactionsReportView: View {
         }
     }
     
+    // Calcola le istanze nel periodo selezionato per una transazione ricorrente
+    private func calculateOccurrences(for transaction: Transaction) -> Int {
+        guard let rule = transaction.recurrenceRule else { return 1 }
+        
+        let calendar = Calendar.current
+        let now = Date()
+        
+        // Determina l'intervallo in base al periodo selezionato
+        let (startDate, endDate): (Date, Date)
+        
+        switch selectedPeriod {
+        case .daily:
+            // Inizio e fine del giorno corrente
+            startDate = calendar.startOfDay(for: now)
+            endDate = calendar.date(byAdding: DateComponents(day: 1, second: -1), to: startDate) ?? now
+            
+        case .monthly:
+            // Inizio e fine del mese corrente
+            guard let start = calendar.date(from: calendar.dateComponents([.year, .month], from: now)),
+                  let end = calendar.date(byAdding: DateComponents(month: 1, day: -1), to: start) else {
+                return 1
+            }
+            startDate = start
+            endDate = end
+            
+        case .yearly:
+            // Inizio e fine dell'anno corrente
+            guard let start = calendar.date(from: calendar.dateComponents([.year], from: now)),
+                  let end = calendar.date(byAdding: DateComponents(year: 1, day: -1), to: start) else {
+                return 1
+            }
+            startDate = start
+            endDate = end
+            
+        case .all:
+            // Per "Tutte", usiamo l'anno corrente come riferimento
+            guard let start = calendar.date(from: calendar.dateComponents([.year], from: now)),
+                  let end = calendar.date(byAdding: DateComponents(year: 1, day: -1), to: start) else {
+                return 1
+            }
+            startDate = start
+            endDate = end
+        }
+        
+        var occurrenceCount = 0
+        var currentDate = transaction.date
+        
+        // Se la transazione inizia prima del periodo, trova la prima occorrenza nel periodo
+        if currentDate < startDate {
+            while currentDate < startDate {
+                guard let nextDate = rule.nextOccurrence(from: currentDate, includeStartDayInCount: transaction.includeStartDayInCount) else {
+                    break
+                }
+                currentDate = nextDate
+                
+                // Evita loop infiniti
+                if occurrenceCount > 10000 {
+                    break
+                }
+            }
+        }
+        
+        // Conta tutte le occorrenze nel periodo
+        while currentDate <= endDate {
+            // Verifica se la transazione è terminata
+            if let recEndDate = transaction.recurrenceEndDate, currentDate > recEndDate {
+                break
+            }
+            
+            // Se la data è nel periodo, conta l'occorrenza
+            if currentDate >= startDate && currentDate <= endDate {
+                occurrenceCount += 1
+            }
+            
+            // Calcola la prossima occorrenza
+            guard let nextDate = rule.nextOccurrence(from: currentDate, includeStartDayInCount: transaction.includeStartDayInCount) else {
+                break
+            }
+            
+            currentDate = nextDate
+            
+            // Evita loop infiniti
+            if occurrenceCount > 1000 {
+                break
+            }
+        }
+        
+        return max(1, occurrenceCount)
+    }
+    
     var totalAmount: Decimal {
         groupedData.reduce(0) { $0 + $1.total }
+    }
+    
+    var totalOccurrences: Int {
+        recurringTransactions.reduce(0) { total, transaction in
+            total + calculateOccurrences(for: transaction)
+        }
     }
     
     var body: some View {
@@ -344,11 +426,11 @@ struct RecurringTransactionsReportView: View {
                 Spacer()
                 
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(recurringTransactions.count)")
+                    Text("\(totalOccurrences)")
                         .font(.title2.bold())
                         .foregroundStyle(.purple)
                     
-                    Text("transazioni")
+                    Text(totalOccurrences == 1 ? "occorrenza" : "occorrenze")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -412,10 +494,12 @@ struct RecurringTransactionsReportView: View {
                 // Nessun raggruppamento - mostra tutte le transazioni
                 if !filtered.isEmpty {
                     let total = calculateTotal(for: filtered)
+                    let occurrences = filtered.reduce(0) { $0 + calculateOccurrences(for: $1) }
                     groups.append(RecurringTransactionGroup(
                         name: "Tutte le Transazioni",
                         transactions: filtered,
                         total: total,
+                        occurrences: occurrences,
                         icon: "list.bullet",
                         color: .gray
                     ))
@@ -432,10 +516,12 @@ struct RecurringTransactionsReportView: View {
                     }
                     
                     let total = calculateTotal(for: transactions)
+                    let occurrences = transactions.reduce(0) { $0 + calculateOccurrences(for: $1) }
                     groups.append(RecurringTransactionGroup(
                         name: category.name,
                         transactions: transactions,
                         total: total,
+                        occurrences: occurrences,
                         icon: category.icon,
                         color: Color(hex: category.colorHex) ?? .gray
                     ))
@@ -452,10 +538,12 @@ struct RecurringTransactionsReportView: View {
                     }
                     
                     let total = calculateTotal(for: transactions)
+                    let occurrences = transactions.reduce(0) { $0 + calculateOccurrences(for: $1) }
                     groups.append(RecurringTransactionGroup(
                         name: group.name,
                         transactions: transactions,
                         total: total,
+                        occurrences: occurrences,
                         icon: group.icon,
                         color: Color(hex: group.colorHex) ?? .gray
                     ))
@@ -472,10 +560,12 @@ struct RecurringTransactionsReportView: View {
                     }
                     
                     let total = calculateTotal(for: transactions)
+                    let occurrences = transactions.reduce(0) { $0 + calculateOccurrences(for: $1) }
                     groups.append(RecurringTransactionGroup(
                         name: account.name,
                         transactions: transactions,
                         total: total,
+                        occurrences: occurrences,
                         icon: account.icon,
                         color: account.color
                     ))
@@ -494,12 +584,16 @@ struct RecurringTransactionsReportView: View {
     
     private func calculateTotal(for transactions: [Transaction]) -> Decimal {
         guard let preferredCurrency = preferredCurrencyRecord else {
-            return transactions.reduce(0) { $0 + $1.amount }
+            return transactions.reduce(0) { total, transaction in
+                let occurrences = Decimal(calculateOccurrences(for: transaction))
+                return total + (transaction.amount * occurrences)
+            }
         }
         
         return transactions.reduce(0) { total, transaction in
             guard let transactionCurrency = transaction.currencyRecord else {
-                return total + transaction.amount
+                let occurrences = Decimal(calculateOccurrences(for: transaction))
+                return total + (transaction.amount * occurrences)
             }
             
             let converted = CurrencyService.shared.convert(
@@ -509,7 +603,8 @@ struct RecurringTransactionsReportView: View {
                 context: modelContext
             )
             
-            return total + converted
+            let occurrences = Decimal(calculateOccurrences(for: transaction))
+            return total + (converted * occurrences)
         }
     }
     
@@ -594,7 +689,7 @@ struct RecurringGroupRow: View {
                         .font(.subheadline.bold())
                         .foregroundStyle(.primary)
                     
-                    Text("\(group.transactions.count) transazioni")
+                    Text("\(group.occurrences) \(group.occurrences == 1 ? "occorrenza" : "occorrenze")")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

@@ -234,11 +234,7 @@ struct ScheduledTransactionRow: View {
             }
         }
         .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
-        )
+        .glassEffect(in: .rect(cornerRadius: 12))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) {
                 showingDeleteAlert = true

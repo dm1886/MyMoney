@@ -234,11 +234,7 @@ struct BalanceAdjustmentView: View {
             .padding(.vertical, 8)
         }
         .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
-        )
+        .glassEffect(in: .rect(cornerRadius: 20))
     }
 
     // MARK: - New Balance Card
@@ -363,11 +359,7 @@ struct BalanceAdjustmentView: View {
             }
         }
         .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
-        )
+        .glassEffect(in: .rect(cornerRadius: 20))
         .animation(.spring(response: 0.3), value: difference)
     }
 
@@ -394,11 +386,7 @@ struct BalanceAdjustmentView: View {
                 )
         }
         .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
-        )
+        .glassEffect(in: .rect(cornerRadius: 20))
     }
 
     // MARK: - Validation

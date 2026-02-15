@@ -42,7 +42,7 @@ struct AccountDetailView: View {
             .filter { !tracker.isDeleted($0.id) && $0.modelContext != nil && $0.status != .pending }
 
         let incomingTransfers = (account.incomingTransfers ?? [])
-            .filter { !tracker.isDeleted($0.id) && $0.modelContext != nil && $0.status != .pending && $0.transactionType == .transfer }
+            .filter { !tracker.isDeleted($0.id) && $0.modelContext != nil && $0.status != .pending && ($0.transactionType == .transfer || $0.transactionType == .liabilityPayment) }
 
         var allTransactions = outgoingTransactions + incomingTransfers
 
@@ -127,18 +127,38 @@ struct AccountDetailView: View {
         // Filter out deleted/detached transfers to prevent crash
         // CRITICAL: Check tracker FIRST before accessing transactionType
         if let incoming = account.incomingTransfers {
-            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
-                if let destAmount = transfer.destinationAmount {
-                    balance += destAmount
-                } else if let transferCurr = transfer.currencyRecord,
+            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed {
+                if transfer.transactionType == .transfer {
+                    if let destAmount = transfer.destinationAmount {
+                        balance += destAmount
+                    } else if let transferCurr = transfer.currencyRecord,
                               let accountCurr = account.currencyRecord {
-                    let convertedAmount = CurrencyService.shared.convert(
-                        amount: transfer.amount,
-                        from: transferCurr,
-                        to: accountCurr,
-                        context: modelContext
-                    )
-                    balance += convertedAmount
+                        let convertedAmount = CurrencyService.shared.convert(
+                            amount: transfer.amount,
+                            from: transferCurr,
+                            to: accountCurr,
+                            context: modelContext
+                        )
+                        balance += convertedAmount
+                    }
+                } else if transfer.transactionType == .liabilityPayment {
+                    // Per pagamenti passività, accredita l'importo del debito (riduce la passività)
+                    var amountToAdd: Decimal = 0
+                    if let destAmount = transfer.destinationAmount {
+                        amountToAdd = destAmount
+                    } else if let transferCurr = transfer.currencyRecord,
+                              let accountCurr = account.currencyRecord,
+                              transferCurr.code != accountCurr.code {
+                        amountToAdd = CurrencyService.shared.convert(
+                            amount: transfer.amount,
+                            from: transferCurr,
+                            to: accountCurr,
+                            context: modelContext
+                        )
+                    } else {
+                        amountToAdd = transfer.amount
+                    }
+                    balance += amountToAdd
                 }
             }
         }
@@ -606,11 +626,7 @@ struct AccountTransactionRow: View {
             .fill(lineColor)
             .frame(height: 3)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
-        )
+        .glassEffect(in: .rect(cornerRadius: 12))
     }
 
     private var displayTitle: String {
@@ -802,11 +818,7 @@ struct TransactionRow: View {
             }
         }
         .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
-        )
+        .glassEffect(in: .rect(cornerRadius: 12))
     }
 
     private func formatTransactionAmount(_ displayAmount: String) -> String {

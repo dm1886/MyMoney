@@ -67,18 +67,38 @@ struct HomeView: View {
         if let incoming = account.incomingTransfers {
             // Filter out deleted/detached transfers to prevent crash
             // CRITICAL: Check tracker FIRST before accessing transactionType
-            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
-                if let destAmount = transfer.destinationAmount {
-                    balance += destAmount
-                } else if let transferCurr = transfer.currencyRecord,
-                          let accountCurr = account.currencyRecord {
-                    let convertedAmount = CurrencyService.shared.convert(
-                        amount: transfer.amount,
-                        from: transferCurr,
-                        to: accountCurr,
-                        context: modelContext
-                    )
-                    balance += convertedAmount
+            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed {
+                if transfer.transactionType == .transfer {
+                    if let destAmount = transfer.destinationAmount {
+                        balance += destAmount
+                    } else if let transferCurr = transfer.currencyRecord,
+                              let accountCurr = account.currencyRecord {
+                        let convertedAmount = CurrencyService.shared.convert(
+                            amount: transfer.amount,
+                            from: transferCurr,
+                            to: accountCurr,
+                            context: modelContext
+                        )
+                        balance += convertedAmount
+                    }
+                } else if transfer.transactionType == .liabilityPayment {
+                    // Per pagamenti passività, accredita l'importo del debito (riduce la passività)
+                    var amountToAdd: Decimal = 0
+                    if let destAmount = transfer.destinationAmount {
+                        amountToAdd = destAmount
+                    } else if let transferCurr = transfer.currencyRecord,
+                              let accountCurr = account.currencyRecord,
+                              transferCurr.code != accountCurr.code {
+                        amountToAdd = CurrencyService.shared.convert(
+                            amount: transfer.amount,
+                            from: transferCurr,
+                            to: accountCurr,
+                            context: modelContext
+                        )
+                    } else {
+                        amountToAdd = transfer.amount
+                    }
+                    balance += amountToAdd
                 }
             }
         }

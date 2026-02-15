@@ -235,11 +235,7 @@ struct PendingTransactionCard: View {
             }
         }
         .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.08), radius: 8, y: 4)
-        )
+        .glassEffect(in: .rect(cornerRadius: 16))
         .alert("Conferma Transazione", isPresented: $showingConfirmAlert) {
             Button("Annulla", role: .cancel) { }
             Button("Conferma") {

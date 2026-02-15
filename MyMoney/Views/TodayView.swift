@@ -371,9 +371,7 @@ struct TodayView: View {
                             .padding(.bottom, 12)
                     }
                 }
-                .background(Color(.systemBackground))
-                .cornerRadius(16)
-                .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
+                .glassEffect(in: .rect(cornerRadius: 16))
                 .padding(.horizontal)
                 .padding(.top, 12)
                 .padding(.bottom, 16)
@@ -482,13 +480,11 @@ struct TodayView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
+                    Button("Aggiungi", systemImage: "plus.circle.fill") {
                         showingAddTransaction = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(appSettings.accentColor)
                     }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.glass)
                 }
             }
             .sheet(isPresented: $showingAddTransaction) {
@@ -675,10 +671,7 @@ struct TodayView: View {
             .padding(.horizontal)
         }
         .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
+        .glassEffect(in: .rect(cornerRadius: 12))
     }
 
     private func calendarDayCell(date: Date) -> some View {
@@ -888,6 +881,13 @@ struct TodayView: View {
                             } label: {
                                 Label("Elimina", systemImage: "trash")
                             }
+                            
+                            Button {
+                                duplicateTransaction(transaction)
+                            } label: {
+                                Label("Duplica", systemImage: "doc.on.doc")
+                            }
+                            .tint(.blue)
                         }
                     }
                 } header: {
@@ -923,6 +923,13 @@ struct TodayView: View {
                             } label: {
                                 Label("Elimina", systemImage: "trash")
                             }
+                            
+                            Button {
+                                duplicateTransaction(transaction)
+                            } label: {
+                                Label("Duplica", systemImage: "doc.on.doc")
+                            }
+                            .tint(.blue)
                         }
                     }
                 } header: {
@@ -958,6 +965,13 @@ struct TodayView: View {
                             } label: {
                                 Label("Elimina", systemImage: "trash")
                             }
+                            
+                            Button {
+                                duplicateTransaction(transaction)
+                            } label: {
+                                Label("Duplica", systemImage: "doc.on.doc")
+                            }
+                            .tint(.blue)
                         }
                     }
                 } header: {
@@ -1015,6 +1029,56 @@ struct TodayView: View {
             // Altrimenti elimina direttamente
             deleteTransaction(transaction, deleteAll: false)
         }
+    }
+    
+    private func duplicateTransaction(_ transaction: Transaction) {
+        // Crea una nuova transazione con gli stessi dati
+        let newTransaction = Transaction(
+            transactionType: transaction.transactionType,
+            amount: transaction.amount,
+            currency: transaction.currency,
+            date: Date(), // Usa la data odierna
+            notes: transaction.notes,
+            account: transaction.account,
+            category: transaction.category,
+            destinationAccount: transaction.destinationAccount
+        )
+        
+        // Copia altri campi importanti
+        newTransaction.currencyRecord = transaction.currencyRecord
+        newTransaction.destinationAmount = transaction.destinationAmount
+        newTransaction.exchangeRateSnapshot = transaction.exchangeRateSnapshot
+        newTransaction.isCustomRate = transaction.isCustomRate
+        newTransaction.interestAmount = transaction.interestAmount
+        newTransaction.interestPercentage = transaction.interestPercentage
+        newTransaction.status = .executed // La nuova transazione è sempre eseguita
+        
+        // NON copiare i campi di ricorrenza per evitare duplicati ricorrenti
+        newTransaction.isRecurring = false
+        newTransaction.recurrenceRule = nil
+        newTransaction.recurrenceEndDate = nil
+        newTransaction.parentRecurringTransactionId = nil
+        
+        // Salva nel context
+        modelContext.insert(newTransaction)
+        
+        try? modelContext.save()
+        
+        // Aggiorna i saldi degli account
+        if let account = transaction.account {
+            account.updateBalance(context: modelContext)
+        }
+        if let destinationAccount = transaction.destinationAccount {
+            destinationAccount.updateBalance(context: modelContext)
+        }
+        
+        try? modelContext.save()
+        
+        // Haptic feedback
+        HapticManager.shared.success()
+        
+        // Refresh transactions
+        refreshTransactionsSafely()
     }
 
     private func deleteTransaction(_ transaction: Transaction, deleteAll: Bool) {

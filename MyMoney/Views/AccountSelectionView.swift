@@ -49,8 +49,18 @@ struct AccountSelectionView: View {
                     account.accountType != .liability && account.accountType != .asset
                 }
             case .liabilityPayment:
-                // Per pagamenti passività, mostra tutti i conti
-                filtered = accounts
+                // Per pagamenti passività:
+                // - Se è il conto destinazione (title contiene "Passività"), mostra solo passività e carte di credito
+                // - Se è il conto origine (title contiene "Da"), mostra tutti tranne passività
+                if title.contains("Passività") {
+                    filtered = accounts.filter { account in
+                        account.accountType == .liability || account.accountType == .creditCard
+                    }
+                } else {
+                    filtered = accounts.filter { account in
+                        account.accountType != .liability && account.accountType != .asset
+                    }
+                }
             case .transfer, .adjustment:
                 // Per trasferimenti e aggiustamenti, mostra tutti i conti
                 filtered = accounts
@@ -262,22 +272,44 @@ struct AccountListRow: View {
         // Filter out deleted/detached transfers to prevent crash
         // CRITICAL: Check tracker FIRST before accessing transactionType
         if let incoming = account.incomingTransfers {
-            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
+            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed {
                 var amountToAdd: Decimal = 0
-                if let destAmount = transfer.destinationAmount {
-                    amountToAdd = destAmount
-                } else if let transferCurr = transfer.currencyRecord,
-                          let accountCurr = account.currencyRecord {
-                    amountToAdd = CurrencyService.shared.convert(
-                        amount: transfer.amount,
-                        from: transferCurr,
-                        to: accountCurr,
-                        context: modelContext
-                    )
-                } else {
-                    amountToAdd = transfer.amount
+                
+                if transfer.transactionType == .transfer {
+                    if let destAmount = transfer.destinationAmount {
+                        amountToAdd = destAmount
+                    } else if let transferCurr = transfer.currencyRecord,
+                              let accountCurr = account.currencyRecord {
+                        amountToAdd = CurrencyService.shared.convert(
+                            amount: transfer.amount,
+                            from: transferCurr,
+                            to: accountCurr,
+                            context: modelContext
+                        )
+                    } else {
+                        amountToAdd = transfer.amount
+                    }
+                    balance += amountToAdd
+                } else if transfer.transactionType == .liabilityPayment {
+                    // Per pagamenti passività, accredita l'importo del debito (riduce la passività)
+                    // L'interesse non viene accreditato perché è una spesa
+                    var amountToAdd: Decimal = 0
+                    if let destAmount = transfer.destinationAmount {
+                        amountToAdd = destAmount
+                    } else if let transferCurr = transfer.currencyRecord,
+                              let accountCurr = account.currencyRecord,
+                              transferCurr.code != accountCurr.code {
+                        amountToAdd = CurrencyService.shared.convert(
+                            amount: transfer.amount,
+                            from: transferCurr,
+                            to: accountCurr,
+                            context: modelContext
+                        )
+                    } else {
+                        amountToAdd = transfer.amount
+                    }
+                    balance += amountToAdd
                 }
-                balance += amountToAdd
             }
         }
 

@@ -102,11 +102,7 @@ struct AccentColorPickerView: View {
                     Spacer()
                 }
                 .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.systemBackground))
-                        .shadow(color: appSettings.accentColor.opacity(0.15), radius: 8, y: 4)
-                )
+                .glassEffect(in: .rect(cornerRadius: 12))
 
                 // Button preview
                 Button {} label: {

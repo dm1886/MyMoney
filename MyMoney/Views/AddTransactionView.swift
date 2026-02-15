@@ -139,16 +139,25 @@ struct AddTransactionView: View {
     
     var calculatedInterest: Decimal? {
         guard transactionType == .liabilityPayment else { return nil }
-        
+
         if interestMode == .manual {
+            // Se vuoto, ritorna 0
+            if interestAmount.isEmpty {
+                return 0
+            }
             return parseAmount(interestAmount)
         } else {
+            // Se vuoto, ritorna 0
+            if interestPercentage.isEmpty {
+                return 0
+            }
+
             // Percentuale sul debito totale del conto destinazione
             guard let percentage = parseAmount(interestPercentage),
                   let destAccount = selectedDestinationAccount else {
                 return nil
             }
-            
+
             let currentDebt = abs(destAccount.currentBalance)
             return (currentDebt * percentage) / 100
         }
@@ -274,7 +283,7 @@ struct AddTransactionView: View {
     var body: some View {
         NavigationStack {
             Form {
-                // CATEGORIA - Solo per expense/income
+                // CATEGORIA - Per expense/income e liability payment (opzionale)
                 if transactionType != .transfer {
                     Section {
                         Button {
@@ -303,7 +312,7 @@ struct AddTransactionView: View {
                                             .foregroundStyle(.secondary)
                                     }
                                 } else {
-                                    Text("Seleziona")
+                                    Text(transactionType == .liabilityPayment ? "Opzionale" : "Seleziona")
                                         .foregroundStyle(.secondary)
                                 }
 
@@ -313,8 +322,10 @@ struct AddTransactionView: View {
                             }
                         }
                     }
+                }
 
-                    // CONTO - Subito dopo categoria per expense/income
+                // CONTO - Solo per expense/income
+                if transactionType != .transfer && transactionType != .liabilityPayment {
                     Section {
                         NavigationLink {
                             AccountSelectionView(
@@ -658,12 +669,12 @@ struct AddTransactionView: View {
                             .padding(.vertical, 4)
                         }
                     } header: {
-                        Text("Interessi")
+                        Text("Interessi (Opzionale)")
                     } footer: {
                         if interestMode == .percentage {
-                            Text("L'interesse viene calcolato come percentuale del debito totale del conto passività.")
+                            Text("L'interesse viene calcolato come percentuale del debito totale del conto passività. Lascia vuoto per pagamento senza interessi (0%).")
                         } else {
-                            Text("Inserisci manualmente l'importo dell'interesse da pagare.")
+                            Text("Inserisci manualmente l'importo dell'interesse da pagare. Lascia vuoto per pagamento senza interessi.")
                         }
                     }
                 }
@@ -1035,26 +1046,28 @@ struct AddTransactionView: View {
         if transactionType == .liabilityPayment {
             // Conto destinazione obbligatorio
             guard selectedDestinationAccount != nil else { return false }
-            
+
             // Deve essere Passività o Carta di Credito
             guard isValidLiabilityDestination else { return false }
-            
+
             // Valute devono essere uguali
             guard !liabilityPaymentCurrencyMismatch else { return false }
-            
-            // Interesse valido (percentuale o manuale)
+
+            // Interesse opzionale - se specificato deve essere valido
             if interestMode == .percentage {
-                guard !interestPercentage.isEmpty,
-                      let _ = parseAmount(interestPercentage) else {
-                    return false
+                if !interestPercentage.isEmpty {
+                    guard let _ = parseAmount(interestPercentage) else {
+                        return false
+                    }
                 }
             } else {
-                guard !interestAmount.isEmpty,
-                      let _ = parseAmount(interestAmount) else {
-                    return false
+                if !interestAmount.isEmpty {
+                    guard let _ = parseAmount(interestAmount) else {
+                        return false
+                    }
                 }
             }
-            
+
             return true
         }
 
@@ -1126,27 +1139,27 @@ struct AddTransactionView: View {
         if transactionType == .liabilityPayment {
             if let interest = calculatedInterest {
                 transaction.interestAmount = interest
-                
+
                 if interestMode == .percentage, let percentage = parseAmount(interestPercentage) {
                     transaction.interestPercentage = percentage
                 }
-                
-                // Crea transazione spesa separata per l'interesse
+
+                // Crea transazione spesa separata per l'interesse (anche se zero)
                 let interestTransaction = Transaction(
                     transactionType: .expense,
                     amount: interest,
                     currency: currencyEnumToUse,
                     date: selectedDate,
-                    notes: "Interessi su pagamento passività - \(selectedDestinationAccount?.name ?? "")",
+                    notes: interest == 0 ? "Pagamento passività senza interessi - \(selectedDestinationAccount?.name ?? "")" : "Interessi su pagamento passività - \(selectedDestinationAccount?.name ?? "")",
                     account: account,
-                    category: categories.first { $0.name == "Interessi Passivi" },
+                    category: selectedCategory ?? categories.first { $0.name == "Interessi Passivi" },
                     destinationAccount: nil
                 )
                 interestTransaction.currencyRecord = currencyToUse
                 interestTransaction.status = transaction.status  // Stesso status della transazione principale
-                
+
                 modelContext.insert(interestTransaction)
-                
+
                 LogManager.shared.info("Created interest expense: \(interest)", category: "LiabilityPayment")
             }
         }

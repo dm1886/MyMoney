@@ -163,13 +163,11 @@ struct HomeViewNew: View {
                         .foregroundStyle(appSettings.accentColor)
                         .fontWeight(.semibold)
                     } else {
-                        Button {
+                        Button("Aggiungi", systemImage: "plus.circle.fill") {
                             showingAddWidget = true
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(appSettings.accentColor)
                         }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.glass)
                     }
                 }
             }

@@ -207,31 +207,52 @@ struct BalanceView: View {
             }
         }
 
-        // Aggiungi trasferimenti in entrata
+        // Aggiungi trasferimenti in entrata e pagamenti passività
         // Filter out deleted/detached transfers to prevent crash
         // CRITICAL: Check tracker FIRST before accessing transactionType
         if let incoming = account.incomingTransfers {
-            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
+            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed {
                 var amountToAdd: Decimal = 0
-                // IMPORTANTE: Usa destinationAmount salvato per preservare calcoli storici
-                if let destAmount = transfer.destinationAmount {
-                    amountToAdd = destAmount
-                } else if let snapshot = transfer.exchangeRateSnapshot {
-                    // Usa snapshot del tasso se disponibile (preserva calcoli storici)
-                    amountToAdd = transfer.amount * snapshot
-                } else if let transferCurr = transfer.currencyRecord,
-                          let accountCurr = account.currencyRecord {
-                    // Fallback: usa tasso corrente (solo per vecchie transazioni senza snapshot)
-                    amountToAdd = CurrencyService.shared.convert(
-                        amount: transfer.amount,
-                        from: transferCurr,
-                        to: accountCurr,
-                        context: modelContext
-                    )
-                } else {
-                    amountToAdd = transfer.amount
+                
+                if transfer.transactionType == .transfer {
+                    // IMPORTANTE: Usa destinationAmount salvato per preservare calcoli storici
+                    if let destAmount = transfer.destinationAmount {
+                        amountToAdd = destAmount
+                    } else if let snapshot = transfer.exchangeRateSnapshot {
+                        // Usa snapshot del tasso se disponibile (preserva calcoli storici)
+                        amountToAdd = transfer.amount * snapshot
+                    } else if let transferCurr = transfer.currencyRecord,
+                              let accountCurr = account.currencyRecord {
+                        // Fallback: usa tasso corrente (solo per vecchie transazioni senza snapshot)
+                        amountToAdd = CurrencyService.shared.convert(
+                            amount: transfer.amount,
+                            from: transferCurr,
+                            to: accountCurr,
+                            context: modelContext
+                        )
+                    } else {
+                        amountToAdd = transfer.amount
+                    }
+                    balance += amountToAdd
+                } else if transfer.transactionType == .liabilityPayment {
+                    // Per pagamenti passività, accredita l'importo del debito (riduce la passività)
+                    // L'interesse non viene accreditato perché è una spesa
+                    if let destAmount = transfer.destinationAmount {
+                        amountToAdd = destAmount
+                    } else if let transferCurr = transfer.currencyRecord,
+                              let accountCurr = account.currencyRecord,
+                              transferCurr.code != accountCurr.code {
+                        amountToAdd = CurrencyService.shared.convert(
+                            amount: transfer.amount,
+                            from: transferCurr,
+                            to: accountCurr,
+                            context: modelContext
+                        )
+                    } else {
+                        amountToAdd = transfer.amount
+                    }
+                    balance += amountToAdd
                 }
-                balance += amountToAdd
             }
         }
 
@@ -420,13 +441,11 @@ struct BalanceView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
+                    Button("Aggiungi", systemImage: "plus.circle.fill") {
                         showingAddAccount = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(appSettings.accentColor)
                     }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.glass)
                 }
             }
             .sheet(isPresented: $showingAddAccount) {
@@ -581,18 +600,38 @@ struct AccountRow: View {
         // Filter out deleted/detached transfers to prevent crash
         // CRITICAL: Check tracker FIRST before accessing transactionType
         if let incoming = account.incomingTransfers {
-            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed && transfer.transactionType == .transfer {
-                if let destAmount = transfer.destinationAmount {
-                    balance += destAmount
-                } else if let transferCurr = transfer.currencyRecord,
-                          let accountCurr = account.currencyRecord {
-                    let convertedAmount = CurrencyService.shared.convert(
-                        amount: transfer.amount,
-                        from: transferCurr,
-                        to: accountCurr,
-                        context: modelContext
-                    )
-                    balance += convertedAmount
+            for transfer in incoming where !tracker.isDeleted(transfer.id) && transfer.modelContext != nil && transfer.status == .executed {
+                if transfer.transactionType == .transfer {
+                    if let destAmount = transfer.destinationAmount {
+                        balance += destAmount
+                    } else if let transferCurr = transfer.currencyRecord,
+                              let accountCurr = account.currencyRecord {
+                        let convertedAmount = CurrencyService.shared.convert(
+                            amount: transfer.amount,
+                            from: transferCurr,
+                            to: accountCurr,
+                            context: modelContext
+                        )
+                        balance += convertedAmount
+                    }
+                } else if transfer.transactionType == .liabilityPayment {
+                    // Per pagamenti passività, accredita l'importo del debito (riduce la passività)
+                    var amountToAdd: Decimal = 0
+                    if let destAmount = transfer.destinationAmount {
+                        amountToAdd = destAmount
+                    } else if let transferCurr = transfer.currencyRecord,
+                              let accountCurr = account.currencyRecord,
+                              transferCurr.code != accountCurr.code {
+                        amountToAdd = CurrencyService.shared.convert(
+                            amount: transfer.amount,
+                            from: transferCurr,
+                            to: accountCurr,
+                            context: modelContext
+                        )
+                    } else {
+                        amountToAdd = transfer.amount
+                    }
+                    balance += amountToAdd
                 }
             }
         }

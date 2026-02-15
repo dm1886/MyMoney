@@ -117,11 +117,7 @@ struct QuickStatsWidget: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
-        )
+        .glassEffect(in: .rect(cornerRadius: 16))
     }
 }
 

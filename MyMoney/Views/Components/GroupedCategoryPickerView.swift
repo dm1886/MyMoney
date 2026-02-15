@@ -469,11 +469,11 @@ struct CategoryCard: View {
 }
 
 #Preview {
+    @Previewable @State var selectedCategory: Category?
+
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: CategoryGroup.self, Category.self, Budget.self, configurations: config)
-    
-    @State var selectedCategory: Category?
-    
+
     return GroupedCategoryPickerView(selectedCategory: $selectedCategory) { _ in }
         .environment(\.appSettings, AppSettings.shared)
         .modelContainer(container)

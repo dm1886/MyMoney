@@ -36,11 +36,7 @@ struct BalanceHeaderView: View {
         }
         .padding()
         .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
-        )
+        .glassEffect(in: .rect(cornerRadius: 20))
         .padding(.horizontal)
         .padding(.top, 8)
     }
