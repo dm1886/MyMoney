@@ -436,7 +436,6 @@ struct BalanceView: View {
                     }
                 }
             }
-            .background(Color(.systemGroupedBackground))
             .navigationTitle("Bilancio")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

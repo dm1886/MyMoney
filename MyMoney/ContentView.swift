@@ -12,6 +12,8 @@ struct ContentView: View {
     @State private var biometricManager = BiometricAuthManager.shared
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.appSettings) private var appSettings
+    
+
 
     var body: some View {
         ZStack {

@@ -385,7 +385,6 @@ struct TodayView: View {
                     transactionsList
                 }
             }
-            .background(Color(.systemGroupedBackground))
             .navigationBarTitleDisplayMode(.inline)
 
             

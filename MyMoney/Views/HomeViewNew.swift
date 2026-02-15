@@ -147,8 +147,6 @@ struct HomeViewNew: View {
                 }
             }
             .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .background(Color(.systemGroupedBackground))
             .environment(\.editMode, $editMode)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
