@@ -887,64 +887,46 @@ struct EditTransactionView: View {
             )
         }
 
-        // IMPORTANTE: Salvare PRIMA di updateBalance() per assicurare che le relazioni inverse siano stabilite
+        // Singolo save per le modifiche alla transazione
         try? modelContext.save()
 
-        // Update account balances:
-        // - Always update for executed transactions (any edit could change the balance)
-        // - Update when status changes between pending and executed
+        // Haptic feedback e dismiss immediato per UX reattiva
+        dismiss()
+
+        // ⚡️ PERFORMANCE: Ricalcolo saldi e operazioni pesanti dopo dismiss
         let needsBalanceUpdate = transaction.status == .executed ||
                                   (wasScheduled && wasPending && !isScheduled) ||
                                   (!wasScheduled && isScheduled)
 
-        print("📝 [DEBUG] EditTransaction - needsBalanceUpdate: \(needsBalanceUpdate)")
-        print("📝 [DEBUG] EditTransaction - transaction.status: \(transaction.status.rawValue)")
-        print("📝 [DEBUG] EditTransaction - transactionType: \(transactionType.rawValue)")
-        print("📝 [DEBUG] EditTransaction - selectedAccount: \(selectedAccount?.name ?? "nil")")
-        print("📝 [DEBUG] EditTransaction - selectedDestinationAccount: \(selectedDestinationAccount?.name ?? "nil")")
-        print("📝 [DEBUG] EditTransaction - oldAccount: \(oldAccount?.name ?? "nil")")
-        print("📝 [DEBUG] EditTransaction - oldDestinationAccount: \(oldDestinationAccount?.name ?? "nil")")
+        Task { @MainActor in
+            if needsBalanceUpdate {
+                // Per edit: ricalcolo completo necessario (il vecchio importo potrebbe essere cambiato)
+                if let account = selectedAccount {
+                    account.updateBalance(context: modelContext)
+                }
 
-        if needsBalanceUpdate {
-            // Update source account
-            if let account = selectedAccount {
-                print("📝 [DEBUG] Calling updateBalance for SOURCE account: \(account.name)")
-                account.updateBalance(context: modelContext)
+                if let destinationAccount = selectedDestinationAccount {
+                    destinationAccount.updateBalance(context: modelContext)
+                }
+
+                if let previousAccount = oldAccount, previousAccount.id != selectedAccount?.id {
+                    previousAccount.updateBalance(context: modelContext)
+                }
+                if let previousDestAccount = oldDestinationAccount, previousDestAccount.id != selectedDestinationAccount?.id {
+                    previousDestAccount.updateBalance(context: modelContext)
+                }
+
+                try? modelContext.save()
             }
 
-            // Update destination account (for transfers)
-            if let destinationAccount = selectedDestinationAccount {
-                print("📝 [DEBUG] Calling updateBalance for DESTINATION account: \(destinationAccount.name)")
-                destinationAccount.updateBalance(context: modelContext)
-            }
-
-            // Also update old accounts if they changed
-            if let previousAccount = oldAccount, previousAccount.id != selectedAccount?.id {
-                print("📝 [DEBUG] Calling updateBalance for OLD SOURCE account: \(previousAccount.name)")
-                previousAccount.updateBalance(context: modelContext)
-            }
-            if let previousDestAccount = oldDestinationAccount, previousDestAccount.id != selectedDestinationAccount?.id {
-                print("📝 [DEBUG] Calling updateBalance for OLD DESTINATION account: \(previousDestAccount.name)")
-                previousDestAccount.updateBalance(context: modelContext)
-            }
-
-            // Salva di nuovo dopo l'aggiornamento dei bilanci
-            try? modelContext.save()
-        } else {
-            print("📝 [DEBUG] Skipping balance update - needsBalanceUpdate is false")
-        }
-
-        // Update local notification if transaction is scheduled
-        Task {
+            // Update local notification if transaction is scheduled
             await LocalNotificationManager.shared.updateNotification(for: transaction)
+
+            LogManager.shared.success("Transaction saved successfully", category: "Transaction")
+
+            // Notify TodayView to refresh its transaction list
+            NotificationCenter.default.post(name: .transactionsDidChange, object: nil)
         }
-
-        LogManager.shared.success("Transaction saved successfully", category: "Transaction")
-
-        // Notify TodayView to refresh its transaction list
-        NotificationCenter.default.post(name: .transactionsDidChange, object: nil)
-
-        dismiss()
     }
 
     private func initiateDelete() {

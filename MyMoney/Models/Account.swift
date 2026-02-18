@@ -85,6 +85,72 @@ final class Account {
         currencyRecord?.displayName ?? currency.displayName
     }
 
+    // MARK: - Incremental Balance Adjustments (for new transactions - avoids full recalculation)
+
+    @MainActor func adjustBalanceForNewTransaction(_ transaction: Transaction, context: ModelContext? = nil) {
+        guard transaction.status == .executed else { return }
+
+        var amountToUse = transaction.amount
+
+        if transaction.transactionType != .transfer {
+            if let destAmount = transaction.destinationAmount {
+                amountToUse = destAmount
+            } else if let ctx = context,
+                      let transactionCurr = transaction.currencyRecord,
+                      let accountCurr = currencyRecord,
+                      transactionCurr.code != accountCurr.code {
+                amountToUse = CurrencyService.shared.convert(
+                    amount: transaction.amount,
+                    from: transactionCurr,
+                    to: accountCurr,
+                    context: ctx
+                )
+            }
+        }
+
+        switch transaction.transactionType {
+        case .expense:
+            currentBalance -= amountToUse
+        case .income:
+            currentBalance += amountToUse
+        case .transfer:
+            currentBalance -= amountToUse
+        case .liabilityPayment:
+            let totalPayment = amountToUse + (transaction.interestAmount ?? 0)
+            currentBalance -= totalPayment
+        case .adjustment:
+            currentBalance += amountToUse
+        }
+    }
+
+    @MainActor func adjustBalanceForIncomingTransfer(_ transaction: Transaction, context: ModelContext? = nil) {
+        guard transaction.status == .executed else { return }
+        guard transaction.transactionType == .transfer || transaction.transactionType == .liabilityPayment else { return }
+
+        var convertedAmount = transaction.amount
+
+        if transaction.transactionType == .transfer {
+            if let destAmount = transaction.destinationAmount {
+                convertedAmount = destAmount
+            } else if let snapshot = transaction.exchangeRateSnapshot {
+                convertedAmount = transaction.amount * snapshot
+            } else if let ctx = context,
+                      let transferCurr = transaction.currencyRecord,
+                      let accountCurr = currencyRecord {
+                convertedAmount = CurrencyService.shared.convert(
+                    amount: transaction.amount,
+                    from: transferCurr,
+                    to: accountCurr,
+                    context: ctx
+                )
+            }
+        }
+
+        currentBalance += convertedAmount
+    }
+
+    // MARK: - Full Balance Recalculation (used when editing/deleting transactions)
+
     @MainActor func updateBalance(context: ModelContext? = nil) {
         guard let transactions = transactions else {
             currentBalance = initialBalance

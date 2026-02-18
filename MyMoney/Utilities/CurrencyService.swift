@@ -241,10 +241,12 @@ final class CurrencyService {
 
     // MARK: - Usage Tracking
 
-    func recordUsage(of currency: CurrencyRecord, context: ModelContext) {
+    func recordUsage(of currency: CurrencyRecord, context: ModelContext, autoSave: Bool = true) {
         currency.usageCount += 1
         currency.lastUsedDate = Date()
-        try? context.save()
+        if autoSave {
+            try? context.save()
+        }
     }
 
     // MARK: - Last Update Date

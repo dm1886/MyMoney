@@ -32,24 +32,25 @@ class RecurringTransactionManager {
 
         LogManager.shared.info("Generating recurring transaction instances...", category: "RecurringTransactions")
 
-        let descriptor = FetchDescriptor<Transaction>()
+        // ⚡️ PERFORMANCE: Filtra solo i template ricorrenti con predicate SwiftData
+        let descriptor = FetchDescriptor<Transaction>(
+            predicate: #Predicate<Transaction> { transaction in
+                transaction.isRecurring == true &&
+                transaction.parentRecurringTransactionId == nil
+            }
+        )
 
         do {
-            let allTransactions = try modelContext.fetch(descriptor)
-
-            // Trova tutte le transazioni ricorrenti template (parent)
-            let recurringTemplates = allTransactions.filter { transaction in
-                transaction.isRecurring &&
-                transaction.parentRecurringTransactionId == nil  // Solo template, non transazione
-            }
+            let recurringTemplates = try modelContext.fetch(descriptor)
 
             LogManager.shared.info("Found \(recurringTemplates.count) recurring transaction templates", category: "RecurringTransactions")
 
             for template in recurringTemplates {
                 await generateInstances(for: template, monthsAhead: monthsAhead, modelContext: modelContext)
-                // Salva dopo ogni template per evitare duplicati da chiamate sovrapposte
-                try modelContext.save()
             }
+
+            // ⚡️ PERFORMANCE: Singolo save alla fine invece che per ogni template
+            try modelContext.save()
 
             LogManager.shared.success("Recurring instances generated successfully", category: "RecurringTransactions")
 
@@ -77,14 +78,15 @@ class RecurringTransactionManager {
             to: Date()
         ) ?? Date()
 
-        // Trova l'ultima transaziona già generata (incluse quelle già eseguite)
-        let descriptor = FetchDescriptor<Transaction>()
-        let allTransactions = try? modelContext.fetch(descriptor)
-
-        // Include TUTTE le istanze: pending, executed, failed, cancelled
-        let existingInstances = allTransactions?.filter {
-            $0.parentRecurringTransactionId == template.id
-        }.sorted { $0.date < $1.date } ?? []
+        // ⚡️ PERFORMANCE: Filtra solo le istanze di questo template con predicate SwiftData
+        let templateId = template.id
+        let instanceDescriptor = FetchDescriptor<Transaction>(
+            predicate: #Predicate<Transaction> { transaction in
+                transaction.parentRecurringTransactionId == templateId
+            },
+            sortBy: [SortDescriptor(\.date)]
+        )
+        let existingInstances = (try? modelContext.fetch(instanceDescriptor)) ?? []
 
         // Determina da quale data iniziare a generare
         let lastInstanceDate = existingInstances.last?.date
@@ -207,9 +209,6 @@ class RecurringTransactionManager {
         option: RecurringDeletionOption,
         modelContext: ModelContext
     ) {
-        let descriptor = FetchDescriptor<Transaction>()
-        guard let allTransactions = try? modelContext.fetch(descriptor) else { return }
-
         let templateId = transaction.parentRecurringTransactionId ?? transaction.id
 
         switch option {
@@ -219,15 +218,16 @@ class RecurringTransactionManager {
             modelContext.delete(transaction)
 
         case .thisAndFuture:
+            // ⚡️ PERFORMANCE: Filtra solo le istanze di questo template
             let thisDate = transaction.date
-            let transactionsToDelete = allTransactions.filter { t in
-                guard t.parentRecurringTransactionId == templateId else {
-                    return false
+            let descriptor = FetchDescriptor<Transaction>(
+                predicate: #Predicate<Transaction> { t in
+                    t.parentRecurringTransactionId == templateId
                 }
-                return t.date >= thisDate
-            }
+            )
+            let relatedTransactions = (try? modelContext.fetch(descriptor)) ?? []
 
-            for t in transactionsToDelete {
+            for t in relatedTransactions where t.date >= thisDate {
                 let tId = t.id
                 LocalNotificationManager.shared.cancelNotification(transactionId: tId)
                 modelContext.delete(t)
@@ -238,9 +238,13 @@ class RecurringTransactionManager {
             }
 
         case .all:
-            let allRelated = allTransactions.filter {
-                $0.id == templateId || $0.parentRecurringTransactionId == templateId
-            }
+            // ⚡️ PERFORMANCE: Filtra solo le istanze di questo template + il template stesso
+            let descriptor = FetchDescriptor<Transaction>(
+                predicate: #Predicate<Transaction> { t in
+                    t.id == templateId || t.parentRecurringTransactionId == templateId
+                }
+            )
+            let allRelated = (try? modelContext.fetch(descriptor)) ?? []
 
             for t in allRelated {
                 let tId = t.id

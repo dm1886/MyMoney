@@ -1193,12 +1193,9 @@ struct AddTransactionView: View {
 
         modelContext.insert(transaction)
 
-        // IMPORTANTE: Salvare PRIMA di updateBalance() per assicurare che le relazioni inverse siano stabilite
-        try? modelContext.save()
-
-        // Registra l'uso della valuta
+        // Registra l'uso della valuta (senza save separato)
         if let currencyRecord = currencyToUse {
-            CurrencyService.shared.recordUsage(of: currencyRecord, context: modelContext)
+            CurrencyService.shared.recordUsage(of: currencyRecord, context: modelContext, autoSave: false)
         }
 
         // Registra l'uso della categoria (solo per transazioni eseguite)
@@ -1206,27 +1203,26 @@ struct AddTransactionView: View {
             category.recordUsage()
         }
 
+        // ⚡️ PERFORMANCE: Aggiornamento incrementale del saldo (evita ricalcolo completo O(n))
+        if transaction.status == .executed {
+            account.adjustBalanceForNewTransaction(transaction, context: modelContext)
+
+            if let destinationAccount = selectedDestinationAccount {
+                destinationAccount.adjustBalanceForIncomingTransfer(transaction, context: modelContext)
+            }
+        }
+
+        // Singolo save per tutto: transazione + valuta + categoria + saldi aggiornati
+        try? modelContext.save()
+
         // Haptic feedback for successful transaction save (immediate feedback)
         HapticManager.shared.transactionSaved()
 
         // Dismiss UI immediately for better UX (don't make user wait)
         dismiss()
 
-        // ⚡️ PERFORMANCE: Do heavy operations asynchronously after dismiss
+        // ⚡️ PERFORMANCE: Operazioni pesanti asincrone dopo dismiss
         Task { @MainActor in
-            // Update balance only for executed transactions
-            // NOTA: Questo deve avvenire DOPO save() per assicurare che le relazioni siano stabilite
-            if transaction.status == .executed {
-                account.updateBalance(context: modelContext)
-
-                if let destinationAccount = selectedDestinationAccount {
-                    destinationAccount.updateBalance(context: modelContext)
-                }
-
-                // Salva di nuovo dopo l'aggiornamento dei bilanci
-                try? modelContext.save()
-            }
-
             // Generate recurring instances if this is a recurring template
             if isRecurring && isScheduled {
                 await RecurringTransactionManager.shared.generateInstances(
