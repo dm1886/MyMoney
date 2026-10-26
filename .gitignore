@@ -1,0 +1,22 @@
+# Local build/configuration and generated artifacts
+.DS_Store
+android/.gradle/
+android/.kotlin/
+android/**/build/
+android/local.properties
+android/keystore.properties
+*.jks
+*.keystore
+firebase/node_modules/
+firebase/*debug.log
+firebase/.firebase/
+**/google-services.json
+**/GoogleService-Info.plist
+.env
+.env.*
+!*.example
+tmp/
+firebase-debug.log
+android/app/src/main/assets/firebase-config.json
+firestore-debug.log
+ui-debug.log

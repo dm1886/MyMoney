@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function verified() { return signedIn() && request.auth.token.email_verified == true; }
+    function self(uid) { return verified() && request.auth.uid == uid; }
+    function member(group) {
+      return verified() && exists(/databases/$(database)/documents/households/$(group)/members/$(request.auth.uid));
+    }
+    function writer(group) {
+      return member(group) && get(/databases/$(database)/documents/households/$(group)/members/$(request.auth.uid)).data.role in ['owner', 'editor'];
+    }
+    function validEntry() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['amount','currency','date','type','createdBy'])
+        && d.keys().hasOnly(['amount','currency','date','type','createdBy','note','accountId','categoryId','updatedAt'])
+        && d.amount is string && d.amount.matches('^-?[0-9]{1,16}(\\.[0-9]{1,8})?$')
+        && d.currency is string && d.currency.matches('^[A-Z]{3}$')
+        && d.date is timestamp && d.type in ['expense','income','transfer','adjustment','liabilityPayment']
+        && (!('note' in d) || (d.note is string && d.note.size() <= 2000));
+    }
+    match /users/{uid} {
+      allow read: if self(uid);
+      allow create, update: if self(uid)
+        && request.resource.data.keys().hasOnly(['displayName','createdAt','updatedAt'])
+        && request.resource.data.displayName is string && request.resource.data.displayName.size() <= 100;
+      // Full deletion is server-managed to remove subcollections and Auth together.
+      allow delete: if false;
+      match /entries/{id} {
+        allow read, delete: if self(uid);
+        allow create: if self(uid) && validEntry() && request.resource.data.createdBy == uid;
+        allow update: if self(uid) && validEntry() && request.resource.data.createdBy == resource.data.createdBy;
+      }
+    }
+    match /households/{group} {
+      allow read: if member(group);
+      // Household/invite/member lifecycle is trusted-server-only.
+      allow write: if false;
+      match /members/{uid} {
+        allow read: if member(group);
+        allow write: if false;
+      }
+      match /entries/{id} {
+        allow read: if member(group);
+        allow create: if writer(group) && validEntry() && request.resource.data.createdBy == request.auth.uid;
+        allow update: if writer(group) && validEntry() && request.resource.data.createdBy == resource.data.createdBy;
+        allow delete: if writer(group);
+      }
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

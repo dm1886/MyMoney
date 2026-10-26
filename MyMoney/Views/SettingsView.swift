@@ -50,6 +50,7 @@ struct SettingsView: View {
                         .accessibilityHidden(true)
                     Text("Impostazioni").font(.orbTitle)
                 }.listRowBackground(Color.clear).listRowSeparator(.hidden)
+                UserAccountSection()
                 // MARK: - Customization Section
                 Section {
                     ThemeStrip()

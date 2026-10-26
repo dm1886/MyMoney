@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+        C10000000000000000000001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = C10000000000000000000002 /* FirebaseAuth */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		B0B00000000000000000000B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+                C10000000000000000000001 /* FirebaseAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -103,6 +108,7 @@
 			);
 			name = MyMoney;
 			packageProductDependencies = (
+                C10000000000000000000002 /* FirebaseAuth */,
 			);
 			productName = MyMoney;
 			productReference = AE29DF832F065B9B00576D2A /* MyMoney.app */;
@@ -155,7 +161,8 @@
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = AE29DF842F065B9B00576D2A /* Products */;
-			projectDirPath = "";
+			packageReferences = (C10000000000000000000003 /* firebase-ios-sdk */);
+            projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				AE29DF822F065B9B00576D2A /* MyMoney */,
@@ -205,6 +212,21 @@
 			targetProxy = B0B00000000000000000000B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+        C10000000000000000000003 /* firebase-ios-sdk */ = {
+            isa = XCRemoteSwiftPackageReference;
+            repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+            requirement = {kind = exactVersion; version = 12.14.0; };
+        };
+/* End XCRemoteSwiftPackageReference section */
+/* Begin XCSwiftPackageProductDependency section */
+        C10000000000000000000002 /* FirebaseAuth */ = {
+            isa = XCSwiftPackageProductDependency;
+            package = C10000000000000000000003 /* firebase-ios-sdk */;
+            productName = FirebaseAuth;
+        };
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		AE29DF8C2F065B9B00576D2A /* Debug */ = {
@@ -341,6 +363,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MyMoney/Info.plist;
+                OTHER_LDFLAGS = ("$(inherited)", "-ObjC");
 				INFOPLIST_KEY_CFBundleDisplayName = "My Money";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "In order to protect the sensitive account data ";
@@ -379,6 +402,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MyMoney/Info.plist;
+                OTHER_LDFLAGS = ("$(inherited)", "-ObjC");
 				INFOPLIST_KEY_CFBundleDisplayName = "My Money";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "In order to protect the sensitive account data ";
