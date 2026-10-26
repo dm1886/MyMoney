@@ -48,10 +48,10 @@ struct BackupView: View {
                 // Descrizione opzione selezionata
                 HStack {
                     Image(systemName: "info.circle")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.orbHighlight)
                     Text(selectedExportOption.description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                 }
 
                 // Export Backup
@@ -60,13 +60,13 @@ struct BackupView: View {
                 } label: {
                     HStack {
                         Image(systemName: "square.and.arrow.up")
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color.orbHighlight)
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Esporta Backup")
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.orbText)
                             Text("Salva i dati selezionati in un file")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.orbCaption)
+                                .foregroundStyle(Color.orbMuted)
                         }
 
                         if isExporting {
@@ -83,13 +83,13 @@ struct BackupView: View {
                 } label: {
                     HStack {
                         Image(systemName: "square.and.arrow.down")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.orbHighlight)
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Importa Backup")
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.orbText)
                             Text("Ripristina dati da un file")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.orbCaption)
+                                .foregroundStyle(Color.orbMuted)
                         }
 
                         if isImporting {
@@ -105,24 +105,24 @@ struct BackupView: View {
             } footer: {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("💡 Scegli cosa esportare:")
-                        .font(.caption.bold())
-                        .foregroundStyle(.blue)
+                        .font(.orbCaption.bold())
+                        .foregroundStyle(Color.orbHighlight)
 
                     Text("• Solo Conti: Esporta la struttura dei conti senza transazioni")
-                        .font(.caption)
+                        .font(.orbCaption)
 
                     Text("• Conti + Transazioni: Include tutte le transazioni (normali, ricorrenti, programmate)")
-                        .font(.caption)
+                        .font(.orbCaption)
 
                     Text("• Backup Completo: Tutto incluso (categorie, valute, tassi, impostazioni)")
-                        .font(.caption)
+                        .font(.orbCaption)
 
                     Text("⚠️ L'importazione sostituirà TUTTI i dati esistenti")
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbNegative)
                         .padding(.top, 4)
                 }
-            }
+            }.listRowBackground(Color.orbCard)
 
             // MARK: - Info Section
             Section("Informazioni") {
@@ -130,38 +130,38 @@ struct BackupView: View {
                     Text("Conti")
                     Spacer()
                     Text("\(accounts.count)")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.orbMuted)
                 }
 
                 HStack {
                     Text("Transazioni")
                     Spacer()
                     Text("\(transactions.count)")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.orbMuted)
                 }
 
                 HStack {
                     Text("Categorie")
                     Spacer()
                     Text("\(categories.count)")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.orbMuted)
                 }
 
                 HStack {
                     Text("Valute")
                     Spacer()
                     Text("\(currencyRecords.count)")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.orbMuted)
                 }
 
                 HStack {
                     Text("Tassi di Cambio")
                     Spacer()
                     Text("\(exchangeRates.count)")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.orbMuted)
                 }
-            }
-        }
+            }.listRowBackground(Color.orbCard)
+        }.orbScreen()
         .navigationTitle("Backup & Sicurezza")
         .navigationBarTitleDisplayMode(.inline)
         .fileExporter(

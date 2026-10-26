@@ -15,15 +15,18 @@ struct BudgetListView: View {
     @Query private var transactions: [Transaction]
     @Query private var categories: [Category]
 
+    @State private var selectedPeriod: BudgetPeriod? = nil
+    @Environment(\.dynamicTypeSize) private var textSize
     @State private var showingAddBudget = false
     @State private var budgetToEdit: Budget?
 
     var activeBudgets: [Budget] {
-        budgets.filter { $0.isActive }
+        budgets.filter { $0.isActive && (selectedPeriod == nil || $0.period == selectedPeriod) }
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
@@ -31,7 +34,7 @@ struct BudgetListView: View {
     }
 
     var inactiveBudgets: [Budget] {
-        budgets.filter { !$0.isActive }
+        budgets.filter { !$0.isActive && (selectedPeriod == nil || $0.period == selectedPeriod) }
     }
 
     var body: some View {
@@ -51,8 +54,8 @@ struct BudgetListView: View {
                         showingAddBudget = true
                     } label: {
                         Image(systemName: "plus.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(appSettings.accentColor)
+                            .font(.orbTitle2)
+                            .foregroundStyle(Color.orbHighlight)
                     }
                 }
             }
@@ -68,69 +71,81 @@ struct BudgetListView: View {
     // MARK: - Budgets List
 
     private var budgetsList: some View {
-        List {
-            if !activeBudgets.isEmpty {
-                Section("Attivi") {
-                    ForEach(activeBudgets) { budget in
-                        NavigationLink(destination: BudgetDetailView(budget: budget)) {
-                            budgetRow(budget)
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button {
-                                budgetToEdit = budget
-                            } label: {
-                                Label("Modifica", systemImage: "pencil")
-                            }
-                            .tint(.blue)
-                                Button(role: .destructive) {
-                                    deleteBudget(budget)
-                                } label: {
-                                    Label("Elimina", systemImage: "trash")
-                                }
-
-                                Button {
-                                    toggleBudgetActive(budget)
-                                } label: {
-                                    Label("Disattiva", systemImage: "pause.circle")
-                                }
-                                .tint(.orange)
-                            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                OrbCard {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Progresso budget").font(.orbHeadline)
+                        OrbBudgetRings(budgets: activeBudgets, transactions: transactions)
                     }
                 }
-            }
-
-            if !inactiveBudgets.isEmpty {
-                Section("Inattivi") {
-                    ForEach(inactiveBudgets) { budget in
-                        NavigationLink(destination: BudgetDetailView(budget: budget)) {
-                            budgetRow(budget)
-                                .opacity(0.6)
+                if !activeBudgets.isEmpty {
+                    OrbCard {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Sei in linea?").font(.orbHeadline)
+                            ForEach(activeBudgets) { budget in
+                                OrbBudgetPace(budget: budget, spent: budget.spent(transactions: transactions, context: modelContext))
+                            }
                         }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button {
-                                budgetToEdit = budget
-                            } label: {
-                                Label("Modifica", systemImage: "pencil")
-                            }
-                            .tint(.blue)
-                                Button(role: .destructive) {
-                                    deleteBudget(budget)
-                                } label: {
-                                    Label("Elimina", systemImage: "trash")
-                                }
-
-                                Button {
-                                    toggleBudgetActive(budget)
-                                } label: {
-                                    Label("Attiva", systemImage: "play.circle")
-                                }
-                                .tint(.green)
-                            }
                     }
                 }
+                OrbSegmented(values: [nil] + BudgetPeriod.allCases.map(Optional.some), selection: $selectedPeriod) {
+                    $0?.rawValue ?? "Tutti"
+                }
+                if activeBudgets.isEmpty && inactiveBudgets.isEmpty {
+                    Text("Nessun budget per questo periodo").font(.orbSubheadline).foregroundStyle(Color.orbMuted)
+                }
+                if !activeBudgets.isEmpty {
+                    OrbSectionHeader(title: "Attivi")
+                    budgetGrid(activeBudgets)
+                }
+                if !inactiveBudgets.isEmpty {
+                    OrbSectionHeader(title: "In pausa")
+                    budgetGrid(inactiveBudgets)
+                }
+            }.padding(16)
+        }.orbScreen()
+    }
+
+    private func budgetGrid(_ items: [Budget]) -> some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: textSize.isAccessibilitySize ? 1 : 2), spacing: 12) {
+            ForEach(items) { budget in
+                NavigationLink(destination: BudgetDetailView(budget: budget)) {
+                    OrbCard {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack {
+                                ProgressRing(progress: budget.percentageUsed(transactions: transactions, context: modelContext) / 100)
+                                Spacer(minLength: 0)
+                                Color.clear.frame(width: 44, height: 44)
+                            }
+                            budgetRow(budget)
+                            if !budget.isActive { Text("In pausa").font(.orbCaption).foregroundStyle(Color.orbMuted) }
+                        }
+                    }
+                    .overlay {
+                        if budget.percentageUsed(transactions: transactions, context: modelContext) >= 90 {
+                            RoundedRectangle(cornerRadius: 20).stroke(Color.orbNegative, lineWidth: 1)
+                        }
+                    }
+                    .modifier(OrbBudgetWarning(id: budget.id, progress: budget.isActive ? budget.percentageUsed(transactions: transactions, context: modelContext) / 100 : 0))
+                    .opacity(budget.isActive ? 1 : 0.55)
+                }.buttonStyle(.plain)
+                    .overlay(alignment: .topTrailing) {
+                        Menu { budgetActions(budget) } label: {
+                            Image(systemName: "ellipsis").frame(width: 44, height: 44)
+                        }.accessibilityLabel("Azioni budget").padding(14)
+                    }
+                    .contextMenu { budgetActions(budget) }
             }
         }
-        .listStyle(.insetGrouped)
+    }
+
+    @ViewBuilder private func budgetActions(_ budget: Budget) -> some View {
+        Button("Modifica", systemImage: "pencil") { budgetToEdit = budget }
+        Button("Elimina", systemImage: "trash", role: .destructive) { deleteBudget(budget) }
+        Button(budget.isActive ? "Disattiva" : "Attiva", systemImage: budget.isActive ? "pause.circle" : "play.circle") {
+            toggleBudgetActive(budget)
+        }
     }
 
     // MARK: - Budget Row
@@ -138,7 +153,7 @@ struct BudgetListView: View {
     private func budgetRow(_ budget: Budget) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header
-            HStack {
+            VStack(alignment: .leading, spacing: 8) {
                 // Category icon and name (custom image or SF Symbol)
                 if let category = budget.category {
                     HStack(spacing: 8) {
@@ -152,30 +167,29 @@ struct BudgetListView: View {
                         } else {
                             Image(systemName: category.icon)
                                 .foregroundStyle(category.color)
-                                .font(.title3)
+                                .font(.orbTitle3)
                         }
 
                         Text(category.name)
-                            .font(.headline)
+                            .font(.orbHeadline)
                     }
                 } else {
                     Text("Senza Categoria")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
+                        .font(.orbHeadline)
+                        .foregroundStyle(Color.orbMuted)
                 }
 
-                Spacer()
 
                 // Period badge
                 Text(budget.period.rawValue)
-                    .font(.caption)
+                    .font(.orbCaption)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(appSettings.accentColor.opacity(0.15))
+                            .fill(Color.orbAccent.opacity(0.15))
                     )
-                    .foregroundStyle(appSettings.accentColor)
+                    .foregroundStyle(Color.orbHighlight)
             }
 
             // Amount info
@@ -184,59 +198,44 @@ struct BudgetListView: View {
             let percentage = budget.percentageUsed(transactions: transactions, context: modelContext)
             let currencySymbol = budget.currencyRecord?.symbol ?? "€"
 
-            HStack {
+            VStack(alignment: .leading, spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Speso")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                     Text("\(currencySymbol) \(formatAmount(spent))")
-                        .font(.subheadline.bold())
+                        .font(.orbSubheadline.bold())
                         .foregroundStyle(progressColor(percentage: percentage))
                 }
 
-                Spacer()
 
-                VStack(alignment: .trailing, spacing: 4) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("Budget")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                     Text("\(currencySymbol) \(formatAmount(budget.amount))")
-                        .font(.subheadline.bold())
+                        .font(.orbSubheadline.bold())
                 }
             }
 
             // Progress bar
             VStack(alignment: .leading, spacing: 4) {
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        // Background
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color(.systemGray5))
-                            .frame(height: 8)
+                ProgressBarView(progress: percentage / 100)
 
-                        // Progress
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(progressColor(percentage: percentage))
-                            .frame(width: min(CGFloat(percentage / 100.0) * geometry.size.width, geometry.size.width), height: 8)
-                    }
-                }
-                .frame(height: 8)
-
-                HStack {
+                VStack(alignment: .leading, spacing: 6) {
                     Text("\(Int(percentage))% utilizzato")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
 
-                    Spacer()
 
                     if remaining > 0 {
                         Text("Rimangono \(currencySymbol) \(formatAmount(remaining))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                     } else {
                         Text("Budget superato!")
-                            .font(.caption.bold())
-                            .foregroundStyle(.red)
+                            .font(.orbCaption.bold())
+                            .foregroundStyle(Color.orbNegative)
                     }
                 }
             }
@@ -245,12 +244,12 @@ struct BudgetListView: View {
             if budget.period == .custom || budget.endDate != nil {
                 HStack {
                     Image(systemName: "calendar")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
 
                     Text(dateRangeText(budget))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                 }
             }
         }
@@ -263,15 +262,15 @@ struct BudgetListView: View {
         VStack(spacing: 16) {
             Image(systemName: "chart.pie")
                 .font(.system(size: 60))
-                .foregroundStyle(appSettings.accentColor.opacity(0.3))
+                .foregroundStyle(Color.orbAccent.opacity(0.3))
 
             Text("Nessun Budget")
-                .font(.title3.bold())
-                .foregroundStyle(.primary)
+                .font(.orbTitle3.bold())
+                .foregroundStyle(Color.orbText)
 
             Text("Crea un budget per monitorare le tue spese per categoria")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.orbSubheadline)
+                .foregroundStyle(Color.orbMuted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
 
@@ -279,13 +278,13 @@ struct BudgetListView: View {
                 showingAddBudget = true
             } label: {
                 Text("Crea Budget")
-                    .font(.body.bold())
-                    .foregroundStyle(.white)
+                    .font(.orbBody.bold())
+                    .foregroundStyle(Color.orbOnAccent)
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(appSettings.accentColor)
+                            .fill(Color.orbAccent)
                     )
             }
             .padding(.top, 8)
@@ -296,11 +295,11 @@ struct BudgetListView: View {
 
     private func progressColor(percentage: Double) -> Color {
         if percentage >= 100 {
-            return .red
+            return Color.orbNegative
         } else if percentage >= 80 {
-            return .orange
+            return Color.orbHighlight
         } else {
-            return .green
+            return Color.orbPositive
         }
     }
 

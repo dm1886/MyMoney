@@ -92,13 +92,13 @@ struct CategoryPickerView: View {
                                         }
 
                                         Text(category.name)
-                                            .foregroundStyle(.primary)
+                                            .foregroundStyle(Color.orbText)
 
                                         Spacer()
 
                                         if selectedCategory?.id == category.id {
                                             Image(systemName: "checkmark")
-                                                .foregroundStyle(.blue)
+                                                .foregroundStyle(Color.orbHighlight)
                                         }
                                     }
                                 }
@@ -108,8 +108,8 @@ struct CategoryPickerView: View {
                                     selectedCategoryForDetail = category
                                 } label: {
                                     Image(systemName: "info.circle")
-                                        .foregroundStyle(.secondary)
-                                        .font(.title3)
+                                        .foregroundStyle(Color.orbMuted)
+                                        .font(.orbTitle3)
                                 }
                                 .buttonStyle(PlainButtonStyle())
                             }
@@ -129,7 +129,7 @@ struct CategoryPickerView: View {
                             }
                             Text(group.name)
                         }
-                    }
+                    }.listRowBackground(Color.orbCard)
                 }
 
                 Section {
@@ -138,7 +138,7 @@ struct CategoryPickerView: View {
                     } label: {
                         HStack {
                             Image(systemName: "plus.circle.fill")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.orbHighlight)
                             Text("Nuova Categoria")
                         }
                     }
@@ -148,12 +148,12 @@ struct CategoryPickerView: View {
                     } label: {
                         HStack {
                             Image(systemName: "folder.badge.plus")
-                                .foregroundStyle(.green)
+                                .foregroundStyle(Color.orbPositive)
                             Text("Nuovo Gruppo")
                         }
                     }
-                }
-            }
+                }.listRowBackground(Color.orbCard)
+            }.orbScreen()
             .searchable(text: $searchText, prompt: "Cerca categoria")
             .navigationTitle("Seleziona Categoria")
             .navigationBarTitleDisplayMode(.inline)

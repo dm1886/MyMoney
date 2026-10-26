@@ -20,8 +20,15 @@ struct AddAccountView: View {
     @State private var selectedType: AccountType = .payment
     @State private var selectedCurrency: Currency = .EUR  // DEPRECATED: Keep for backward compatibility
     @State private var selectedCurrencyRecord: CurrencyRecord?  // NUOVO: SwiftData currency
+    @State private var assetMode: AssetMode = .simple
+    @State private var annualRate = "0"
+    @State private var investedBalance = "0"
+    @State private var assetStart = Date()
+    @State private var investmentPaywall = false
+    @State private var saveError: String?
     @State private var initialBalance = ""
     @State private var creditLimit = ""
+    @State private var creditInputAvailable = true
     @State private var selectedIcon = "creditcard.fill"
     @State private var selectedColor = Color.blue
     @State private var accountDescription = ""
@@ -34,11 +41,11 @@ struct AddAccountView: View {
     var balanceLabel: String {
         switch selectedType {
         case .creditCard:
-            return isPositiveBalance ? "Credito Iniziale" : "Debito Iniziale"
+            return creditInputAvailable ? "Disponibilità iniziale" : (isPositiveBalance ? "Credito Iniziale" : "Debito Iniziale")
         case .liability:
             return "Debito Iniziale"
         case .asset:
-            return "Bilancio Iniziale"
+            return assetMode == .stocks ? "Liquidità iniziale" : "Valore iniziale"
         case .payment, .cash, .prepaidCard:
             return "Saldo Iniziale"
         }
@@ -61,7 +68,7 @@ struct AddAccountView: View {
                     } label: {
                         HStack {
                             Text("Valuta")
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.orbText)
 
                             Spacer()
 
@@ -69,15 +76,30 @@ struct AddAccountView: View {
                                 HStack(spacing: 8) {
                                     Text(currency.flagEmoji)
                                     Text(currency.code)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                             } else {
                                 Text("Seleziona")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
 
+                    if selectedType == .asset {
+                        Picker("Modalità attività", selection: $assetMode) {
+                            Text("Semplice · gratuita").tag(AssetMode.simple)
+                            Text("Investimenti · Pro").tag(AssetMode.stocks)
+                        }
+                        if assetMode == .simple {
+                            InvestmentNumberField(title: "Interesse annuo lordo %", text: $annualRate)
+                            Text("Interesse semplice stimato, senza accrediti automatici o capitalizzazione.").font(.orbCaption).foregroundStyle(Color.orbMuted)
+                        } else {
+                            InvestmentNumberField(title: "Saldo investito iniziale", text: $investedBalance)
+                            InvestmentNumberField(title: "Crescita annua attesa % (anche negativa)", text: $annualRate, allowsNegative: true)
+                            Text("Proiezione locale senza API. Conferma il valore effettivo dal broker quando vuoi; liquidità e investimenti restano separati.").font(.orbCaption).foregroundStyle(Color.orbMuted)
+                        }
+                        DatePicker("Inizio monitoraggio", selection: $assetStart, in: ...Date(), displayedComponents: .date)
+                    }
                     HStack {
                         Text(balanceLabel)
                         Spacer()
@@ -109,15 +131,19 @@ struct AddAccountView: View {
                                 }
                             }
                         Text(selectedCurrencyRecord?.symbol ?? "€")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
                     }
 
                     // Toggle for positive balance (only for credit cards)
                     if selectedType == .creditCard {
+                        Toggle("Inserisco disponibilità incluso plafond", isOn: $creditInputAvailable)
+                        Text("Disponibilità 90.000 − limite 60.000 = saldo netto +30.000. Il plafond non è patrimonio.").font(.orbCaption)
+                    }
+                    if selectedType == .creditCard && !creditInputAvailable {
                         Toggle(isOn: $isPositiveBalance) {
                             HStack {
                                 Image(systemName: isPositiveBalance ? "plus.circle.fill" : "minus.circle.fill")
-                                    .foregroundStyle(isPositiveBalance ? .green : .red)
+                                    .foregroundStyle(isPositiveBalance ? Color.orbPositive : Color.orbNegative)
                                 Text("Saldo in Positivo")
                             }
                         }
@@ -132,10 +158,10 @@ struct AddAccountView: View {
                                 .keyboardType(.decimalPad)
                                 .multilineTextAlignment(.trailing)
                             Text(selectedCurrencyRecord?.symbol ?? "€")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                         }
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 Section("Personalizzazione") {
                     Button {
@@ -145,7 +171,7 @@ struct AddAccountView: View {
                             Text("Icona")
                             Spacer()
                             Image(systemName: selectedIcon)
-                                .font(.title2)
+                                .font(.orbTitle2)
                                 .foregroundStyle(selectedColor)
                         }
                     }
@@ -164,17 +190,17 @@ struct AddAccountView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 8))
                             } else {
                                 Image(systemName: "photo")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 Section("Descrizione") {
                     TextField("Aggiungi una descrizione (opzionale)", text: $accountDescription, axis: .vertical)
                         .lineLimit(3...6)
-                }
-            }
+                }.listRowBackground(Color.orbCard)
+            }.orbScreen()
             .navigationTitle("Nuovo Conto")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -191,6 +217,8 @@ struct AddAccountView: View {
                     .disabled(name.isEmpty)
                 }
             }
+            .sheet(isPresented: $investmentPaywall) { InvestmentPaywallView() }
+            .alert("Conto non salvato", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) { Button("OK") { saveError = nil } } message: { Text(saveError ?? "") }
             .sheet(isPresented: $showingIconPicker) {
                 IconPickerView(selectedIcon: $selectedIcon)
             }
@@ -211,6 +239,18 @@ struct AddAccountView: View {
     }
 
     private func saveAccount() {
+        if selectedType == .asset && assetMode == .stocks && !InvestmentAccess.shared.hasAccess { investmentPaywall = true; return }
+        var newProfile: InvestmentProfile?
+        if selectedType == .asset {
+            guard let rate = InvestmentInput.decimal(annualRate), (assetMode == .simple ? Decimal(0)...Decimal(100) : Decimal(-100)...Decimal(100)).contains(rate),
+                  let invested = InvestmentInput.decimal(investedBalance), invested >= 0,
+                  let cash = InvestmentInput.decimal(initialBalance), cash >= 0 else {
+                saveError = "Inserisci un valore iniziale valido, un tasso da 0 a 100 per attività semplici (da −100 a 100 per investimenti) e un saldo investito non negativo."; return
+            }
+            var profile = InvestmentProfile(mode: assetMode, startDate: assetStart, annualRate: rate)
+            if assetMode == .stocks { profile.projection = InvestmentProjection(initialValue: invested, annualRate: rate); profile.annualRate = 0 }
+            newProfile = profile
+        }
         // Rimuovi TUTTI i punti (separatori migliaia) e sostituisci virgola con punto per il parsing
         let cleanedBalance = initialBalance
             .replacingOccurrences(of: ".", with: "")  // Rimuovi punti delle migliaia
@@ -245,6 +285,11 @@ struct AddAccountView: View {
             limit = Decimal(string: cleanedLimit)
         }
 
+        if selectedType == .creditCard && creditInputAvailable {
+            guard let limit, limit >= 0, let available = InvestmentInput.decimal(initialBalance), available >= 0 else { saveError = "Inserisci disponibilità e limite validi."; return }
+            balance = CreditCardMath.netBalance(available: available, limit: limit)
+        }
+
         let account = Account(
             name: name,
             accountType: selectedType,
@@ -260,11 +305,22 @@ struct AddAccountView: View {
         // Set SwiftData currency record
         account.currencyRecord = currencyToUse
 
-        modelContext.insert(account)
-        try? modelContext.save()
+        do {
+            if let newProfile {
+                account.investmentData = try JSONEncoder().encode(newProfile)
+                account.createdAt = assetStart
+            }
+            modelContext.insert(account)
+            try modelContext.save()
+        } catch {
+            modelContext.delete(account)
+            saveError = error.localizedDescription
+            return
+        }
 
         // Haptic feedback for successful account creation
         HapticManager.shared.accountSaved()
+        NotificationCenter.default.post(name: .orbSaveFeedback, object: nil)
 
         dismiss()
     }

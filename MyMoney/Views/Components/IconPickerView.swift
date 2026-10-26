@@ -255,22 +255,22 @@ struct IconPickerView: View {
                                 }
                             } label: {
                                 Text(category.rawValue)
-                                    .font(.subheadline)
+                                    .font(.orbSubheadline)
                                     .fontWeight(selectedCategory == category ? .semibold : .regular)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
                                     .background(
                                         Capsule()
-                                            .fill(selectedCategory == category ? Color.accentColor : Color(.systemGray5))
+                                            .fill(selectedCategory == category ? Color.accentColor : Color.orbCard2)
                                     )
-                                    .foregroundStyle(selectedCategory == category ? .white : .primary)
+                                    .foregroundStyle(selectedCategory == category ? Color.orbOnAccent : Color.orbText)
                             }
                         }
                     }
                     .padding(.horizontal)
                     .padding(.vertical, 8)
-                }
-                .background(Color(.systemBackground))
+                }.orbScreen()
+                .background(Color.orbBackground)
 
                 Divider()
 
@@ -286,11 +286,11 @@ struct IconPickerView: View {
                                     Image(systemName: icon)
                                         .font(.system(size: 24))
                                         .symbolRenderingMode(useMulticolor ? .multicolor : .monochrome)
-                                        .foregroundStyle(selectedIcon == icon ? .white : .primary)
+                                        .foregroundStyle(selectedIcon == icon ? Color.orbOnAccent : Color.orbText)
                                         .frame(width: 48, height: 48)
                                         .background(
                                             RoundedRectangle(cornerRadius: 10)
-                                                .fill(selectedIcon == icon ? Color.accentColor : Color(.systemGray6))
+                                                .fill(selectedIcon == icon ? Color.accentColor : Color.orbCard2)
                                         )
                                 }
                             }
@@ -298,7 +298,7 @@ struct IconPickerView: View {
                         }
                     }
                     .padding()
-                }
+                }.orbScreen()
             }
             .searchable(text: $searchText, prompt: "Cerca icona...")
             .navigationTitle("Scegli Icona")

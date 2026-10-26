@@ -17,9 +17,11 @@ struct BudgetProgressWidget: View {
     let transactions: [Transaction]
     let allCurrencies: [CurrencyRecord]
 
+    @State private var adding = false
+
     // Ordina i budget dal più vicino al massimo (percentuale più alta)
     private var sortedBudgets: [Budget] {
-        budgets.sorted { budget1, budget2 in
+        budgets.filter(\.isActive).sorted { budget1, budget2 in
             let spent1 = budget1.spent(transactions: transactions, context: modelContext)
             let spent2 = budget2.spent(transactions: transactions, context: modelContext)
 
@@ -31,83 +33,27 @@ struct BudgetProgressWidget: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "chart.bar.fill")
-                    .font(.title2)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.cyan, .blue],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
-                Text("Budget")
-                    .font(.headline.bold())
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.cyan, .blue],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-
-                Spacer()
-
-                NavigationLink(destination: BudgetListView()) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title3)
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.cyan, .blue],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+        OrbCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Budget").font(.orbHeadline).lineLimit(1)
+                    Spacer()
+                    NavigationLink("Tutti", destination: BudgetListView()).font(.orbCaption)
+                }
+                ForEach(sortedBudgets.prefix(3)) { budget in
+                    NavigationLink(destination: BudgetDetailView(budget: budget)) {
+                        BudgetProgressCard(budget: budget, transactions: transactions, allCurrencies: allCurrencies)
+                    }.buttonStyle(.plain)
+                }
+                if sortedBudgets.count < 2 {
+                    Button { adding = true } label: {
+                        Label("Nuovo budget", systemImage: "plus").font(.orbSubheadline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.orbLine, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
+                    }.buttonStyle(.plain)
                 }
             }
-
-            if budgets.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "chart.bar.xaxis")
-                        .font(.largeTitle)
-                        .foregroundStyle(.secondary)
-
-                    Text("Nessun budget impostato")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-
-                    NavigationLink(destination: BudgetListView()) {
-                        Text("Crea Budget")
-                            .font(.caption.bold())
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.blue)
-                            )
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-            } else {
-                // ScrollView orizzontale con budget ordinati per percentuale
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(sortedBudgets) { budget in
-                            BudgetProgressCard(budget: budget, transactions: transactions, allCurrencies: allCurrencies)
-                                .frame(width: 100)
-                        }
-                    }
-                    .padding(.horizontal, 4)
-                }
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(in: .rect(cornerRadius: 16))
+        }.sheet(isPresented: $adding) { AddBudgetView() }
     }
 }
 
@@ -128,61 +74,28 @@ struct BudgetProgressCard: View {
     }
 
     var progressColor: Color {
-        if progress >= 1.0 { return .red }
-        if progress >= 0.8 { return .orange }
-        return .green
+        if progress >= 1.0 { return Color.orbNegative }
+        if progress >= 0.8 { return Color.orbHighlight }
+        return Color.orbPositive
     }
 
     var body: some View {
-        // Circular Progress - Compatto
-        ZStack {
-            // Background Circle
-            Circle()
-                .stroke(Color.gray.opacity(0.2), lineWidth: 8)
-                .frame(width: 90, height: 90)
-
-            // Progress Circle
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(
-                    progressColor,
-                    style: StrokeStyle(lineWidth: 8, lineCap: .round)
-                )
-                .frame(width: 90, height: 90)
-                .rotationEffect(.degrees(-90))
-                .animation(.spring(response: 0.8, dampingFraction: 0.7), value: progress)
-
-            // Center Content - Solo icona, percentuale e nome
-            VStack(spacing: 1) {
-                if let icon = budget.category?.icon {
-                    Image(systemName: icon)
-                        .font(.system(size: 18))
-                        .foregroundStyle(budget.category?.color ?? .blue)
-                }
-
-                Text("\(Int(progress * 100))%")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(progressColor)
-
-                Text(budget.category?.name ?? "Budget")
-                    .font(.system(size: 8, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: 70)
+        let spent = budget.spent(transactions: transactions, context: modelContext)
+        HStack(spacing: 12) {
+            ProgressRing(progress: progress, color: budget.category?.color ?? .chartIncome).frame(width: 52, height: 52)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(budget.category?.name ?? "Budget").font(.orbHeadline)
+                Text(OrbCurrency.string(spent, symbol: budget.currencyRecord?.displaySymbol ?? "€") + " / " + FormatterCache.formatCurrencyFixed(budget.amount)).font(.orbCaption).monospacedDigit()
+                Text("Rimangono " + OrbCurrency.string(budget.amount - spent, symbol: budget.currencyRecord?.displaySymbol ?? "€")).font(.orbCaption).foregroundStyle(Color.orbMuted)
             }
-        }
-        .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
+            Spacer(minLength: 0)
+        }.padding(8).modifier(OrbBudgetWarning(id: budget.id, progress: progress))
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
         let currencyRecord = allCurrencies.first { $0.code == appSettings.preferredCurrencyEnum.rawValue }
         let symbol = currencyRecord?.displaySymbol ?? "$"
-        let flag = currencyRecord?.flagEmoji ?? ""
-        return "\(symbol)\(FormatterCache.formatCurrency(amount)) \(flag)"
+
+        return "\(symbol) \(FormatterCache.formatCurrencyFixed(amount))"
     }
 }

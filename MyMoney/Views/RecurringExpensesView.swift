@@ -50,8 +50,8 @@ struct RecurringExpensesView: View {
                 Text("Categorie usate 3+ volte negli ultimi 30 giorni")
             } footer: {
                 Text("Queste categorie vengono utilizzate frequentemente. Considera di impostare un budget per controllarle meglio.")
-            }
-        }
+            }.listRowBackground(Color.orbCard)
+        }.orbScreen()
         .listStyle(.insetGrouped)
     }
 
@@ -75,7 +75,7 @@ struct RecurringExpensesView: View {
                             .frame(width: 48, height: 48)
 
                         Image(systemName: category.icon)
-                            .font(.title3)
+                            .font(.orbTitle3)
                             .foregroundStyle(category.color)
                     }
                 }
@@ -83,22 +83,22 @@ struct RecurringExpensesView: View {
                 // Info
                 VStack(alignment: .leading, spacing: 4) {
                     Text(category.name)
-                        .font(.headline)
+                        .font(.orbHeadline)
 
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.clockwise")
-                            .font(.caption2)
+                            .font(.orbCaption2)
                         Text("\(category.usageCount) utilizzi")
-                            .font(.caption)
+                            .font(.orbCaption)
 
                         if let lastUsed = category.lastUsedDate {
                             Text("•")
-                                .font(.caption)
+                                .font(.orbCaption)
                             Text(lastUsed, style: .relative)
-                                .font(.caption)
+                                .font(.orbCaption)
                         }
                     }
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.orbMuted)
                 }
 
                 Spacer()
@@ -114,13 +114,13 @@ struct RecurringExpensesView: View {
                             Image(systemName: "plus.circle.fill")
                             Text("Budget")
                         }
-                        .font(.caption.bold())
-                        .foregroundStyle(.white)
+                        .font(.orbCaption.bold())
+                        .foregroundStyle(Color.orbOnAccent)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background(
                             RoundedRectangle(cornerRadius: 8)
-                                .fill(appSettings.accentColor)
+                                .fill(Color.orbAccent)
                         )
                     }
                 }
@@ -130,8 +130,8 @@ struct RecurringExpensesView: View {
             if category.usageInLastDays(30) > 0 {
                 HStack {
                     Label("\(category.usageInLastDays(30)) transazioni negli ultimi 30 giorni", systemImage: "chart.line.uptrend.xyaxis")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
 
                     Spacer()
                 }
@@ -147,13 +147,13 @@ struct RecurringExpensesView: View {
             Image(systemName: "checkmark.circle.fill")
             Text("Budget Attivo")
         }
-        .font(.caption.bold())
-        .foregroundStyle(.green)
+        .font(.orbCaption.bold())
+        .foregroundStyle(Color.orbPositive)
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(.green.opacity(0.15))
+                .fill(Color.orbPositive.opacity(0.15))
         )
     }
 
@@ -163,15 +163,15 @@ struct RecurringExpensesView: View {
         VStack(spacing: 16) {
             Image(systemName: "arrow.clockwise.circle")
                 .font(.system(size: 60))
-                .foregroundStyle(appSettings.accentColor.opacity(0.3))
+                .foregroundStyle(Color.orbAccent.opacity(0.3))
 
             Text("Nessuna Spesa Ricorrente")
-                .font(.title3.bold())
-                .foregroundStyle(.primary)
+                .font(.orbTitle3.bold())
+                .foregroundStyle(Color.orbText)
 
             Text("Le categorie utilizzate frequentemente appariranno qui dopo almeno 3 transazioni negli ultimi 30 giorni")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.orbSubheadline)
+                .foregroundStyle(Color.orbMuted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
         }
@@ -227,39 +227,39 @@ struct AddBudgetViewForCategory: View {
                         }
 
                         Text(category.name)
-                            .font(.headline)
+                            .font(.orbHeadline)
 
                         Spacer()
 
                         Text("Ricorrente")
-                            .font(.caption)
+                            .font(.orbCaption)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .fill(appSettings.accentColor.opacity(0.15))
+                                    .fill(Color.orbAccent.opacity(0.15))
                             )
-                            .foregroundStyle(appSettings.accentColor)
+                            .foregroundStyle(Color.orbHighlight)
                     }
                 } header: {
                     Text("Categoria")
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // Amount
                 Section {
                     HStack {
                         Text(selectedCurrency?.symbol ?? "€")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
 
                         TextField("0.00", text: $amount)
                             .keyboardType(.decimalPad)
-                            .font(.title3.bold())
+                            .font(.orbTitle3.bold())
                     }
                 } header: {
                     Text("Importo Budget")
                 } footer: {
                     Text("Importo massimo da spendere per \(category.name)")
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // Period
                 Section {
@@ -285,7 +285,7 @@ struct AddBudgetViewForCategory: View {
                     if selectedPeriod != .custom {
                         Text("Il budget si rinnova automaticamente ogni \(selectedPeriod.rawValue.lowercased())")
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // Currency
                 Section {
@@ -300,18 +300,18 @@ struct AddBudgetViewForCategory: View {
                             if let currency = selectedCurrency {
                                 Text(currency.flagEmoji)
                                 Text(currency.code)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // Alerts
                 Section {
                     Toggle(isOn: $alertAt80Percent) {
                         HStack {
                             Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.orbHighlight)
                             Text("Avviso all'80%")
                         }
                     }
@@ -319,7 +319,7 @@ struct AddBudgetViewForCategory: View {
                     Toggle(isOn: $alertAt100Percent) {
                         HStack {
                             Image(systemName: "exclamationmark.circle.fill")
-                                .foregroundStyle(.red)
+                                .foregroundStyle(Color.orbNegative)
                             Text("Avviso al 100%")
                         }
                     }
@@ -327,8 +327,8 @@ struct AddBudgetViewForCategory: View {
                     Text("Notifiche")
                 } footer: {
                     Text("Ricevi notifiche quando raggiungi queste soglie del budget")
-                }
-            }
+                }.listRowBackground(Color.orbCard)
+            }.orbScreen()
             .navigationTitle("Nuovo Budget")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -16,6 +16,7 @@ struct BalanceAdjustmentView: View {
 
     @State private var newBalanceText: String = ""
     @State private var notes: String = ""
+    @State private var useAvailableCredit = false
     @State private var showingSuccessAnimation = false
 
     var currentBalance: Decimal {
@@ -27,7 +28,8 @@ struct BalanceAdjustmentView: View {
         let cleanedText = newBalanceText
             .replacingOccurrences(of: ".", with: "")  // Rimuovi punti delle migliaia
             .replacingOccurrences(of: ",", with: ".")  // Virgola decimale → punto per Decimal
-        return Decimal(string: cleanedText)
+        guard let value = Decimal(string: cleanedText) else { return nil }
+        return isCreditCard && useAvailableCredit ? CreditCardMath.netBalance(available: value, limit: account.creditLimit ?? 0) : value
     }
 
     var difference: Decimal? {
@@ -65,8 +67,8 @@ struct BalanceAdjustmentView: View {
                     Spacer(minLength: 40)
                 }
                 .padding()
-            }
-            .background(Color(.systemGroupedBackground))
+            }.orbScreen()
+            .background(Color.orbBackground)
             .navigationTitle("Aggiusta Saldo")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
@@ -103,79 +105,16 @@ struct BalanceAdjustmentView: View {
 
     private var creditCardReminderBanner: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.orange)
-
-                Text("IMPORTANTE - Carta di Credito")
-                    .font(.headline.bold())
-                    .foregroundStyle(.orange)
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "info.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.blue)
-
-                    Text("Per saldi in **negativo** (debiti), inserisci il segno **-** davanti all'importo")
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
+            Text("Saldo della carta").font(.orbHeadline)
+            Toggle("Inserisco disponibilità incluso plafond", isOn: $useAvailableCredit)
+                .disabled(account.creditLimit == nil)
+                .onChange(of: useAvailableCredit) { _, enabled in
+                    newBalanceText = formatAmountForEditing(currentBalance + (enabled ? account.creditLimit ?? 0 : 0))
                 }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.green)
-                        Text("Corretto:")
-                            .font(.caption.bold())
-                        Text("-500")
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.green)
-                        Text("= €500 di debito")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    HStack(spacing: 6) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.red)
-                        Text("Sbagliato:")
-                            .font(.caption.bold())
-                        Text("500")
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.red)
-                        Text("= €500 di credito")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.leading, 20)
-            }
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(
-                    LinearGradient(
-                        colors: [Color.orange.opacity(0.1), Color.yellow.opacity(0.05)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.orange.opacity(0.3), lineWidth: 2)
-        )
+            Text(useAvailableCredit ? "Il saldo netto è disponibilità meno limite. Esempio: 90.000 − 60.000 = +30.000 di proprietà." : "Inserisci il saldo netto: positivo per il tuo credito, negativo per il debito. Il plafond è escluso.").font(.orbSubheadline)
+            if let net = newBalance { Text("Saldo netto risultante: " + OrbCurrency.string(net, symbol: account.currencySymbol)).font(.orbHeadline).lineLimit(1).minimumScaleFactor(0.2) }
+        }.padding(16).orbSurface()
     }
-
-    // MARK: - Current Balance Card
 
     private var currentBalanceCard: some View {
         VStack(spacing: 16) {
@@ -192,18 +131,18 @@ struct BalanceAdjustmentView: View {
                         .frame(width: 50, height: 50)
 
                     Image(systemName: account.icon)
-                        .font(.title2)
+                        .font(.orbTitle2)
                         .foregroundStyle(account.color)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(account.name)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+                        .font(.orbHeadline)
+                        .foregroundStyle(Color.orbText)
 
                     Text(account.accountType.rawValue)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                 }
 
                 Spacer()
@@ -213,17 +152,17 @@ struct BalanceAdjustmentView: View {
 
             VStack(spacing: 8) {
                 Text("Saldo Attuale")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.orbSubheadline)
+                    .foregroundStyle(Color.orbMuted)
                     .textCase(.uppercase)
                     .tracking(1)
 
                 HStack(spacing: 8) {
                     Text(formatAmount(currentBalance))
-                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .font(.orb(36, weight: .bold, relativeTo: .title))
                         .foregroundStyle(
                             LinearGradient(
-                                colors: currentBalance >= 0 ? [.green, .blue] : [.red, .orange],
+                                colors: currentBalance >= 0 ? [Color.orbPositive, Color.orbAccent] : [Color.orbNegative, Color.orbHighlight],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
@@ -234,7 +173,7 @@ struct BalanceAdjustmentView: View {
             .padding(.vertical, 8)
         }
         .padding(20)
-        .glassEffect(in: .rect(cornerRadius: 20))
+        .orbSurface()
     }
 
     // MARK: - New Balance Card
@@ -243,18 +182,18 @@ struct BalanceAdjustmentView: View {
         VStack(spacing: 16) {
             HStack {
                 Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
-                    .font(.title2)
+                    .font(.orbTitle2)
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [.blue, .purple],
+                            colors: [Color.orbAccent, Color.orbAccent],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
 
                 Text("Nuovo Saldo")
-                    .font(.headline.bold())
-                    .foregroundStyle(.primary)
+                    .font(.orbHeadline.bold())
+                    .foregroundStyle(Color.orbText)
 
                 Spacer()
             }
@@ -265,16 +204,16 @@ struct BalanceAdjustmentView: View {
             HStack(spacing: 12) {
                 Text(account.currencyRecord?.displaySymbol ?? (account.currency.rawValue == "USD" ? "$" : account.currency.rawValue))
                     .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.orbMuted)
 
                 TextField("0,00", text: $newBalanceText)
                     .keyboardType(.decimalPad)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .font(.orb(28, weight: .bold, relativeTo: .title))
                     .multilineTextAlignment(.leading)
                     .padding(12)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(.secondarySystemGroupedBackground))
+                            .fill(Color.orbCard)
                     )
                     .onChange(of: newBalanceText) { oldValue, newValue in
                         // Filtra caratteri non validi: permetti solo numeri, virgola e segno meno
@@ -316,22 +255,22 @@ struct BalanceAdjustmentView: View {
                     HStack(spacing: 12) {
                         ZStack {
                             Circle()
-                                .fill(isPositiveDifference ? Color.green.opacity(0.15) : Color.red.opacity(0.15))
+                                .fill(isPositiveDifference ? Color.orbPositive.opacity(0.15) : Color.orbNegative.opacity(0.15))
                                 .frame(width: 40, height: 40)
 
                             Image(systemName: isPositiveDifference ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
-                                .font(.title3)
-                                .foregroundStyle(isPositiveDifference ? .green : .red)
+                                .font(.orbTitle3)
+                                .foregroundStyle(isPositiveDifference ? Color.orbPositive : Color.orbNegative)
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Differenza")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.orbCaption)
+                                .foregroundStyle(Color.orbMuted)
 
                             Text(formatAmountWithSign(diff))
-                                .font(.title3.bold())
-                                .foregroundStyle(isPositiveDifference ? .green : .red)
+                                .font(.orbTitle3.bold())
+                                .foregroundStyle(isPositiveDifference ? Color.orbPositive : Color.orbNegative)
                         }
 
                         Spacer()
@@ -340,26 +279,26 @@ struct BalanceAdjustmentView: View {
                     // Footer Info
                     HStack(spacing: 6) {
                         Image(systemName: "info.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.blue)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbHighlight)
 
                         Text("Verrà creata una transazione di aggiustamento")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(
                         RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.blue.opacity(0.05))
+                            .fill(Color.orbAccent.opacity(0.05))
                     )
                 }
                 .transition(.scale.combined(with: .opacity))
             }
         }
         .padding(20)
-        .glassEffect(in: .rect(cornerRadius: 20))
+        .orbSurface()
         .animation(.spring(response: 0.3), value: difference)
     }
 
@@ -369,12 +308,12 @@ struct BalanceAdjustmentView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Image(systemName: "note.text")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .font(.orbHeadline)
+                    .foregroundStyle(Color.orbMuted)
 
                 Text("Note (opzionale)")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .font(.orbHeadline)
+                    .foregroundStyle(Color.orbMuted)
             }
 
             TextField("Motivo dell'aggiustamento...", text: $notes, axis: .vertical)
@@ -382,11 +321,11 @@ struct BalanceAdjustmentView: View {
                 .padding(12)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.secondarySystemGroupedBackground))
+                        .fill(Color.orbCard)
                 )
         }
         .padding(20)
-        .glassEffect(in: .rect(cornerRadius: 20))
+        .orbSurface()
     }
 
     // MARK: - Validation
@@ -462,6 +401,7 @@ struct BalanceAdjustmentView: View {
 
     private func formatAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
@@ -470,12 +410,13 @@ struct BalanceAdjustmentView: View {
 
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0,00"
         let symbol = account.currencyRecord?.displaySymbol ?? (account.currency.rawValue == "USD" ? "$" : account.currency.rawValue)
-        let flag = account.currencyRecord?.flagEmoji ?? account.currency.flag
-        return "\(symbol)\(amountString) \(flag)"
+
+        return "\(symbol) \(amountString)"
     }
 
     private func formatAmountWithSign(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
@@ -485,8 +426,8 @@ struct BalanceAdjustmentView: View {
         let amountString = formatter.string(from: abs(amount) as NSDecimalNumber) ?? "0,00"
         let sign = amount >= 0 ? "+" : "-"
         let symbol = account.currencyRecord?.displaySymbol ?? (account.currency.rawValue == "USD" ? "$" : account.currency.rawValue)
-        let flag = account.currencyRecord?.flagEmoji ?? account.currency.flag
-        return "\(sign)\(symbol)\(amountString) \(flag)"
+
+        return "\(sign)\(symbol) \(amountString)"
     }
 }
 

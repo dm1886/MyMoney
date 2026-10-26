@@ -12,6 +12,8 @@ struct HomeViewNew: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.appSettings) var appSettings
     @Bindable var widgetManager = WidgetManager.shared
+    @State private var showingNewTransaction = false
+    @State private var newTransactionType: TransactionType?
     @State private var showingAddWidget = false
     @State private var editMode: EditMode = .inactive
 
@@ -26,24 +28,20 @@ struct HomeViewNew: View {
     var body: some View {
         NavigationStack {
             List {
-                // Header Section
-                VStack(spacing: 8) {
-                    Text("Benvenuto in")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-
-                    Text("MoneyTracker")
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.blue, .purple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Locale(identifier: "it_IT"))))
+                        .font(.orbCaption).foregroundStyle(Color.orbMuted)
+                    HStack {
+                        Text("Ciao Damiano").font(.orbTitle)
+                        Spacer()
+                        Button { showingAddWidget = true } label: {
+                            Image(systemName: "slider.horizontal.3").font(.body.weight(.semibold))
+                                .frame(width: 44, height: 44)
+                                .background(Color.orbCard2, in: Circle())
+                        }.accessibilityLabel("Personalizza Home")
+                    }
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
+                .padding(.horizontal, 22).padding(.vertical, 12)
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
@@ -54,15 +52,15 @@ struct HomeViewNew: View {
                     VStack(spacing: 20) {
                         Image(systemName: "square.grid.3x3.fill")
                             .font(.system(size: 60))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
 
                         Text("Personalizza la tua Home")
-                            .font(.title2.bold())
-                            .foregroundStyle(.primary)
+                            .font(.orbTitle2.bold())
+                            .foregroundStyle(Color.orbText)
 
                         Text("Aggiungi widget per vedere statistiche, grafici e informazioni importanti")
-                            .font(.body)
-                            .foregroundStyle(.secondary)
+                            .font(.orbBody)
+                            .foregroundStyle(Color.orbMuted)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 40)
 
@@ -73,13 +71,13 @@ struct HomeViewNew: View {
                                 Image(systemName: "plus.circle.fill")
                                 Text("Aggiungi Widget")
                             }
-                            .font(.headline)
-                            .foregroundStyle(.white)
+                            .font(.orbHeadline)
+                            .foregroundStyle(Color.orbOnAccent)
                             .padding(.horizontal, 24)
                             .padding(.vertical, 12)
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .fill(appSettings.accentColor)
+                                    .fill(Color.orbAccent)
                             )
                         }
                     }
@@ -100,8 +98,8 @@ struct HomeViewNew: View {
                                     }
                                 } label: {
                                     Image(systemName: "minus.circle.fill")
-                                        .font(.title2)
-                                        .foregroundStyle(.red)
+                                        .font(.orbTitle2)
+                                        .foregroundStyle(Color.orbNegative)
                                 }
                                 .padding(.trailing, 8)
                                 .transition(.scale.combined(with: .opacity))
@@ -112,6 +110,7 @@ struct HomeViewNew: View {
                             AsyncWidgetWrapper(delayMilliseconds: UInt64(widgetIndex * 50)) {
                                 widgetView(for: widget)
                             }
+                            .riseIn(widgetIndex)
                             .opacity(editMode == .active ? 0.8 : 1.0)
                             .id(widget.id)
                             .onLongPressGesture(minimumDuration: 0.5) {
@@ -145,32 +144,15 @@ struct HomeViewNew: View {
                         }
                     }
                 }
-            }
+            }.orbScreen()
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .background(Color(.systemGroupedBackground))
+            .background(Color.orbBackground)
             .environment(\.editMode, $editMode)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    if editMode == .active {
-                        Button("Fine") {
-                            withAnimation {
-                                editMode = .inactive
-                            }
-                            HapticManager.shared.success()
-                        }
-                        .foregroundStyle(appSettings.accentColor)
-                        .fontWeight(.semibold)
-                    } else {
-                        Button("Aggiungi", systemImage: "plus.circle.fill") {
-                            showingAddWidget = true
-                        }
-                        .labelStyle(.iconOnly)
-                        .buttonStyle(.glass)
-                    }
-                }
-            }
+            .navigationTitle("")
+            .toolbar(.hidden, for: .navigationBar)
+            .background(OrbTabReselect(tab: 0))
             .sheet(isPresented: $showingAddWidget) {
                 AddWidgetSheet()
             }
@@ -181,7 +163,7 @@ struct HomeViewNew: View {
     private func widgetView(for widget: WidgetModel) -> some View {
         switch widget.type {
         case .totalBalance:
-            TotalBalanceWidget(accounts: accounts, allCurrencies: allCurrencies)
+            TotalBalanceWidget(accounts: accounts, allCurrencies: allCurrencies, transactions: transactions)
         case .todaySummary:
             TodaySummaryWidget(transactions: transactions, allCurrencies: allCurrencies)
         case .budgetProgress:

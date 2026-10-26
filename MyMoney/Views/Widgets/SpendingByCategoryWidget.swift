@@ -75,7 +75,6 @@ struct SpendingByCategoryWidget: View {
             return (category, amount, percentage)
         }
         .sorted { $0.amount > $1.amount }
-        .prefix(5)
         .map { $0 }
     }
 
@@ -99,100 +98,18 @@ struct SpendingByCategoryWidget: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "chart.pie.fill")
-                    .font(.title2)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.purple, .pink],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
-                Text("Spese per Categoria")
-                    .font(.headline.bold())
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.purple, .pink],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-
-                Spacer()
-            }
-
-            Picker("Periodo", selection: $selectedPeriod) {
-                ForEach(SpendingPeriod.allCases, id: \.self) { period in
-                    Text(period.rawValue).tag(period)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-
-            if categorySpending.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "chart.pie")
-                        .font(.largeTitle)
-                        .foregroundStyle(.secondary)
-
-                    Text("Nessuna spesa questo mese")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 30)
-            } else {
-                Chart {
-                    ForEach(Array(categorySpending.enumerated()), id: \.offset) { index, item in
-                        SectorMark(
-                            angle: .value("Amount", Double(truncating: item.amount as NSDecimalNumber)),
-                            innerRadius: .ratio(0.618),
-                            angularInset: 1.5
-                        )
-                        .foregroundStyle(item.category.color)
-                        .opacity(0.9)
-                    }
-                }
-                .frame(height: 160)
-                .chartLegend(.hidden)
-                .drawingGroup() // Optimize rendering performance
-
-                VStack(spacing: 8) {
-                    ForEach(Array(categorySpending.enumerated()), id: \.offset) { index, item in
-                        HStack(spacing: 8) {
-                            Circle()
-                                .fill(item.category.color)
-                                .frame(width: 12, height: 12)
-
-                            Text(item.category.name)
-                                .font(.caption)
-                                .foregroundStyle(.primary)
-
-                            Spacer()
-
-                            Text("\(Int(item.percentage * 100))%")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
-
-                            Text(formatAmount(item.amount))
-                                .font(.caption.bold())
-                                .foregroundStyle(.primary)
-                        }
-                    }
-                }
+        OrbCard {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Spese per categoria").font(.orbHeadline).lineLimit(1)
+                OrbCompactPeriod(values: SpendingPeriod.allCases, selection: $selectedPeriod)
+                OrbDonutChart(slices: categorySpending.map { OrbCategorySlice(id: $0.category.id.uuidString, name: $0.category.name, amount: NSDecimalNumber(decimal: $0.amount).doubleValue, color: $0.category.color) }, symbol: preferredCurrencyRecord?.displaySymbol ?? "€")
             }
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(in: .rect(cornerRadius: 16))
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
         let symbol = preferredCurrencyRecord?.displaySymbol ?? "$"
-        let flag = preferredCurrencyRecord?.flagEmoji ?? ""
-        return "\(symbol)\(FormatterCache.formatCurrency(amount)) \(flag)"
+
+        return "\(symbol) \(FormatterCache.formatCurrencyFixed(amount))"
     }
 }

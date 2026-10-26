@@ -57,76 +57,76 @@ struct CategoryDetailView: View {
                                 .frame(width: 60, height: 60)
 
                             Image(systemName: category.icon)
-                                .font(.title)
+                                .font(.orbTitle)
                                 .foregroundStyle(category.color)
                         }
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(category.name)
-                            .font(.title2.bold())
+                            .font(.orbTitle2.bold())
 
                         if let group = category.categoryGroup {
                             Text(group.name)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .font(.orbSubheadline)
+                                .foregroundStyle(Color.orbMuted)
                         }
                     }
 
                     Spacer()
                 }
                 .padding(.vertical, 8)
-            }
+            }.listRowBackground(Color.orbCard)
 
             // Usage Statistics Section
             Section {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Utilizzi Totali")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                         Text("\(category.usageCount)")
-                            .font(.title3.bold())
+                            .font(.orbTitle3.bold())
                     }
 
                     Spacer()
 
                     VStack(alignment: .trailing, spacing: 4) {
                         Text("Ultimi 30 Giorni")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                         Text("\(category.usageInLastDays(30))")
-                            .font(.title3.bold())
-                            .foregroundStyle(category.isRecurring ? .orange : .primary)
+                            .font(.orbTitle3.bold())
+                            .foregroundStyle(category.isRecurring ? Color.orbHighlight : Color.orbText)
                     }
                 }
 
                 if let lastUsed = category.lastUsedDate {
                     HStack {
                         Text("Ultimo Utilizzo")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
 
                         Spacer()
 
                         Text(lastUsed, style: .relative)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                     }
                 }
 
                 if category.isRecurring {
                     HStack {
                         Image(systemName: "arrow.clockwise.circle.fill")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.orbHighlight)
                         Text("Categoria Ricorrente")
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.orange)
+                            .font(.orbSubheadline.bold())
+                            .foregroundStyle(Color.orbHighlight)
                     }
                 }
             } header: {
                 Text("Statistiche Utilizzo")
-            }
+            }.listRowBackground(Color.orbCard)
 
             // Budget Section
             Section {
@@ -142,9 +142,9 @@ struct CategoryDetailView: View {
                     } label: {
                         HStack {
                             Image(systemName: "plus.circle.fill")
-                                .foregroundStyle(appSettings.accentColor)
+                                .foregroundStyle(Color.orbHighlight)
                             Text("Crea Budget per questa Categoria")
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.orbText)
                             Spacer()
                         }
                     }
@@ -155,34 +155,34 @@ struct CategoryDetailView: View {
                 if activeBudget == nil {
                     Text("Imposta un budget per monitorare le spese in questa categoria")
                 }
-            }
+            }.listRowBackground(Color.orbCard)
 
             // Spending Summary
             Section {
                 HStack {
                     Text("Spesa Totale")
-                        .font(.body)
+                        .font(.orbBody)
 
                     Spacer()
 
                     Text("€\(totalSpent.formatted())")
-                        .font(.title3.bold())
-                        .foregroundStyle(appSettings.accentColor)
+                        .font(.orbTitle3.bold())
+                        .foregroundStyle(Color.orbHighlight)
                 }
 
                 HStack {
                     Text("Numero Transazioni")
-                        .font(.body)
+                        .font(.orbBody)
 
                     Spacer()
 
                     Text("\(categoryTransactions.count)")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
+                        .font(.orbBody)
+                        .foregroundStyle(Color.orbMuted)
                 }
             } header: {
                 Text("Riepilogo Spese")
-            }
+            }.listRowBackground(Color.orbCard)
 
             // Recent Transactions
             if !recentTransactions.isEmpty {
@@ -194,28 +194,28 @@ struct CategoryDetailView: View {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(transaction.date.formatted(date: .abbreviated, time: .omitted))
-                                        .font(.subheadline)
+                                        .font(.orbSubheadline)
 
                                     if !transaction.notes.isEmpty {
                                         Text(transaction.notes)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                            .font(.orbCaption)
+                                            .foregroundStyle(Color.orbMuted)
                                             .lineLimit(1)
                                     }
                                 }
 
                                 Spacer()
 
-                                Text(transaction.displayAmount)
-                                    .font(.body.bold())
+                                Text(transaction.orbDisplayAmount)
+                                    .font(.orbBody.bold())
                             }
                         }
                     }
                 } header: {
                     Text("Transazioni Recenti")
-                }
+                }.listRowBackground(Color.orbCard)
             }
-        }
+        }.orbScreen()
         .navigationTitle("Dettagli Categoria")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingAddBudget) {
@@ -236,14 +236,14 @@ struct CategoryDetailView: View {
             // Header
             HStack {
                 Text(budget.period.rawValue)
-                    .font(.caption)
+                    .font(.orbCaption)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(appSettings.accentColor.opacity(0.15))
+                            .fill(Color.orbAccent.opacity(0.15))
                     )
-                    .foregroundStyle(appSettings.accentColor)
+                    .foregroundStyle(Color.orbHighlight)
 
                 Spacer()
 
@@ -252,8 +252,8 @@ struct CategoryDetailView: View {
                     showingEditBudget = true
                 } label: {
                     Text("Modifica")
-                        .font(.caption)
-                        .foregroundStyle(appSettings.accentColor)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbHighlight)
                 }
             }
 
@@ -266,10 +266,10 @@ struct CategoryDetailView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Speso")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("\(currencySymbol)\(spent.formatted())")
-                        .font(.title3.bold())
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
+                    Text("\(currencySymbol) \(spent.formatted())")
+                        .font(.orbTitle3.bold())
                         .foregroundStyle(progressColor(percentage: percentage))
                 }
 
@@ -277,10 +277,10 @@ struct CategoryDetailView: View {
 
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("Budget")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("\(currencySymbol)\(budget.amount.formatted())")
-                        .font(.title3.bold())
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
+                    Text("\(currencySymbol) \(budget.amount.formatted())")
+                        .font(.orbTitle3.bold())
                 }
             }
 
@@ -289,7 +289,7 @@ struct CategoryDetailView: View {
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color(.systemGray5))
+                            .fill(Color.orbCard2)
                             .frame(height: 8)
 
                         RoundedRectangle(cornerRadius: 4)
@@ -301,19 +301,19 @@ struct CategoryDetailView: View {
 
                 HStack {
                     Text("\(Int(percentage))% utilizzato")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
 
                     Spacer()
 
                     if remaining > 0 {
-                        Text("Rimangono \(currencySymbol)\(remaining.formatted())")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Text("Rimangono \(currencySymbol) \(remaining.formatted())")
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                     } else {
                         Text("Budget superato!")
-                            .font(.caption.bold())
-                            .foregroundStyle(.red)
+                            .font(.orbCaption.bold())
+                            .foregroundStyle(Color.orbNegative)
                     }
                 }
             }
@@ -323,11 +323,11 @@ struct CategoryDetailView: View {
 
     private func progressColor(percentage: Double) -> Color {
         if percentage >= 100 {
-            return .red
+            return Color.orbNegative
         } else if percentage >= 80 {
-            return .orange
+            return Color.orbHighlight
         } else {
-            return .green
+            return Color.orbPositive
         }
     }
 }

@@ -77,7 +77,7 @@ struct AddBudgetView: View {
                     } label: {
                         HStack {
                             Text("Categoria")
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.orbText)
 
                             Spacer()
 
@@ -95,37 +95,37 @@ struct AddBudgetView: View {
                                             .foregroundStyle(category.color)
                                     }
                                     Text(category.name)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                             } else {
                                 Text("Seleziona")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
 
                             Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
+                                .font(.orbCaption)
+                                .foregroundStyle(Color.orbMuted)
                         }
                     }
                 } header: {
                     Text("Dettagli")
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // Amount
                 Section {
                     HStack {
                         Text(selectedCurrency?.symbol ?? "€")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
 
                         TextField("0.00", text: $amount)
                             .keyboardType(.decimalPad)
-                            .font(.title3.bold())
+                            .font(.orbTitle3.bold())
                     }
                 } header: {
                     Text("Importo Budget")
                 } footer: {
                     Text("Importo massimo che vuoi spendere in questa categoria")
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // Period
                 Section {
@@ -151,7 +151,7 @@ struct AddBudgetView: View {
                     if selectedPeriod != .custom {
                         Text("Il budget si rinnova automaticamente ogni \(selectedPeriod.rawValue.lowercased())")
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // Data Inizio Budget
                 if selectedPeriod != .custom {
@@ -163,8 +163,8 @@ struct AddBudgetView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Inizia da inizio periodo")
                                 Text((startFromPeriodBeginning ?? true) ? startPeriodDescription : "Inizia da oggi")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     } footer: {
@@ -173,7 +173,7 @@ struct AddBudgetView: View {
                         } else {
                             Text("Il budget partirà da oggi e si rinnoverà automaticamente ogni \(selectedPeriod.rawValue.lowercased())")
                         }
-                    }
+                    }.listRowBackground(Color.orbCard)
                 }
 
                 // Currency
@@ -189,18 +189,18 @@ struct AddBudgetView: View {
                             if let currency = selectedCurrency {
                                 Text(currency.flagEmoji)
                                 Text(currency.code)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // Alerts
                 Section {
                     Toggle(isOn: $alertAt80Percent) {
                         HStack {
                             Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.orbHighlight)
                             Text("Avviso all'80%")
                         }
                     }
@@ -208,7 +208,7 @@ struct AddBudgetView: View {
                     Toggle(isOn: $alertAt100Percent) {
                         HStack {
                             Image(systemName: "exclamationmark.circle.fill")
-                                .foregroundStyle(.red)
+                                .foregroundStyle(Color.orbNegative)
                             Text("Avviso al 100%")
                         }
                     }
@@ -216,8 +216,8 @@ struct AddBudgetView: View {
                     Text("Notifiche")
                 } footer: {
                     Text("Ricevi notifiche quando raggiungi queste soglie del budget")
-                }
-            }
+                }.listRowBackground(Color.orbCard)
+            }.orbScreen()
             .navigationTitle("Nuovo Budget")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -299,6 +299,7 @@ struct AddBudgetView: View {
 
             // Haptic feedback for successful budget creation
             HapticManager.shared.budgetSaved()
+        NotificationCenter.default.post(name: .orbSaveFeedback, object: nil)
 
             dismiss()
         } catch {
@@ -341,21 +342,21 @@ struct CategorySelectionView: View {
                                         }
 
                                         Text(category.name)
-                                            .foregroundStyle(.primary)
+                                            .foregroundStyle(Color.orbText)
 
                                         Spacer()
 
                                         if selectedCategory?.id == category.id {
                                             Image(systemName: "checkmark")
-                                                .foregroundStyle(appSettings.accentColor)
+                                                .foregroundStyle(Color.orbHighlight)
                                         }
                                     }
                                 }
                             }
-                        }
+                        }.listRowBackground(Color.orbCard)
                     }
                 }
-            }
+            }.orbScreen()
             .navigationTitle("Seleziona Categoria")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -1,152 +1,58 @@
-//
-//  ResocontoView.swift
-//  MoneyTracker
-//
-//  Created on 2026-01-11.
-//
-
 import SwiftUI
 import SwiftData
 
 struct ResocontoView: View {
     @Environment(\.appSettings) var appSettings
-
+    @Environment(\.dynamicTypeSize) private var textSize
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 12), count: textSize.isAccessibilitySize ? 1 : 2)
+    }
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    NavigationLink {
-                        HistoricalBalanceView()
-                    } label: {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(appSettings.accentColor.opacity(0.15))
-                                    .frame(width: 44, height: 44)
-
-                                Image(systemName: "clock.arrow.circlepath")
-                                    .font(.system(size: 20))
-                                    .foregroundStyle(appSettings.accentColor)
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Saldo Storico")
-                                    .font(.body.bold())
-                                    .foregroundStyle(.primary)
-
-                                Text("Visualizza il saldo di un conto in una data specifica")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    HStack(spacing: 16) {
+                        OrbView(size: 74, isAnimating: false) {
+                            Image(systemName: "chart.bar.doc.horizontal").font(.title2)
+                        }.accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Resoconto").font(.orbTitle)
+                            Text("Analizza entrate e uscite nel tempo")
+                                .font(.orbSubheadline).foregroundStyle(Color.orbMuted)
                         }
-                        .padding(.vertical, 4)
                     }
-
-                    NavigationLink {
-                        IncomeExpenseReportView()
-                    } label: {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.green.opacity(0.15))
-                                    .frame(width: 44, height: 44)
-
-                                Image(systemName: "chart.bar.xaxis")
-                                    .font(.system(size: 20))
-                                    .foregroundStyle(.green)
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Entrate e Uscite")
-                                    .font(.body.bold())
-                                    .foregroundStyle(.primary)
-
-                                Text("Analizza entrate e uscite nel tempo")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
+                    OrbSectionHeader(title: "Report disponibili")
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        NavigationLink { HistoricalBalanceView() } label: {
+                            reportCard("Saldo Storico", subtitle: "Il saldo dei conti nel tempo", icon: "clock.arrow.circlepath", index: 0)
                         }
-                        .padding(.vertical, 4)
-                    }
-                    
-                    NavigationLink {
-                        CategoryExpensesReportView()
-                    } label: {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.orange.opacity(0.15))
-                                    .frame(width: 44, height: 44)
-
-                                Image(systemName: "chart.pie.fill")
-                                    .font(.system(size: 20))
-                                    .foregroundStyle(.orange)
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Spese per Categoria")
-                                    .font(.body.bold())
-                                    .foregroundStyle(.primary)
-
-                                Text("Visualizza le spese raggruppate per categoria")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
+                        NavigationLink { IncomeExpenseReportView() } label: {
+                            reportCard("Entrate e Uscite", subtitle: "Movimenti, medie e totali", icon: "chart.bar.xaxis", index: 1)
                         }
-                        .padding(.vertical, 4)
-                    }
-                    
-                    NavigationLink {
-                        RecurringTransactionsReportView()
-                    } label: {
-                        HStack(spacing: 16) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.purple.opacity(0.15))
-                                    .frame(width: 44, height: 44)
-
-                                Image(systemName: "repeat.circle.fill")
-                                    .font(.system(size: 20))
-                                    .foregroundStyle(.purple)
-                            }
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Transazioni Ricorrenti")
-                                    .font(.body.bold())
-                                    .foregroundStyle(.primary)
-
-                                Text("Analizza le operazioni ripetitive previste")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
+                        NavigationLink { CategoryExpensesReportView() } label: {
+                            reportCard("Spese per Categoria", subtitle: "Dove vanno i tuoi soldi", icon: "chart.pie.fill", index: 2)
                         }
-                        .padding(.vertical, 4)
-                    }
-                } header: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "chart.bar.doc.horizontal.fill")
-                            .foregroundStyle(appSettings.accentColor)
-                        Text("Report Disponibili")
-                            .foregroundStyle(.primary)
-                    }
-                    .font(.subheadline.bold())
-                    .textCase(nil)
-                } footer: {
+                        NavigationLink { RecurringTransactionsReportView() } label: {
+                            reportCard("Transazioni Ricorrenti", subtitle: "Le operazioni ripetitive previste", icon: "repeat.circle.fill", index: 3)
+                        }
+                    }.buttonStyle(.plain)
                     Text("Seleziona un report per visualizzare statistiche e analisi dettagliate")
-                }
-            }
-            .navigationTitle("Resoconto")
-            .navigationBarTitleDisplayMode(.inline)
+                        .font(.orbCaption).foregroundStyle(Color.orbMuted)
+                }.padding(20)
+            }.orbScreen().background(OrbTabReselect(tab: 3)).navigationBarTitleDisplayMode(.inline)
         }
+    }
+    private func reportCard(_ title: String, subtitle: String, icon: String, index: Int) -> some View {
+        OrbCard {
+            VStack(alignment: .leading, spacing: 16) {
+                Image(systemName: icon).font(.title2).foregroundStyle(Color.orbHighlight)
+                    .frame(width: 44, height: 44).background(Color.orbCard2, in: Circle())
+                Text(title).font(.orbHeadline).foregroundStyle(Color.orbText).fixedSize(horizontal: false, vertical: true)
+                Text(subtitle).font(.orbCaption).foregroundStyle(Color.orbMuted).fixedSize(horizontal: false, vertical: true)
+                HStack { Spacer(); Image(systemName: "arrow.up.right").foregroundStyle(Color.orbHighlight) }
+            }.frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
+        }.riseIn(index)
     }
 }
 
-#Preview {
-    ResocontoView()
-        .environment(\.appSettings, AppSettings.shared)
-        .modelContainer(for: [Transaction.self, Account.self])
-}
+#Preview { ResocontoView().modifier(OrbThemeScope()) }

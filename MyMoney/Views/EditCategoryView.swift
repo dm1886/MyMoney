@@ -61,11 +61,11 @@ struct EditCategoryView: View {
                                         .foregroundStyle(group.color)
                                 }
                                 Text(group.name)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         } else {
                             Text("Nessun Gruppo")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                         }
                     }
                 }
@@ -73,7 +73,7 @@ struct EditCategoryView: View {
                 Text("Gruppo")
             } footer: {
                 Text("Seleziona il gruppo a cui appartiene questa categoria")
-            }
+            }.listRowBackground(Color.orbCard)
 
             // MARK: - Category Info
             Section("Informazioni") {
@@ -93,7 +93,7 @@ struct EditCategoryView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 6))
                         } else {
                             Image(systemName: selectedIcon)
-                                .font(.title2)
+                                .font(.orbTitle2)
                                 .foregroundStyle(selectedColor)
                         }
                     }
@@ -109,18 +109,18 @@ struct EditCategoryView: View {
                                 selectedPhoto = nil
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                             .buttonStyle(.plain)
                         } else {
                             Image(systemName: "photo")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                         }
                     }
                 }
 
                 ColorPicker("Colore", selection: $selectedColor)
-            }
+            }.listRowBackground(Color.orbCard)
 
             // MARK: - Default Account
             Section {
@@ -141,20 +141,20 @@ struct EditCategoryView: View {
                                         .clipShape(Circle())
                                 } else {
                                     Image(systemName: account.icon)
-                                        .foregroundStyle(Color(hex: account.colorHex) ?? .gray)
+                                        .foregroundStyle(Color(hex: account.colorHex) ?? Color.orbMuted)
                                 }
                                 Text(account.name)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         } else {
                             Text("Nessuno")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                         }
                     }
                 }
             } footer: {
                 Text("Il conto selezionato automaticamente quando usi questa categoria")
-            }
+            }.listRowBackground(Color.orbCard)
 
             // MARK: - Delete
             Section {
@@ -167,8 +167,8 @@ struct EditCategoryView: View {
                         Spacer()
                     }
                 }
-            }
-        }
+            }.listRowBackground(Color.orbCard)
+        }.orbScreen()
         .navigationTitle("Modifica Categoria")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

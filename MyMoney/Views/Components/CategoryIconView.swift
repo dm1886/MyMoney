@@ -13,7 +13,7 @@ struct CategoryIconView: View {
     var size: CGFloat = 24
     var cornerRadius: CGFloat = 6
     var fallbackIcon: String = "folder.fill"
-    var fallbackColor: Color = .gray
+    var fallbackColor: Color = .orbMuted
 
     var body: some View {
         if let category = category {
@@ -46,7 +46,7 @@ struct CategoryIconWithBackground: View {
     var size: CGFloat = 44
     var iconSize: CGFloat = 24
     var fallbackIcon: String = "folder.fill"
-    var fallbackColor: Color = .gray
+    var fallbackColor: Color = .orbMuted
 
     var body: some View {
         ZStack {
@@ -112,7 +112,7 @@ struct TransactionCategoryIcon: View {
                 }
             } else {
                 // Fallback to transaction type icon
-                let typeColor = Color(hex: transaction.transactionType.color) ?? .gray
+                let typeColor = transaction.transactionType.orbColor
                 Circle()
                     .fill(typeColor.opacity(0.2))
                     .frame(width: size, height: size)

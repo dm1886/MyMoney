@@ -46,7 +46,7 @@ struct EditBudgetView: View {
                     } label: {
                         HStack {
                             Text("Categoria")
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.orbText)
 
                             Spacer()
 
@@ -64,35 +64,35 @@ struct EditBudgetView: View {
                                             .foregroundStyle(category.color)
                                     }
                                     Text(category.name)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                             } else {
                                 Text("Seleziona")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
 
                             Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
+                                .font(.orbCaption)
+                                .foregroundStyle(Color.orbMuted)
                         }
                     }
                 } header: {
                     Text("Dettagli")
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // Amount
                 Section {
                     HStack {
                         Text(selectedCurrency?.symbol ?? "€")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
 
                         TextField("0.00", text: $amount)
                             .keyboardType(.decimalPad)
-                            .font(.title3.bold())
+                            .font(.orbTitle3.bold())
                     }
                 } header: {
                     Text("Importo Budget")
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // Period
                 Section {
@@ -114,7 +114,7 @@ struct EditBudgetView: View {
                     }
                 } header: {
                     Text("Periodo")
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // Currency
                 Section {
@@ -129,18 +129,18 @@ struct EditBudgetView: View {
                             if let currency = selectedCurrency {
                                 Text(currency.flagEmoji)
                                 Text(currency.code)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // Alerts
                 Section {
                     Toggle(isOn: $alertAt80Percent) {
                         HStack {
                             Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.orbHighlight)
                             Text("Avviso all'80%")
                         }
                     }
@@ -148,21 +148,21 @@ struct EditBudgetView: View {
                     Toggle(isOn: $alertAt100Percent) {
                         HStack {
                             Image(systemName: "exclamationmark.circle.fill")
-                                .foregroundStyle(.red)
+                                .foregroundStyle(Color.orbNegative)
                             Text("Avviso al 100%")
                         }
                     }
                 } header: {
                     Text("Notifiche")
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // Status
                 Section {
                     Toggle("Budget Attivo", isOn: $isActive)
                 } footer: {
                     Text("Disattiva il budget per non conteggiare più le spese")
-                }
-            }
+                }.listRowBackground(Color.orbCard)
+            }.orbScreen()
             .navigationTitle("Modifica Budget")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -16,29 +16,72 @@ struct BalanceHeaderView: View {
     let negativeBalance: Decimal
     let weeklyExpenses: [DailyExpense]
     let currencySymbol: String
+    var orbSize: CGFloat = 74
+    var orbitLabels: [String] = []
 
-    var body: some View {
-        Group {
-            switch appSettings.balanceHeaderStyle {
-            case .totalBalance:
-                totalBalanceHeader
-            case .assetsDebts:
-                assetsDebtsHeader
-            case .onlyPositive:
-                onlyPositiveHeader
-            case .onlyNegative:
-                onlyNegativeHeader
-            case .horizontalBars:
-                horizontalBarsHeader
-            case .weeklyTrend:
-                weeklyTrendHeader
-            }
+    private var orbAmount: Decimal {
+        switch appSettings.balanceHeaderStyle {
+        case .onlyPositive: positiveBalance
+        case .onlyNegative: abs(negativeBalance)
+        default: totalBalance
         }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .glassEffect(in: .rect(cornerRadius: 20))
-        .padding(.horizontal)
-        .padding(.top, 8)
+    }
+    private var orbLabel: String {
+        switch appSettings.balanceHeaderStyle {
+        case .onlyPositive: "Saldo Positivo"
+        case .onlyNegative: "Debiti Totali"
+        default: "Saldo totale"
+        }
+    }
+    var body: some View {
+        VStack(spacing: 16) {
+            if orbSize > 100 {
+                OrbView(size: orbSize, orbitLabels: orbitLabels) {
+                    VStack(spacing: 8) {
+                        Text(orbLabel).font(.orbCaption)
+                        OrbAmountLabel(amount: orbAmount, format: formatAmount).font(.orb(38, weight: .bold, relativeTo: .largeTitle))
+                            .monospacedDigit().lineLimit(1).minimumScaleFactor(0.1)
+                            .frame(width: orbSize * 0.66)
+                    }
+                }.padding(.vertical, 24).frame(maxWidth: .infinity)
+            } else {
+                HStack(spacing: 16) {
+                    OrbView(size: orbSize) {
+                        EmptyView()
+                    }.accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(orbLabel).font(.orbCaption).foregroundStyle(Color.orbMuted)
+                        AmountText(amount: orbAmount, symbol: currencySymbol + " ")
+                            .font(.orbTitle).lineLimit(1).minimumScaleFactor(0.5)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+            switch appSettings.balanceHeaderStyle {
+            case .assetsDebts: assetsDebtsHeader.padding(14).orbSurface()
+            case .horizontalBars: horizontalBarsHeader.padding(14).orbSurface()
+            case .weeklyTrend: weeklyTrendHeader.padding(14).orbSurface()
+            case .totalBalance:
+                HStack(spacing: 8) {
+                    StatTile(label: "Attivi", value: formatAmount(positiveBalance), color: .orbPositive)
+                    StatTile(label: "Debiti", value: formatAmount(abs(negativeBalance)), color: .orbNegative)
+                }
+                if orbSize <= 100 {
+                    GeometryReader { g in
+                        let total = NSDecimalNumber(decimal: positiveBalance + abs(negativeBalance)).doubleValue
+                        let fraction = total > 0 ? NSDecimalNumber(decimal: positiveBalance).doubleValue / total : 0
+                        HStack(spacing: 3) {
+                            Capsule().fill(Color.chartIncome).frame(width: max(0, (g.size.width - 3) * fraction))
+                            Capsule().fill(Color.chartExpense)
+                        }
+                    }.frame(height: 8)
+                }
+            case .onlyPositive:
+                Text("Da \(countPositiveAccounts) conti").font(.orbCaption).foregroundStyle(Color.orbMuted)
+            case .onlyNegative:
+                Text(negativeBalance < 0 ? "Da ripagare" : "Nessun debito!").font(.orbCaption).foregroundStyle(Color.orbMuted)
+            }
+        }.padding(.horizontal, 16).padding(.top, 8)
     }
 
     // MARK: - Total Balance Style
@@ -46,27 +89,27 @@ struct BalanceHeaderView: View {
         VStack(spacing: 12) {
             HStack {
                 Image(systemName: "wallet.pass.fill")
-                    .font(.title3)
-                    .foregroundStyle(appSettings.accentColor)
+                    .font(.orbTitle3)
+                    .foregroundStyle(Color.orbHighlight)
                 Text("Saldo Totale")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .font(.orbSubheadline.weight(.medium))
+                    .foregroundStyle(Color.orbMuted)
             }
 
             Text(formatAmount(totalBalance))
-                .font(.system(size: 42, weight: .bold, design: .rounded))
-                .foregroundColor(totalBalance >= 0 ? .primary : .red)
+                .font(.orb(42, weight: .bold, relativeTo: .title))
+                .foregroundColor(totalBalance >= 0 ? Color.orbText : Color.orbNegative)
 
             // Mini bar showing positive/negative ratio
             if positiveBalance > 0 || abs(negativeBalance) > 0 {
                 HStack(spacing: 16) {
                     Label(formatCompact(positiveBalance), systemImage: "arrow.up.circle.fill")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.green)
+                        .font(.orbCaption.weight(.medium))
+                        .foregroundStyle(Color.orbPositive)
 
                     Label(formatCompact(abs(negativeBalance)), systemImage: "arrow.down.circle.fill")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.red)
+                        .font(.orbCaption.weight(.medium))
+                        .foregroundStyle(Color.orbNegative)
                 }
                 .padding(.top, 4)
             }
@@ -79,10 +122,10 @@ struct BalanceHeaderView: View {
             // Title
             HStack {
                 Image(systemName: "chart.pie.fill")
-                    .foregroundStyle(appSettings.accentColor)
+                    .foregroundStyle(Color.orbHighlight)
                 Text("Panoramica")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .font(.orbSubheadline.weight(.medium))
+                    .foregroundStyle(Color.orbMuted)
             }
 
             // Circular progress indicator
@@ -90,57 +133,57 @@ struct BalanceHeaderView: View {
                 // Mini donut chart
                 ZStack {
                     Circle()
-                        .stroke(Color.red.opacity(0.3), lineWidth: 8)
+                        .stroke(Color.orbNegative.opacity(0.3), lineWidth: 8)
                         .frame(width: 70, height: 70)
 
                     Circle()
                         .trim(from: 0, to: positiveRatio)
-                        .stroke(Color.green, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                        .stroke(Color.orbPositive, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                         .frame(width: 70, height: 70)
                         .rotationEffect(.degrees(-90))
 
                     Text("\(Int(positiveRatio * 100))%")
-                        .font(.caption.bold())
-                        .foregroundStyle(.primary)
+                        .font(.orbCaption.bold())
+                        .foregroundStyle(Color.orbText)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Circle()
-                            .fill(.green)
+                            .fill(Color.orbPositive)
                             .frame(width: 10, height: 10)
                         Text("Attivi")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                         Spacer()
                         Text(formatAmount(positiveBalance))
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.green)
+                            .font(.orbSubheadline.bold())
+                            .foregroundStyle(Color.orbPositive)
                     }
 
                     HStack {
                         Circle()
-                            .fill(.red)
+                            .fill(Color.orbNegative)
                             .frame(width: 10, height: 10)
                         Text("Debiti")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                         Spacer()
                         Text(formatAmount(abs(negativeBalance)))
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.red)
+                            .font(.orbSubheadline.bold())
+                            .foregroundStyle(Color.orbNegative)
                     }
 
                     Divider()
 
                     HStack {
                         Text("Netto")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption.weight(.medium))
+                            .foregroundStyle(Color.orbMuted)
                         Spacer()
                         Text(formatAmount(totalBalance))
-                            .font(.headline.bold())
-                            .foregroundColor(totalBalance >= 0 ? .primary : .red)
+                            .font(.orbHeadline.bold())
+                            .foregroundColor(totalBalance >= 0 ? Color.orbText : Color.orbNegative)
                     }
                 }
             }
@@ -152,20 +195,20 @@ struct BalanceHeaderView: View {
         VStack(spacing: 12) {
             HStack {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.green)
+                    .font(.orbTitle3)
+                    .foregroundStyle(Color.orbPositive)
                 Text("Saldo Positivo")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .font(.orbSubheadline.weight(.medium))
+                    .foregroundStyle(Color.orbMuted)
             }
 
             Text(formatAmount(positiveBalance))
-                .font(.system(size: 42, weight: .bold, design: .rounded))
-                .foregroundStyle(.green)
+                .font(.orb(42, weight: .bold, relativeTo: .title))
+                .foregroundStyle(Color.orbPositive)
 
             Text("Da \(countPositiveAccounts) conti")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.orbCaption)
+                .foregroundStyle(Color.orbMuted)
         }
     }
 
@@ -174,25 +217,25 @@ struct BalanceHeaderView: View {
         VStack(spacing: 12) {
             HStack {
                 Image(systemName: "arrow.down.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.red)
+                    .font(.orbTitle3)
+                    .foregroundStyle(Color.orbNegative)
                 Text("Debiti Totali")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .font(.orbSubheadline.weight(.medium))
+                    .foregroundStyle(Color.orbMuted)
             }
 
             Text(formatAmount(abs(negativeBalance)))
-                .font(.system(size: 42, weight: .bold, design: .rounded))
-                .foregroundStyle(.red)
+                .font(.orb(42, weight: .bold, relativeTo: .title))
+                .foregroundStyle(Color.orbNegative)
 
             if negativeBalance < 0 {
                 Text("Da ripagare")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbMuted)
             } else {
                 Text("Nessun debito!")
-                    .font(.caption)
-                    .foregroundStyle(.green)
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbPositive)
             }
         }
     }
@@ -202,14 +245,14 @@ struct BalanceHeaderView: View {
         VStack(spacing: 16) {
             HStack {
                 Image(systemName: "chart.bar.xaxis")
-                    .foregroundStyle(appSettings.accentColor)
+                    .foregroundStyle(Color.orbHighlight)
                 Text("Bilancio")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .font(.orbSubheadline.weight(.medium))
+                    .foregroundStyle(Color.orbMuted)
                 Spacer()
                 Text(formatAmount(totalBalance))
-                    .font(.headline.bold())
-                    .foregroundStyle(totalBalance >= 0 ? Color.primary : Color.red)
+                    .font(.orbHeadline.bold())
+                    .foregroundStyle(totalBalance >= 0 ? Color.orbText : Color.orbNegative)
             }
 
             VStack(spacing: 12) {
@@ -217,27 +260,23 @@ struct BalanceHeaderView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Attivi")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                         Spacer()
                         Text(formatAmount(positiveBalance))
-                            .font(.caption.bold())
-                            .foregroundStyle(.green)
+                            .font(.orbCaption.bold())
+                            .foregroundStyle(Color.orbPositive)
                     }
 
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.green.opacity(0.2))
+                                .fill(Color.orbPositive.opacity(0.2))
                                 .frame(height: 12)
 
                             RoundedRectangle(cornerRadius: 4)
                                 .fill(
-                                    LinearGradient(
-                                        colors: [.green, .green.opacity(0.7)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
+                                    Color.orbPositive
                                 )
                                 .frame(width: geo.size.width * positiveRatio, height: 12)
                         }
@@ -249,27 +288,23 @@ struct BalanceHeaderView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Debiti")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                         Spacer()
                         Text(formatAmount(abs(negativeBalance)))
-                            .font(.caption.bold())
-                            .foregroundStyle(.red)
+                            .font(.orbCaption.bold())
+                            .foregroundStyle(Color.orbNegative)
                     }
 
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.red.opacity(0.2))
+                                .fill(Color.orbNegative.opacity(0.2))
                                 .frame(height: 12)
 
                             RoundedRectangle(cornerRadius: 4)
                                 .fill(
-                                    LinearGradient(
-                                        colors: [.red, .red.opacity(0.7)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
+                                    Color.orbNegative
                                 )
                                 .frame(width: geo.size.width * negativeRatio, height: 12)
                         }
@@ -285,14 +320,14 @@ struct BalanceHeaderView: View {
         VStack(spacing: 12) {
             HStack {
                 Image(systemName: "chart.line.uptrend.xyaxis")
-                    .foregroundStyle(appSettings.accentColor)
+                    .foregroundStyle(Color.orbHighlight)
                 Text("Spese Ultimi 7 Giorni")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .font(.orbSubheadline.weight(.medium))
+                    .foregroundStyle(Color.orbMuted)
                 Spacer()
                 Text(formatAmount(weeklyTotal))
-                    .font(.headline.bold())
-                    .foregroundStyle(.red)
+                    .font(.orbHeadline.bold())
+                    .foregroundStyle(Color.orbNegative)
             }
 
             // Bar chart for weekly expenses
@@ -303,15 +338,15 @@ struct BalanceHeaderView: View {
                         RoundedRectangle(cornerRadius: 4)
                             .fill(
                                 day.isToday ?
-                                    LinearGradient(colors: [appSettings.accentColor, appSettings.accentColor.opacity(0.7)], startPoint: .top, endPoint: .bottom) :
-                                    LinearGradient(colors: [.gray.opacity(0.5), .gray.opacity(0.3)], startPoint: .top, endPoint: .bottom)
+                                    Color.orbAccent :
+                                    Color.orbMuted.opacity(0.5)
                             )
                             .frame(height: barHeight(for: day.amount))
 
                         // Day label
                         Text(day.dayName)
                             .font(.system(size: 10, weight: day.isToday ? .bold : .regular))
-                            .foregroundColor(day.isToday ? appSettings.accentColor : Color.secondary)
+                            .foregroundColor(day.isToday ? Color.orbAccent : Color.orbMuted)
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -321,10 +356,10 @@ struct BalanceHeaderView: View {
             // Legend
             HStack {
                 Text("Media giornaliera:")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbMuted)
                 Text(formatAmount(weeklyAverage))
-                    .font(.caption.bold())
+                    .font(.orbCaption.bold())
             }
         }
     }
@@ -365,6 +400,7 @@ struct BalanceHeaderView: View {
 
     private func formatAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
@@ -374,6 +410,7 @@ struct BalanceHeaderView: View {
 
     private func formatCompact(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 0

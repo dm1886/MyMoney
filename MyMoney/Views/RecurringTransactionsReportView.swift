@@ -222,11 +222,11 @@ struct RecurringTransactionsReportView: View {
                             .padding(.horizontal)
                             .padding(.bottom, 20)
                     }
-                }
+                }.orbScreen()
                 .transition(.opacity)
             }
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Color.orbBackground)
         .navigationTitle("Transazioni Ricorrenti")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingAccountPicker) {
@@ -275,8 +275,8 @@ struct RecurringTransactionsReportView: View {
     private var periodSelector: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Frequenza")
-                .font(.headline)
-                .foregroundStyle(.primary)
+                .font(.orbHeadline)
+                .foregroundStyle(Color.orbText)
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
@@ -288,19 +288,19 @@ struct RecurringTransactionsReportView: View {
                             }
                         } label: {
                             Text(period.rawValue)
-                                .font(.subheadline.bold())
-                                .foregroundStyle(selectedPeriod == period ? .white : appSettings.accentColor)
+                                .font(.orbSubheadline.bold())
+                                .foregroundStyle(selectedPeriod == period ? Color.orbOnAccent : Color.orbAccent)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
                                 .background(
                                     RoundedRectangle(cornerRadius: 8)
-                                        .fill(selectedPeriod == period ? appSettings.accentColor : Color(.secondarySystemGroupedBackground))
+                                        .fill(selectedPeriod == period ? Color.orbAccent : Color.orbCard)
                                 )
                         }
                     }
                 }
                 .padding(.horizontal, 4)
-            }
+            }.orbScreen()
         }
     }
     
@@ -309,8 +309,8 @@ struct RecurringTransactionsReportView: View {
     private var groupingSelector: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Raggruppa")
-                .font(.headline)
-                .foregroundStyle(.primary)
+                .font(.orbHeadline)
+                .foregroundStyle(Color.orbText)
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
@@ -322,19 +322,19 @@ struct RecurringTransactionsReportView: View {
                             }
                         } label: {
                             Text(grouping.rawValue)
-                                .font(.subheadline.bold())
-                                .foregroundStyle(selectedGrouping == grouping ? .white : appSettings.accentColor)
+                                .font(.orbSubheadline.bold())
+                                .foregroundStyle(selectedGrouping == grouping ? Color.orbOnAccent : Color.orbAccent)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
                                 .background(
                                     RoundedRectangle(cornerRadius: 8)
-                                        .fill(selectedGrouping == grouping ? appSettings.accentColor : Color(.secondarySystemGroupedBackground))
+                                        .fill(selectedGrouping == grouping ? Color.orbAccent : Color.orbCard)
                                 )
                         }
                     }
                 }
                 .padding(.horizontal, 4)
-            }
+            }.orbScreen()
         }
     }
     
@@ -350,7 +350,7 @@ struct RecurringTransactionsReportView: View {
                     title: "Conti",
                     subtitle: accountFilterText,
                     icon: "building.columns.fill",
-                    color: .blue
+                    color: Color.orbAccent
                 )
             }
             
@@ -362,7 +362,7 @@ struct RecurringTransactionsReportView: View {
                     title: "Categorie",
                     subtitle: categoryFilterText,
                     icon: "tag.fill",
-                    color: .green
+                    color: Color.orbPositive
                 )
             }
             
@@ -374,7 +374,7 @@ struct RecurringTransactionsReportView: View {
                     title: "Gruppi",
                     subtitle: groupFilterText,
                     icon: "folder.fill",
-                    color: .orange
+                    color: Color.orbHighlight
                 )
             }
         }
@@ -410,35 +410,35 @@ struct RecurringTransactionsReportView: View {
         VStack(spacing: 12) {
             HStack {
                 Image(systemName: "repeat.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.purple)
+                    .font(.orbTitle2)
+                    .foregroundStyle(Color.orbHighlight)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Totale Ricorrenti")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.orbSubheadline)
+                        .foregroundStyle(Color.orbMuted)
                     
                     Text(formatAmount(totalAmount))
-                        .font(.title2.bold())
-                        .foregroundStyle(.primary)
+                        .font(.orbTitle2.bold())
+                        .foregroundStyle(Color.orbText)
                 }
                 
                 Spacer()
                 
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("\(totalOccurrences)")
-                        .font(.title2.bold())
-                        .foregroundStyle(.purple)
+                        .font(.orbTitle2.bold())
+                        .foregroundStyle(Color.orbHighlight)
                     
                     Text(totalOccurrences == 1 ? "occorrenza" : "occorrenze")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                 }
             }
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(Color.orbCard)
             )
         }
     }
@@ -448,8 +448,8 @@ struct RecurringTransactionsReportView: View {
     private var groupedList: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Dettaglio")
-                .font(.headline)
-                .foregroundStyle(.primary)
+                .font(.orbHeadline)
+                .foregroundStyle(Color.orbText)
                 .padding(.horizontal, 4)
             
             if groupedData.isEmpty {
@@ -468,11 +468,11 @@ struct RecurringTransactionsReportView: View {
         VStack(spacing: 12) {
             Image(systemName: "repeat")
                 .font(.system(size: 48))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.orbMuted)
             
             Text("Nessuna transazione ricorrente")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.orbSubheadline)
+                .foregroundStyle(Color.orbMuted)
         }
         .frame(maxWidth: .infinity)
         .padding(40)
@@ -501,7 +501,7 @@ struct RecurringTransactionsReportView: View {
                         total: total,
                         occurrences: occurrences,
                         icon: "list.bullet",
-                        color: .gray
+                        color: Color.orbMuted
                     ))
                 }
                 
@@ -523,7 +523,7 @@ struct RecurringTransactionsReportView: View {
                         total: total,
                         occurrences: occurrences,
                         icon: category.icon,
-                        color: Color(hex: category.colorHex) ?? .gray
+                        color: Color(hex: category.colorHex) ?? Color.orbMuted
                     ))
                 }
                 
@@ -545,7 +545,7 @@ struct RecurringTransactionsReportView: View {
                         total: total,
                         occurrences: occurrences,
                         icon: group.icon,
-                        color: Color(hex: group.colorHex) ?? .gray
+                        color: Color(hex: group.colorHex) ?? Color.orbMuted
                     ))
                 }
                 
@@ -612,6 +612,7 @@ struct RecurringTransactionsReportView: View {
     
     private func formatAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .currency
         formatter.currencyCode = appSettings.preferredCurrencyEnum.rawValue
         formatter.maximumFractionDigits = 2
@@ -641,24 +642,24 @@ struct FilterButton: View {
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.primary)
+                    .font(.orbSubheadline.bold())
+                    .foregroundStyle(Color.orbText)
                 
                 Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbMuted)
             }
             
             Spacer()
             
             Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+                .font(.orbCaption)
+                .foregroundStyle(Color.orbMuted)
         }
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemGroupedBackground))
+                .fill(Color.orbCard)
         )
     }
 }
@@ -686,31 +687,32 @@ struct RecurringGroupRow: View {
                 // Info
                 VStack(alignment: .leading, spacing: 4) {
                     Text(group.name)
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.primary)
+                        .font(.orbSubheadline.bold())
+                        .foregroundStyle(Color.orbText)
                     
                     Text("\(group.occurrences) \(group.occurrences == 1 ? "occorrenza" : "occorrenze")")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                 }
                 
                 Spacer()
                 
                 // Amount
                 Text(formatAmount(group.total))
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.primary)
+                    .font(.orbSubheadline.bold())
+                    .foregroundStyle(Color.orbText)
             }
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(Color.orbCard)
             )
         }
     }
     
     private func formatAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .currency
         formatter.currencyCode = appSettings.preferredCurrencyEnum.rawValue
         formatter.maximumFractionDigits = 2
@@ -742,11 +744,11 @@ struct CategoryFilterSheet: View {
                             Spacer()
                             if selectedCategories.count == categories.count || selectedCategories.isEmpty {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.orbHighlight)
                             }
                         }
                     }
-                }
+                }.listRowBackground(Color.orbCard)
                 
                 Section {
                     ForEach(categories) { category in
@@ -759,22 +761,22 @@ struct CategoryFilterSheet: View {
                         } label: {
                             HStack {
                                 Image(systemName: category.icon)
-                                    .foregroundStyle(Color(hex: category.colorHex) ?? .gray)
+                                    .foregroundStyle(Color(hex: category.colorHex) ?? Color.orbMuted)
                                 
                                 Text(category.name)
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(Color.orbText)
                                 
                                 Spacer()
                                 
                                 if selectedCategories.contains(category.id) {
                                     Image(systemName: "checkmark")
-                                        .foregroundStyle(.blue)
+                                        .foregroundStyle(Color.orbHighlight)
                                 }
                             }
                         }
                     }
-                }
-            }
+                }.listRowBackground(Color.orbCard)
+            }.orbScreen()
             .navigationTitle("Filtra Categorie")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -811,11 +813,11 @@ struct CategoryGroupFilterSheet: View {
                             Spacer()
                             if selectedGroups.count == groups.count || selectedGroups.isEmpty {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.orbHighlight)
                             }
                         }
                     }
-                }
+                }.listRowBackground(Color.orbCard)
                 
                 Section {
                     ForEach(groups) { group in
@@ -828,22 +830,22 @@ struct CategoryGroupFilterSheet: View {
                         } label: {
                             HStack {
                                 Image(systemName: group.icon)
-                                    .foregroundStyle(Color(hex: group.colorHex) ?? .gray)
+                                    .foregroundStyle(Color(hex: group.colorHex) ?? Color.orbMuted)
                                 
                                 Text(group.name)
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(Color.orbText)
                                 
                                 Spacer()
                                 
                                 if selectedGroups.contains(group.id) {
                                     Image(systemName: "checkmark")
-                                        .foregroundStyle(.blue)
+                                        .foregroundStyle(Color.orbHighlight)
                                 }
                             }
                         }
                     }
-                }
-            }
+                }.listRowBackground(Color.orbCard)
+            }.orbScreen()
             .navigationTitle("Filtra Gruppi")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

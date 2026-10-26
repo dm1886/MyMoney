@@ -15,7 +15,7 @@ struct TransactionTypeSelectionView: View {
         NavigationStack {
             VStack(spacing: 20) {
                 Text("Che tipo di transazione vuoi aggiungere?")
-                    .font(.title3)
+                    .font(.orbTitle3)
                     .multilineTextAlignment(.center)
                     .padding()
 
@@ -25,7 +25,7 @@ struct TransactionTypeSelectionView: View {
                         title: "Uscita",
                         subtitle: "Aggiungi una spesa",
                         icon: "arrow.down.circle.fill",
-                        color: .red
+                        color: Color.orbNegative
                     ) {
                         selectedType = .expense
                         dismiss()
@@ -36,7 +36,7 @@ struct TransactionTypeSelectionView: View {
                         title: "Entrata",
                         subtitle: "Aggiungi un'entrata",
                         icon: "arrow.up.circle.fill",
-                        color: .green
+                        color: Color.orbPositive
                     ) {
                         selectedType = .income
                         dismiss()
@@ -47,7 +47,7 @@ struct TransactionTypeSelectionView: View {
                         title: "Trasferimento",
                         subtitle: "Trasferisci tra conti",
                         icon: "arrow.left.arrow.right.circle.fill",
-                        color: .blue
+                        color: Color.orbAccent
                     ) {
                         selectedType = .transfer
                         dismiss()
@@ -58,7 +58,7 @@ struct TransactionTypeSelectionView: View {
                         title: "Pagamento Passività",
                         subtitle: "Paga debiti e carte di credito",
                         icon: "creditcard.and.123",
-                        color: .orange
+                        color: Color.orbHighlight
                     ) {
                         selectedType = .liabilityPayment
                         dismiss()
@@ -98,30 +98,29 @@ struct TransactionTypeButton: View {
                         .frame(width: 60, height: 60)
 
                     Image(systemName: icon)
-                        .font(.title)
+                        .font(.orbTitle)
                         .foregroundStyle(color)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+                        .font(.orbHeadline)
+                        .foregroundStyle(Color.orbText)
 
                     Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.orbSubheadline)
+                        .foregroundStyle(Color.orbMuted)
                 }
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Color.orbMuted)
             }
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.systemBackground))
-                    .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
+                    .fill(Color.orbBackground)
             )
         }
     }

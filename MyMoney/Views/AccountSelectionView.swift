@@ -122,32 +122,32 @@ struct AccountSelectionView: View {
 
         let cashAccounts = sortedAccounts.filter { $0.accountType == .cash }
         if !cashAccounts.isEmpty {
-            groups.append((.cash, "Contanti", "banknote.fill", .green, cashAccounts))
+            groups.append((.cash, "Contanti", "banknote.fill", .orbPositive, cashAccounts))
         }
 
         let paymentAccounts = sortedAccounts.filter { $0.accountType == .payment }
         if !paymentAccounts.isEmpty {
-            groups.append((.payment, "Pagamento", "creditcard.fill", .blue, paymentAccounts))
+            groups.append((.payment, "Pagamento", "creditcard.fill", .orbAccent, paymentAccounts))
         }
 
         let prepaidAccounts = sortedAccounts.filter { $0.accountType == .prepaidCard }
         if !prepaidAccounts.isEmpty {
-            groups.append((.prepaidCard, "Carte Prepagate", "creditcard.fill", .cyan, prepaidAccounts))
+            groups.append((.prepaidCard, "Carte Prepagate", "creditcard.fill", .orbSecondary, prepaidAccounts))
         }
 
         let creditCardAccounts = sortedAccounts.filter { $0.accountType == .creditCard }
         if !creditCardAccounts.isEmpty {
-            groups.append((.creditCard, "Carta di Credito", "creditcard.fill", .orange, creditCardAccounts))
+            groups.append((.creditCard, "Carta di Credito", "creditcard.fill", .orbHighlight, creditCardAccounts))
         }
 
         let assetAccounts = sortedAccounts.filter { $0.accountType == .asset }
         if !assetAccounts.isEmpty {
-            groups.append((.asset, "Attività", "building.columns.fill", .purple, assetAccounts))
+            groups.append((.asset, "Attività", "building.columns.fill", .orbAccent, assetAccounts))
         }
 
         let liabilityAccounts = sortedAccounts.filter { $0.accountType == .liability }
         if !liabilityAccounts.isEmpty {
-            groups.append((.liability, "Passività", "chart.line.downtrend.xyaxis", .red, liabilityAccounts))
+            groups.append((.liability, "Passività", "chart.line.downtrend.xyaxis", .orbNegative, liabilityAccounts))
         }
 
         return groups
@@ -196,13 +196,13 @@ struct AccountSelectionView: View {
                         Image(systemName: icon)
                             .foregroundStyle(color)
                         Text(title)
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Color.orbText)
                     }
-                    .font(.subheadline.bold())
+                    .font(.orbSubheadline.bold())
                     .textCase(nil)
-                }
+                }.listRowBackground(Color.orbCard)
             }
-        }
+        }.orbScreen()
         .refreshable {
             // Force refresh when user pulls down
             // The @Query will automatically update
@@ -221,6 +221,7 @@ struct AccountListRow: View {
 
     // Calcola saldo on-the-fly - ora reagisce ai cambiamenti grazie alla @Query
     private var calculatedBalance: Decimal {
+        if account.investmentProfile != nil { return account.currentBalance }
         // Forza il re-render quando cambiano transazioni o tassi
         _ = allTransactions.count
         _ = exchangeRates.count
@@ -343,16 +344,16 @@ struct AccountListRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(account.name)
-                    .font(.body)
-                    .foregroundStyle(.primary)
+                    .font(.orbBody)
+                    .foregroundStyle(Color.orbText)
 
                 HStack(spacing: 4) {
                     if let currencyRecord = account.currencyRecord {
                         Text(currencyRecord.flagEmoji)
-                            .font(.caption2)
+                            .font(.orbCaption2)
                         Text(currencyRecord.code)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                     }
                 }
             }
@@ -361,13 +362,13 @@ struct AccountListRow: View {
 
             VStack(alignment: .trailing, spacing: 4) {
                 Text(formatAmount(calculatedBalance, currency: account.currencyRecord))
-                    .font(.body)
-                    .foregroundStyle(calculatedBalance < 0 ? .red : .primary)
+                    .font(.orbBody)
+                    .foregroundStyle(calculatedBalance < 0 ? Color.orbNegative : Color.orbText)
 
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(account.color)
-                        .font(.caption)
+                        .font(.orbCaption)
                 }
             }
         }
@@ -375,12 +376,13 @@ struct AccountListRow: View {
 
     private func formatAmount(_ amount: Decimal, currency: CurrencyRecord?) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
 
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
-        return "\(currency?.code ?? "EUR") \(amountString)"
+        return OrbCurrency.string(amount, symbol: currency?.displaySymbol ?? "€")
     }
 }
 

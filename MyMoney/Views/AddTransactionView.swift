@@ -17,15 +17,17 @@ struct AddTransactionView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query private var accounts: [Account]
+    @Query private var suggestionTransactions: [Transaction]
+    @FocusState private var amountFocused: Bool
     @Query private var categories: [Category]
     @Query private var allCurrencies: [CurrencyRecord]
 
-    let transactionType: TransactionType
+    @State private var transactionType: TransactionType
     let initialDate: Date
     let defaultAccount: Account?
 
     init(transactionType: TransactionType, initialDate: Date = Date(), defaultAccount: Account? = nil) {
-        self.transactionType = transactionType
+        _transactionType = State(initialValue: transactionType)
         self.initialDate = initialDate
         self.defaultAccount = defaultAccount
     }
@@ -283,46 +285,95 @@ struct AddTransactionView: View {
     var body: some View {
         NavigationStack {
             Form {
-                // CATEGORIA - Per expense/income e liability payment (opzionale)
-                if transactionType != .transfer {
-                    Section {
-                        Button {
-                            showingCategoryPicker = true
+                Section {
+                    OrbSegmented(values: [TransactionType.expense, .income, .transfer, .liabilityPayment, .adjustment], selection: $transactionType) { $0.rawValue }
+                }.listRowBackground(Color.clear).listRowInsets(EdgeInsets())
+                // IMPORTO
+                Section {
+                    HStack(spacing: 12) {
+                        OrbView(size: 56, primary: transactionType.orbColor, isAnimating: false) {
+                            Image(systemName: transactionType.icon).font(.title2)
+                        }.accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 4) {
+                        Text(transactionType == .transfer ? "Importo da prelevare" : transactionType == .liabilityPayment ? "Importo Debito" : "Importo")
+                            .font(.orbCaption).foregroundStyle(Color.orbMuted)
+                        TextField("0.00", text: $amount)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .font(.orbDisplay).monospacedDigit().lineLimit(1).minimumScaleFactor(0.2)
+                            .focused($amountFocused)
+                            .onChange(of: amount) { _, _ in
+                                // Reset manual override quando cambia l'importo
+                                if transactionType == .transfer {
+                                    isDestinationAmountManual = false
+                                    if let converted = autoConvertedDestinationAmount {
+                                        destinationAmount = formatDecimal(converted)
+                                    }
+                                }
+                            }
+                        }
+                        if transactionType == .transfer {
+                            Text(selectedAccount?.currencyRecord?.symbol ?? selectedAccount?.currency.symbol ?? "€")
+                                .foregroundStyle(Color.orbMuted)
+                        } else {
+                            Text(transactionCurrencyRecord?.symbol ?? transactionCurrency.symbol)
+                                .foregroundStyle(Color.orbMuted)
+                        }
+                    }
+
+                    // Selezione valuta (solo per expense/income)
+                    if transactionType != .transfer {
+                        NavigationLink {
+                            CurrencySelectionView(selectedCurrency: $selectedTransactionCurrencyRecord)
                         } label: {
                             HStack {
-                                Text("Categoria")
-                                    .foregroundStyle(.primary)
+                                Text("Valuta")
+                                    .foregroundStyle(Color.orbText)
 
                                 Spacer()
 
-                                if let category = selectedCategory {
+                                if let currency = selectedTransactionCurrencyRecord {
                                     HStack(spacing: 8) {
-                                        if let imageData = category.imageData,
-                                           let uiImage = UIImage(data: imageData) {
-                                            Image(uiImage: uiImage)
-                                                .resizable()
-                                                .scaledToFill()
-                                                .frame(width: 24, height: 24)
-                                                .clipShape(Circle())
-                                        } else {
-                                            Image(systemName: category.icon)
-                                                .foregroundStyle(category.color)
-                                        }
-                                        Text(category.name)
-                                            .foregroundStyle(.secondary)
+                                        Text(currency.flagEmoji)
+                                        Text(currency.code)
+                                            .foregroundStyle(Color.orbMuted)
+                                    }
+                                } else if let accountCurr = accountCurrencyRecord {
+                                    HStack(spacing: 8) {
+                                        Text(accountCurr.flagEmoji)
+                                        Text("Valuta del conto (\(accountCurr.code))")
+                                            .foregroundStyle(Color.orbMuted)
                                     }
                                 } else {
-                                    Text(transactionType == .liabilityPayment ? "Opzionale" : "Seleziona")
-                                        .foregroundStyle(.secondary)
+                                    Text("Seleziona")
+                                        .foregroundStyle(Color.orbMuted)
                                 }
+                            }
+                        }
 
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
+                        // Mostra conversione se necessaria (per expense/income)
+                        if needsConversion, let converted = convertedAmount {
+                            HStack {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .foregroundStyle(Color.orbHighlight)
+                                Text("Convertito")
+                                    .foregroundStyle(Color.orbMuted)
+                                Spacer()
+                                if let accCurr = accountCurrencyRecord {
+                                    Text("\(accCurr.symbol)\(formatDecimal(converted))")
+                                        .font(.orbHeadline)
+                                        .foregroundStyle(Color.orbHighlight)
+                                }
                             }
                         }
                     }
-                }
+                } footer: {
+                    if transactionType != .transfer && needsConversion,
+                       let transCurr = transactionCurrencyRecord,
+                       let accCurr = accountCurrencyRecord {
+                        Text("L'importo verrà convertito da \(transCurr.code) a \(accCurr.code) usando il tasso di cambio corrente.")
+                    }
+                }.listRowBackground(Color.orbCard)
 
                 // CONTO - Solo per expense/income
                 if transactionType != .transfer && transactionType != .liabilityPayment {
@@ -339,7 +390,7 @@ struct AddTransactionView: View {
                             accountRowLabel(title: "Conto", account: selectedAccount)
                         }
                         .id(selectedAccount?.id)  // Forza re-rendering quando account cambia
-                    }
+                    }.listRowBackground(Color.orbCard)
                 }
 
                 // CONTI - Per i trasferimenti
@@ -372,7 +423,7 @@ struct AddTransactionView: View {
                         .id(selectedDestinationAccount?.id)  // Forza re-rendering quando account cambia
                     } header: {
                         Text("Trasferimento")
-                    }
+                    }.listRowBackground(Color.orbCard)
                 }
                 
                 // CONTI - Per pagamento passività
@@ -406,10 +457,10 @@ struct AddTransactionView: View {
                         if liabilityPaymentCurrencyMismatch {
                             HStack(spacing: 8) {
                                 Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(Color.orbHighlight)
                                 Text("I conti devono avere la stessa valuta")
-                                    .font(.caption)
-                                    .foregroundStyle(.orange)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbHighlight)
                             }
                         }
                         
@@ -417,113 +468,31 @@ struct AddTransactionView: View {
                         if selectedDestinationAccount != nil && !isValidLiabilityDestination {
                             HStack(spacing: 8) {
                                 Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.red)
+                                    .foregroundStyle(Color.orbNegative)
                                 Text("Il conto destinazione deve essere Passività o Carta di Credito")
-                                    .font(.caption)
-                                    .foregroundStyle(.red)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbNegative)
                             }
                         }
                     } header: {
                         Text("Pagamento Passività")
-                    }
+                    }.listRowBackground(Color.orbCard)
                 }
-
-                // IMPORTO
-                Section {
-                    HStack {
-                        Text(transactionType == .transfer ? "Importo da prelevare" : transactionType == .liabilityPayment ? "Importo Debito" : "Importo")
-                        Spacer()
-                        TextField("0.00", text: $amount)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                            .font(.title2.bold())
-                            .onChange(of: amount) { _, _ in
-                                // Reset manual override quando cambia l'importo
-                                if transactionType == .transfer {
-                                    isDestinationAmountManual = false
-                                    if let converted = autoConvertedDestinationAmount {
-                                        destinationAmount = formatDecimal(converted)
-                                    }
-                                }
-                            }
-                        if transactionType == .transfer {
-                            Text(selectedAccount?.currencyRecord?.symbol ?? selectedAccount?.currency.symbol ?? "€")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text(transactionCurrencyRecord?.symbol ?? transactionCurrency.symbol)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    // Selezione valuta (solo per expense/income)
-                    if transactionType != .transfer {
-                        NavigationLink {
-                            CurrencySelectionView(selectedCurrency: $selectedTransactionCurrencyRecord)
-                        } label: {
-                            HStack {
-                                Text("Valuta")
-                                    .foregroundStyle(.primary)
-
-                                Spacer()
-
-                                if let currency = selectedTransactionCurrencyRecord {
-                                    HStack(spacing: 8) {
-                                        Text(currency.flagEmoji)
-                                        Text(currency.code)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                } else if let accountCurr = accountCurrencyRecord {
-                                    HStack(spacing: 8) {
-                                        Text(accountCurr.flagEmoji)
-                                        Text("Valuta del conto (\(accountCurr.code))")
-                                            .foregroundStyle(.secondary)
-                                    }
-                                } else {
-                                    Text("Seleziona")
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-
-                        // Mostra conversione se necessaria (per expense/income)
-                        if needsConversion, let converted = convertedAmount {
-                            HStack {
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                                    .foregroundStyle(.blue)
-                                Text("Convertito")
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                if let accCurr = accountCurrencyRecord {
-                                    Text("\(accCurr.symbol)\(formatDecimal(converted))")
-                                        .font(.headline)
-                                        .foregroundStyle(.blue)
-                                }
-                            }
-                        }
-                    }
-                } footer: {
-                    if transactionType != .transfer && needsConversion,
-                       let transCurr = transactionCurrencyRecord,
-                       let accCurr = accountCurrencyRecord {
-                        Text("L'importo verrà convertito da \(transCurr.code) a \(accCurr.code) usando il tasso di cambio corrente.")
-                    }
-                }
-
                 // CONVERSIONE TRASFERIMENTO
                 if transactionType == .transfer && transferNeedsConversion {
                     Section {
                         HStack {
                             Image(systemName: "arrow.triangle.2.circlepath")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.orbHighlight)
                             Text("Importo da accreditare")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
 
                             Spacer()
 
                             if !isDestinationAmountManual, let converted = autoConvertedDestinationAmount {
                                 Text("\(selectedDestinationAccount?.currencyRecord?.symbol ?? "")\(formatDecimal(converted))")
-                                    .font(.headline)
-                                    .foregroundStyle(.blue)
+                                    .font(.orbHeadline)
+                                    .foregroundStyle(Color.orbHighlight)
                             }
                         }
 
@@ -535,10 +504,10 @@ struct AddTransactionView: View {
                         } label: {
                             HStack {
                                 Text(isDestinationAmountManual ? "Importo Manuale" : "Modifica Importo")
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(Color.orbText)
                                 Spacer()
                                 Image(systemName: isDestinationAmountManual ? "checkmark.circle.fill" : "pencil.circle")
-                                    .foregroundStyle(isDestinationAmountManual ? .blue : .secondary)
+                                    .foregroundStyle(isDestinationAmountManual ? Color.orbAccent : Color.orbMuted)
                             }
                         }
 
@@ -549,9 +518,9 @@ struct AddTransactionView: View {
                                 TextField("0.00", text: $destinationAmount)
                                     .keyboardType(.decimalPad)
                                     .multilineTextAlignment(.trailing)
-                                    .font(.title3.bold())
+                                    .font(.orbTitle3.bold())
                                 Text(selectedDestinationAccount?.currencyRecord?.symbol ?? "")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     } header: {
@@ -569,21 +538,21 @@ struct AddTransactionView: View {
                                     let effectiveRate = destAmount / parsed
                                     HStack(spacing: 4) {
                                         Image(systemName: isDestinationAmountManual ? "pencil.circle.fill" : "arrow.triangle.2.circlepath")
-                                            .font(.caption2)
-                                            .foregroundStyle(isDestinationAmountManual ? .orange : .blue)
+                                            .font(.orbCaption2)
+                                            .foregroundStyle(isDestinationAmountManual ? Color.orbHighlight : Color.orbAccent)
                                         Text("Tasso: 1 \(sourceCurr.code) = \(formatDecimal(effectiveRate)) \(destCurr.code)")
-                                            .font(.caption)
+                                            .font(.orbCaption)
                                         if isDestinationAmountManual {
                                             Text("(personalizzato)")
-                                                .font(.caption)
-                                                .foregroundStyle(.orange)
+                                                .font(.orbCaption)
+                                                .foregroundStyle(Color.orbHighlight)
                                         }
                                     }
                                     .padding(.top, 2)
                                 }
                             }
                         }
-                    }
+                    }.listRowBackground(Color.orbCard)
                 }
                 
                 // INTERESSI - Per pagamento passività
@@ -603,19 +572,19 @@ struct AddTransactionView: View {
                                 TextField("0.0", text: $interestPercentage)
                                     .keyboardType(.decimalPad)
                                     .multilineTextAlignment(.trailing)
-                                    .font(.body)
+                                    .font(.orbBody)
                                 Text("%")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                             
                             if let destAccount = selectedDestinationAccount {
                                 HStack {
                                     Text("Debito Attuale")
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.orbMuted)
                                     Spacer()
                                     Text("\(destAccount.currencyRecord?.symbol ?? "€")\(formatDecimal(abs(destAccount.currentBalance)))")
-                                        .foregroundStyle(.red)
-                                        .font(.caption)
+                                        .foregroundStyle(Color.orbNegative)
+                                        .font(.orbCaption)
                                 }
                             }
                         } else {
@@ -625,9 +594,9 @@ struct AddTransactionView: View {
                                 TextField("0.00", text: $interestAmount)
                                     .keyboardType(.decimalPad)
                                     .multilineTextAlignment(.trailing)
-                                    .font(.body)
+                                    .font(.orbBody)
                                 Text(selectedAccount?.currencyRecord?.symbol ?? "€")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                         
@@ -640,30 +609,30 @@ struct AddTransactionView: View {
                                 
                                 HStack {
                                     Text("Debito da pagare")
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.orbMuted)
                                     Spacer()
                                     Text("\(selectedAccount?.currencyRecord?.symbol ?? "€")\(formatDecimal(debtAmount))")
-                                        .font(.body)
+                                        .font(.orbBody)
                                 }
                                 
                                 HStack {
                                     Text("Interesse")
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.orbMuted)
                                     Spacer()
                                     Text("\(selectedAccount?.currencyRecord?.symbol ?? "€")\(formatDecimal(interest))")
-                                        .font(.body)
-                                        .foregroundStyle(.orange)
+                                        .font(.orbBody)
+                                        .foregroundStyle(Color.orbHighlight)
                                 }
                                 
                                 Divider()
                                 
                                 HStack {
                                     Text("Totale da dedurre")
-                                        .font(.headline)
+                                        .font(.orbHeadline)
                                     Spacer()
                                     Text("\(selectedAccount?.currencyRecord?.symbol ?? "€")\(formatDecimal(total))")
-                                        .font(.title3.bold())
-                                        .foregroundStyle(.red)
+                                        .font(.orbTitle3.bold())
+                                        .foregroundStyle(Color.orbNegative)
                                 }
                             }
                             .padding(.vertical, 4)
@@ -676,11 +645,94 @@ struct AddTransactionView: View {
                         } else {
                             Text("Inserisci manualmente l'importo dell'interesse da pagare. Lascia vuoto per pagamento senza interessi.")
                         }
-                    }
+                    }.listRowBackground(Color.orbCard)
                 }
 
                 Section {
                     DatePicker("Data", selection: $selectedDate, displayedComponents: [.date, .hourAndMinute])
+                }.listRowBackground(Color.orbCard)
+
+                // CATEGORIA - Per expense/income e liability payment (opzionale)
+                if transactionType != .transfer {
+                    Section {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 10) {
+                            ForEach(categories.filter { $0.categoryGroup?.applicability.isApplicable(to: transactionType) ?? true }.sorted { $0.usageCount > $1.usageCount }.prefix(7)) { category in
+                                Button { selectedCategory = category } label: {
+                                    VStack(spacing: 8) {
+                                        Image(systemName: category.icon).font(.orbTitle3).foregroundStyle(category.color)
+                                        Text(category.name).font(.orbCaption).lineLimit(1).minimumScaleFactor(0.6)
+                                    }.frame(maxWidth: .infinity).frame(minHeight: 68)
+                                        .background(selectedCategory?.id == category.id ? category.color.opacity(0.15) : Color.orbCard2, in: RoundedRectangle(cornerRadius: 16))
+                                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(selectedCategory?.id == category.id ? category.color : .clear, lineWidth: 1.5))
+                                }.buttonStyle(.plain)
+                            }
+                            Button { showingCategoryPicker = true } label: {
+                                VStack(spacing: 8) { Image(systemName: "ellipsis"); Text("Tutte…").font(.orbCaption) }.frame(maxWidth: .infinity).frame(minHeight: 68)
+                            }.buttonStyle(.plain)
+                        }
+                        Button {
+                            showingCategoryPicker = true
+                        } label: {
+                            HStack {
+                                Text("Categoria")
+                                    .foregroundStyle(Color.orbText)
+
+                                Spacer()
+
+                                if let category = selectedCategory {
+                                    HStack(spacing: 8) {
+                                        if let imageData = category.imageData,
+                                           let uiImage = UIImage(data: imageData) {
+                                            Image(uiImage: uiImage)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 24, height: 24)
+                                                .clipShape(Circle())
+                                        } else {
+                                            Image(systemName: category.icon)
+                                                .foregroundStyle(category.color)
+                                        }
+                                        Text(category.name)
+                                            .foregroundStyle(Color.orbMuted)
+                                    }
+                                } else {
+                                    Text(transactionType == .liabilityPayment ? "Opzionale" : "Seleziona")
+                                        .foregroundStyle(Color.orbMuted)
+                                }
+
+                                Image(systemName: "chevron.right")
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
+                            }
+                        }
+                    }.listRowBackground(Color.orbCard)
+                }
+
+                if !isRecurring {
+                    let suggestions = RecurringSuggestions.find(in: suggestionTransactions, type: transactionType)
+                    if !suggestions.isEmpty {
+                        Section("Ricorrenti suggerite") {
+                            ForEach(suggestions) { suggestion in
+                                Button {
+                                    let t = suggestion.transaction
+                                    amount = NSDecimalNumber(decimal: t.amount).stringValue
+                                    selectedAccount = t.account; selectedCategory = t.category
+                                    selectedTransactionCurrencyRecord = t.currencyRecord
+                                    selectedTransactionCurrency = t.currency; notes = t.notes
+                                    isScheduled = true; isRecurring = true; isAutomatic = false
+                                    selectedDate = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
+                                    recurrenceUnit = .month; recurrenceInterval = 1
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        Text(suggestion.transaction.notes.isEmpty ? (suggestion.transaction.category?.name ?? transactionType.rawValue) : suggestion.transaction.notes).font(.orbHeadline)
+                                        Text("Ripetuta \(suggestion.count) volte · " + suggestion.transaction.displayAmount).font(.orbCaption)
+                                        Text("Rendi ricorrente…").font(.orbSubheadline)
+                                    }
+                                }.buttonStyle(.plain)
+                            }
+                            Text("Suggerimenti da operazioni simili in giorni diversi. Controlla data, frequenza e importo prima di salvare; nessuna ricorrenza viene creata automaticamente.").font(.orbCaption)
+                        }
+                    }
                 }
 
                 // MARK: - Scheduled Transaction Section
@@ -688,7 +740,7 @@ struct AddTransactionView: View {
                     Toggle(isOn: $isScheduled) {
                         HStack {
                             Image(systemName: "clock.badge.checkmark")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.orbHighlight)
                             Text("Programma Transazione")
                         }
                     }
@@ -697,7 +749,7 @@ struct AddTransactionView: View {
                         Toggle(isOn: $isAutomatic) {
                             HStack {
                                 Image(systemName: isAutomatic ? "bolt.fill" : "hand.tap.fill")
-                                    .foregroundStyle(isAutomatic ? .blue : .orange)
+                                    .foregroundStyle(isAutomatic ? Color.orbAccent : Color.orbHighlight)
                                 Text("Esecuzione Automatica")
                             }
                         }
@@ -705,21 +757,21 @@ struct AddTransactionView: View {
                         if isAutomatic {
                             HStack(spacing: 8) {
                                 Image(systemName: "info.circle")
-                                    .foregroundStyle(.blue)
-                                    .font(.caption)
+                                    .foregroundStyle(Color.orbHighlight)
+                                    .font(.orbCaption)
                                 Text("La transazione verrà eseguita automaticamente alla data selezionata")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                             .padding(.vertical, 4)
                         } else {
                             HStack(spacing: 8) {
                                 Image(systemName: "info.circle")
-                                    .foregroundStyle(.orange)
-                                    .font(.caption)
+                                    .foregroundStyle(Color.orbHighlight)
+                                    .font(.orbCaption)
                                 Text("Riceverai una notifica per confermare la transazione")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                             .padding(.vertical, 4)
                         }
@@ -732,7 +784,7 @@ struct AddTransactionView: View {
                     if isScheduled {
                         Text("La data della transazione sopra sarà usata come data di esecuzione programmata")
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // MARK: - Recurring Transaction Section
                 if isScheduled {
@@ -740,7 +792,7 @@ struct AddTransactionView: View {
                         Toggle(isOn: $isRecurring) {
                             HStack {
                                 Image(systemName: "repeat.circle.fill")
-                                    .foregroundStyle(.purple)
+                                    .foregroundStyle(Color.orbHighlight)
                                 Text("Transazione Ricorrente")
                             }
                         }
@@ -755,7 +807,7 @@ struct AddTransactionView: View {
                             // Intervallo - Numero da 1 a 365
                             HStack {
                                 Text("Ogni")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
 
                                 Spacer()
 
@@ -780,7 +832,7 @@ struct AddTransactionView: View {
                             Toggle(isOn: $hasEndDate) {
                                 HStack {
                                     Image(systemName: "calendar.badge.clock")
-                                        .foregroundStyle(.orange)
+                                        .foregroundStyle(Color.orbHighlight)
                                     Text("Data Fine")
                                 }
                             }
@@ -794,7 +846,7 @@ struct AddTransactionView: View {
                             Toggle(isOn: $adjustToWorkingDay) {
                                 HStack {
                                     Image(systemName: "briefcase.fill")
-                                        .foregroundStyle(.blue)
+                                        .foregroundStyle(Color.orbHighlight)
                                     Text("Giorno Lavorativo")
                                 }
                             }
@@ -802,11 +854,11 @@ struct AddTransactionView: View {
                             if adjustToWorkingDay {
                                 HStack(spacing: 8) {
                                     Image(systemName: "info.circle")
-                                        .foregroundStyle(.blue)
-                                        .font(.caption)
+                                        .foregroundStyle(Color.orbHighlight)
+                                        .font(.orbCaption)
                                     Text("Se la data cade di sabato o domenica, la transazione verrà spostata al lunedì successivo")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                                 .padding(.vertical, 4)
                             }
@@ -815,7 +867,7 @@ struct AddTransactionView: View {
                             Toggle(isOn: $includeStartDayInCount) {
                                 HStack {
                                     Image(systemName: "calendar.badge.clock")
-                                        .foregroundStyle(.orange)
+                                        .foregroundStyle(Color.orbHighlight)
                                     Text("Includi Giorno Iniziale")
                                 }
                             }
@@ -823,11 +875,11 @@ struct AddTransactionView: View {
                             if includeStartDayInCount {
                                 HStack(spacing: 8) {
                                     Image(systemName: "info.circle")
-                                        .foregroundStyle(.orange)
-                                        .font(.caption)
+                                        .foregroundStyle(Color.orbHighlight)
+                                        .font(.orbCaption)
                                     Text("Il giorno di inizio conta come 'giorno 1'. Es: ogni 15 giorni dal 2 feb = 16 feb (invece di 17 feb)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                                 .padding(.vertical, 4)
                             }
@@ -837,19 +889,19 @@ struct AddTransactionView: View {
                                 // Prima transazione (la data selezionata)
                                 HStack {
                                     Image(systemName: "1.circle.fill")
-                                        .foregroundStyle(.green)
+                                        .foregroundStyle(Color.orbPositive)
                                     Text("Prima transazione")
-                                        .font(.caption.bold())
-                                        .foregroundStyle(.secondary)
+                                        .font(.orbCaption.bold())
+                                        .foregroundStyle(Color.orbMuted)
                                 }
 
                                 HStack(spacing: 6) {
                                     Image(systemName: "arrow.right")
-                                        .font(.caption)
-                                        .foregroundStyle(.green)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(Color.orbPositive)
                                     Text(selectedDate.formatted(date: .abbreviated, time: .shortened))
-                                        .font(.caption)
-                                        .foregroundStyle(.primary)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(Color.orbText)
                                         .bold()
                                 }
                                 .padding(.leading, 4)
@@ -859,20 +911,20 @@ struct AddTransactionView: View {
 
                                 HStack {
                                     Image(systemName: "list.bullet.circle")
-                                        .foregroundStyle(.purple)
+                                        .foregroundStyle(Color.orbHighlight)
                                     Text("Prossime Ripetizioni")
-                                        .font(.caption.bold())
-                                        .foregroundStyle(.secondary)
+                                        .font(.orbCaption.bold())
+                                        .foregroundStyle(Color.orbMuted)
                                 }
 
                                 ForEach(Array(nextOccurrences.enumerated()), id: \.offset) { index, date in
                                     HStack(spacing: 6) {
                                         Image(systemName: "\(index + 2).circle.fill")
-                                            .font(.caption)
-                                            .foregroundStyle(.purple)
+                                            .font(.orbCaption)
+                                            .foregroundStyle(Color.orbHighlight)
                                         Text(date.formatted(date: .abbreviated, time: .shortened))
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                            .font(.orbCaption)
+                                            .foregroundStyle(Color.orbMuted)
                                     }
                                 }
 
@@ -880,11 +932,11 @@ struct AddTransactionView: View {
                                 if nextOccurrences.isEmpty {
                                     HStack(spacing: 6) {
                                         Image(systemName: "exclamationmark.triangle")
-                                            .font(.caption)
-                                            .foregroundStyle(.orange)
+                                            .font(.orbCaption)
+                                            .foregroundStyle(Color.orbHighlight)
                                         Text("Nessuna occorrenza futura con queste impostazioni")
-                                            .font(.caption)
-                                            .foregroundStyle(.orange)
+                                            .font(.orbCaption)
+                                            .foregroundStyle(Color.orbHighlight)
                                     }
                                 }
 
@@ -892,26 +944,26 @@ struct AddTransactionView: View {
                                 if hasEndDate {
                                     HStack(spacing: 6) {
                                         Image(systemName: "info.circle")
-                                            .font(.caption)
-                                            .foregroundStyle(.blue)
+                                            .font(.orbCaption)
+                                            .foregroundStyle(Color.orbHighlight)
                                         if totalOccurrences > 5 {
                                             Text("Totale: \(totalOccurrences) ripetizioni (mostrate prime 5)")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
+                                                .font(.orbCaption)
+                                                .foregroundStyle(Color.orbMuted)
                                         } else {
                                             Text("Totale: \(totalOccurrences) ripetizioni")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
+                                                .font(.orbCaption)
+                                                .foregroundStyle(Color.orbMuted)
                                         }
                                     }
                                 } else if !nextOccurrences.isEmpty && nextOccurrences.count == 5 {
                                     HStack(spacing: 6) {
                                         Image(systemName: "ellipsis.circle")
-                                            .font(.caption)
-                                            .foregroundStyle(.purple)
+                                            .font(.orbCaption)
+                                            .foregroundStyle(Color.orbHighlight)
                                         Text("La ripetizione continua all'infinito (mostrate prime 5)")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                            .font(.orbCaption)
+                                            .foregroundStyle(Color.orbMuted)
                                     }
                                 }
 
@@ -921,11 +973,11 @@ struct AddTransactionView: View {
 
                                 HStack(spacing: 6) {
                                     Image(systemName: isAutomatic ? "bolt.fill" : "hand.tap.fill")
-                                        .font(.caption)
-                                        .foregroundStyle(isAutomatic ? .blue : .orange)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(isAutomatic ? Color.orbAccent : Color.orbHighlight)
                                     Text(isAutomatic ? "Tutte le transazioni saranno eseguite automaticamente" : "Tutte le transazioni richiederanno conferma manuale")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                             }
                             .padding(.vertical, 4)
@@ -938,14 +990,14 @@ struct AddTransactionView: View {
                         if isRecurring {
                             Text(currentRecurrenceRule.description)
                         }
-                    }
+                    }.listRowBackground(Color.orbCard)
                 }
 
                 Section("Note") {
                     TextField("Aggiungi note (opzionale)", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
-                }
-            }
+                }.listRowBackground(Color.orbCard)
+            }.listSectionSpacing(16).orbScreen()
             .navigationTitle(transactionType.rawValue)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -989,6 +1041,19 @@ struct AddTransactionView: View {
                    let origin = selectedAccount,
                    origin.id == destination.id {
                     selectedAccount = nil
+                }
+            }
+            .animation(.easeInOut(duration: 0.5), value: transactionType)
+            .onChange(of: transactionType) { _, type in
+                selectedDestinationAccount = nil
+                isDestinationAmountManual = false
+                destinationAmount = ""
+                if type == .transfer { selectedCategory = nil }
+            }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Fatto") { amountFocused = false }
                 }
             }
             .onAppear {
@@ -1208,6 +1273,7 @@ struct AddTransactionView: View {
 
         // Haptic feedback for successful transaction save (immediate feedback)
         HapticManager.shared.transactionSaved()
+        NotificationCenter.default.post(name: .orbSaveFeedback, object: nil)
 
         // Dismiss UI immediately for better UX (don't make user wait)
         dismiss()
@@ -1248,6 +1314,7 @@ struct AddTransactionView: View {
 
     private func formatDecimal(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
@@ -1258,7 +1325,7 @@ struct AddTransactionView: View {
     private func accountRowLabel(title: String, account: Account?) -> some View {
         HStack {
             Text(title)
-                .foregroundStyle(.primary)
+                .foregroundStyle(Color.orbText)
 
             Spacer()
 
@@ -1276,16 +1343,16 @@ struct AddTransactionView: View {
                     }
 
                     Text(account.name)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.orbMuted)
 
                     if let currency = account.currencyRecord {
                         Text(currency.flagEmoji)
-                            .font(.caption)
+                            .font(.orbCaption)
                     }
                 }
             } else {
                 Text("Seleziona")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.orbMuted)
             }
         }
     }

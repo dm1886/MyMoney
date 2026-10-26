@@ -45,77 +45,30 @@ struct SettingsView: View {
 
         NavigationStack {
             List {
-                Section {
-                    NavigationLink {
-                        CurrencySelectionView(selectedCurrency: $selectedPreferredCurrency)
-                    } label: {
-                        HStack {
-                            Text("Valuta Preferita")
-                                .foregroundStyle(.primary)
-
-                            Spacer()
-
-                            if let currency = selectedPreferredCurrency {
-                                HStack(spacing: 8) {
-                                    Text(currency.flagEmoji)
-                                    Text(currency.code)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Valuta Selezionata")
-                                .font(.body)
-                            Text(selectedPreferredCurrency?.name ?? appSettings.preferredCurrencyEnum.fullName)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if let currency = selectedPreferredCurrency {
-                            Text("\(currency.flagEmoji) \(currency.code)")
-                                .font(.title3)
-                        } else {
-                            Text("\(appSettings.preferredCurrencyEnum.flag) \(appSettings.preferredCurrencyEnum.rawValue)")
-                                .font(.title3)
-                        }
-                    }
-                } header: {
-                    Text("Valuta")
-                }
-
+                HStack(spacing: 12) {
+                    OrbView(size: 64, isAnimating: false) { Image(systemName: "slider.horizontal.3") }
+                        .accessibilityHidden(true)
+                    Text("Impostazioni").font(.orbTitle)
+                }.listRowBackground(Color.clear).listRowSeparator(.hidden)
                 // MARK: - Customization Section
                 Section {
+                    ThemeStrip()
                     NavigationLink {
-                        AccentColorPickerView()
+                        ThemePickerView()
                     } label: {
-                        HStack {
-                            Text("Colore Principale")
-                                .foregroundStyle(.primary)
-
-                            Spacer()
-
-                            Circle()
-                                .fill(appSettings.accentColor)
-                                .frame(width: 24, height: 24)
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color(.systemGray4), lineWidth: 1)
-                                )
-                        }
+                        OrbListRow(icon: "paintpalette.fill", title: "Tema colori", subtitle: "Scegli, crea e modifica i tuoi temi")
                     }
+                    Toggle("Animazioni ridotte", isOn: $settings.reduceDecorativeMotion)
 
                     NavigationLink(destination: CategoriesView()) {
                         HStack {
                             Image(systemName: "folder.fill")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.orbHighlight)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Categorie")
                                 Text("Gestisci le tue categorie e gruppi")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
@@ -125,12 +78,12 @@ struct SettingsView: View {
                     } label: {
                         HStack {
                             Image(systemName: appSettings.balanceHeaderStyle.icon)
-                                .foregroundStyle(.purple)
+                                .foregroundStyle(Color.orbHighlight)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Stile Intestazione Bilancio")
                                 Text(appSettings.balanceHeaderStyle.rawValue)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
@@ -138,31 +91,96 @@ struct SettingsView: View {
                     Toggle(isOn: $settings.groupedCategoryView) {
                         HStack {
                             Image(systemName: "square.grid.2x2.fill")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.orbHighlight)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Vista Categorie Raggruppata")
                                 Text(settings.groupedCategoryView ? "Griglia con gruppi" : "Lista completa")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
                 } header: {
-                    Text("Personalizzazione")
+                    Text("Aspetto e personalizzazione")
                 } footer: {
-                    Text("Scegli il colore principale dell'app, gestisci le categorie e personalizza la visualizzazione del bilancio. La vista raggruppata mostra le categorie organizzate per gruppi con indicatori budget.")
-                }
+                    Text("Scegli il tema dell'app, gestisci le categorie e personalizza la visualizzazione del bilancio. La vista raggruppata mostra le categorie organizzate per gruppi con indicatori budget.")
+                }.listRowBackground(Color.orbCard)
+                Section {
+                    Picker("Modalità", selection: $settings.themeMode) {
+                        ForEach(ThemeMode.allCases, id: \.self) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }.pickerStyle(.segmented)
+
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Tema Selezionato")
+                                .font(.orbBody)
+                            Text(themeDescription)
+                                .font(.orbCaption)
+                                .foregroundStyle(Color.orbMuted)
+                        }
+                        Spacer()
+                        themeIcon
+                    }
+                } header: {
+                    Text("Aspetto")
+                } footer: {
+                    Text("'Sistema' segue automaticamente il tema del tuo dispositivo (chiaro di giorno, scuro di notte).")
+                }.listRowBackground(Color.orbCard)
+
+                Section {
+                    NavigationLink {
+                        CurrencySelectionView(selectedCurrency: $selectedPreferredCurrency)
+                    } label: {
+                        HStack {
+                            Text("Valuta Preferita")
+                                .foregroundStyle(Color.orbText)
+
+                            Spacer()
+
+                            if let currency = selectedPreferredCurrency {
+                                HStack(spacing: 8) {
+                                    Text(currency.flagEmoji)
+                                    Text(currency.code)
+                                        .foregroundStyle(Color.orbMuted)
+                                }
+                            }
+                        }
+                    }
+
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Valuta Selezionata")
+                                .font(.orbBody)
+                            Text(selectedPreferredCurrency?.name ?? appSettings.preferredCurrencyEnum.fullName)
+                                .font(.orbCaption)
+                                .foregroundStyle(Color.orbMuted)
+                        }
+                        Spacer()
+                        if let currency = selectedPreferredCurrency {
+                            Text("\(currency.flagEmoji) \(currency.code)")
+                                .font(.orbTitle3)
+                        } else {
+                            Text("\(appSettings.preferredCurrencyEnum.flag) \(appSettings.preferredCurrencyEnum.rawValue)")
+                                .font(.orbTitle3)
+                        }
+                    }
+                } header: {
+                    Text("Valuta")
+                }.listRowBackground(Color.orbCard)
+
 
                 Section {
                     NavigationLink(destination: BudgetListView()) {
                         HStack {
                             Image(systemName: "chart.pie.fill")
-                                .foregroundStyle(.green)
+                                .foregroundStyle(Color.orbPositive)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Budget")
                                 Text("Gestisci i tuoi budget per categoria")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
@@ -170,12 +188,12 @@ struct SettingsView: View {
                     NavigationLink(destination: RecurringExpensesView()) {
                         HStack {
                             Image(systemName: "arrow.clockwise.circle.fill")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.orbHighlight)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Spese Ricorrenti")
                                 Text("Categorie utilizzate frequentemente")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
@@ -183,12 +201,12 @@ struct SettingsView: View {
                     Toggle(isOn: $settings.recurringDetectionEnabled) {
                         HStack {
                             Image(systemName: "repeat.circle.fill")
-                                .foregroundStyle(.purple)
+                                .foregroundStyle(Color.orbHighlight)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Rilevamento Ricorrenti")
                                 Text("Rileva automaticamente transazioni ripetitive")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
@@ -210,101 +228,67 @@ struct SettingsView: View {
                     } else {
                         Text("Imposta budget per le categorie e monitora le spese ricorrenti per un migliore controllo delle tue finanze.")
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
-                Section {
-                    Picker("Tema", selection: $settings.themeMode) {
-                        ForEach(ThemeMode.allCases, id: \.self) { mode in
-                            HStack {
-                                switch mode {
-                                case .system:
-                                    Image(systemName: "iphone")
-                                case .light:
-                                    Image(systemName: "sun.max.fill")
-                                case .dark:
-                                    Image(systemName: "moon.fill")
-                                }
-                                Text(mode.displayName)
-                            }
-                            .tag(mode)
-                        }
-                    }
-
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Tema Selezionato")
-                                .font(.body)
-                            Text(themeDescription)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        themeIcon
-                    }
-                } header: {
-                    Text("Aspetto")
-                } footer: {
-                    Text("'Sistema' segue automaticamente il tema del tuo dispositivo (chiaro di giorno, scuro di notte).")
-                }
 
                 Section {
                     HStack {
                         Text("Versione")
                         Spacer()
                         Text("1.0.0")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
                     }
 
                     HStack {
                         Text("Conti")
                         Spacer()
                         Text("\(accounts.count)")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
                     }
 
                     HStack {
                         Text("Transazioni")
                         Spacer()
                         Text("\(transactions.count)")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
                     }
 
                     HStack {
                         Text("Categorie")
                         Spacer()
                         Text("\(categories.count)")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
                     }
 
                     HStack {
                         Text("Gruppi di Categorie")
                         Spacer()
                         Text("\(categoryGroups.count)")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
                     }
                 } header: {
                     Text("Informazioni")
-                }
+                }.listRowBackground(Color.orbCard)
 
                 Section {
                     NavigationLink(destination: PendingTransactionsView()) {
                         HStack {
                             Image(systemName: "clock.badge.exclamationmark")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.orbHighlight)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Da Confermare")
                                 Text("Transazioni in attesa di conferma")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                             Spacer()
                             if pendingTransactionsCount > 0 {
                                 Text("\(pendingTransactionsCount)")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.white)
+                                    .font(.orbCaption.bold())
+                                    .foregroundStyle(Color.orbOnAccent)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
-                                    .background(Capsule().fill(Color.orange))
+                                    .background(Capsule().fill(Color.orbHighlight))
                             }
                         }
                     }
@@ -312,12 +296,12 @@ struct SettingsView: View {
                     NavigationLink(destination: ScheduledTransactionsView()) {
                         HStack {
                             Image(systemName: "calendar.badge.clock")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.orbHighlight)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Gestisci Programmate")
                                 Text("Tutte le transazioni programmate")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
@@ -328,17 +312,17 @@ struct SettingsView: View {
                         Text("Le transazioni programmate vengono eseguite automaticamente o richiedono conferma manuale alla data impostata.")
 
                         Text("⚠️ IMPORTANTE: NON chiudere forzatamente l'app")
-                            .font(.caption.bold())
-                            .foregroundStyle(.orange)
+                            .font(.orbCaption.bold())
+                            .foregroundStyle(Color.orbHighlight)
 
                         Text("Per ricevere notifiche e badge quando l'app è chiusa, premi solo il tasto Home. Se forzi la chiusura (swipe up), iOS blocca tutte le notifiche in background.")
-                            .font(.caption)
+                            .font(.orbCaption)
 
                         Text("Le transazioni automatiche scadute verranno eseguite quando riapri l'app.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 Section {
                     BiometricAuthToggle()
@@ -347,12 +331,12 @@ struct SettingsView: View {
                         Toggle(isOn: $settings.superSecure) {
                             HStack {
                                 Image(systemName: "shield.lefthalf.filled")
-                                    .foregroundStyle(.purple)
+                                    .foregroundStyle(Color.orbHighlight)
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Super Secure")
                                     Text(settings.superSecure ? "Blocca in background" : "Blocca solo alla chiusura")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                             }
                         }
@@ -361,12 +345,12 @@ struct SettingsView: View {
                     NavigationLink(destination: BackupView()) {
                         HStack {
                             Image(systemName: "lock.shield.fill")
-                                .foregroundStyle(.green)
+                                .foregroundStyle(Color.orbPositive)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Backup & Sicurezza")
                                 Text("Esporta/Importa i tuoi dati")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
@@ -382,25 +366,25 @@ struct SettingsView: View {
                     } else {
                         Text("Configura Face ID o Touch ID nelle impostazioni del dispositivo per abilitare questa funzione.")
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 Section {
                     HStack {
                         Image(systemName: "icloud.fill")
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color.orbHighlight)
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Stato iCloud")
                             Text(iCloudStatus)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.orbCaption)
+                                .foregroundStyle(Color.orbMuted)
                         }
                         Spacer()
                         if iCloudStatus.contains("✓") {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
+                                .foregroundStyle(Color.orbPositive)
                         } else if iCloudStatus.contains("⚠️") || iCloudStatus.contains("❌") {
                             Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.orbHighlight)
                         }
                     }
 
@@ -410,17 +394,17 @@ struct SettingsView: View {
                         }
                     } label: {
                         HStack {
-                            Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
-                                .foregroundStyle(.blue)
+                            OrbSyncSymbol(systemName: "arrow.triangle.2.circlepath.circle.fill", isActive: iCloudManager.isSyncing)
+                                .foregroundStyle(Color.orbHighlight)
 
                             if iCloudManager.isSyncing {
                                 ProgressView()
                                     .padding(.leading, 8)
                                 Text("Sincronizzazione...")
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(Color.orbText)
                             } else {
                                 Text("Forza Sincronizzazione")
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(Color.orbText)
                             }
 
                             Spacer()
@@ -433,9 +417,9 @@ struct SettingsView: View {
                             Text("Ultima Sincronizzazione")
                             Spacer()
                             Text(lastSync.formatted(date: .abbreviated, time: .shortened))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                         }
-                        .font(.caption)
+                        .font(.orbCaption)
                     }
                 } header: {
                     Text("iCloud Sync")
@@ -445,15 +429,15 @@ struct SettingsView: View {
 
                         if let error = iCloudManager.syncError {
                             Text("⚠️ Errore: \(error)")
-                                .font(.caption)
-                                .foregroundStyle(.red)
+                                .font(.orbCaption)
+                                .foregroundStyle(Color.orbNegative)
                         }
 
                         Text("Nota: Assicurati di aver configurato iCloud nelle Capabilities del progetto Xcode.")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbHighlight)
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 Section {
                     Button {
@@ -461,16 +445,16 @@ struct SettingsView: View {
                     } label: {
                         HStack {
                             Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
-                                .foregroundStyle(.green)
+                                .foregroundStyle(Color.orbPositive)
 
                             if updateManager.isUpdating {
                                 ProgressView()
                                     .padding(.leading, 8)
                                 Text("Aggiornamento in corso...")
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(Color.orbText)
                             } else {
                                 Text("Aggiorna Tassi Automaticamente")
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(Color.orbText)
                             }
 
                             Spacer()
@@ -483,15 +467,15 @@ struct SettingsView: View {
                             Text("Ultimo Aggiornamento")
                             Spacer()
                             Text(lastUpdate.formatted(date: .abbreviated, time: .shortened))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                         }
-                        .font(.caption)
+                        .font(.orbCaption)
                     }
 
                     NavigationLink(destination: ExchangeRatesView()) {
                         HStack {
                             Image(systemName: "pencil.circle.fill")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.orbHighlight)
                             Text("Gestisci Manualmente")
                         }
                     }
@@ -499,7 +483,7 @@ struct SettingsView: View {
                     Text("Tassi di Cambio")
                 } footer: {
                     Text("L'aggiornamento automatico sostituirà tutti i tassi di cambio manuali con i tassi correnti da internet.")
-                }
+                }.listRowBackground(Color.orbCard)
 
                 Section {
                     Button(role: .destructive) {
@@ -507,17 +491,17 @@ struct SettingsView: View {
                     } label: {
                         HStack {
                             Image(systemName: "repeat.circle")
-                                .foregroundStyle(.red)
+                                .foregroundStyle(Color.orbNegative)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Elimina Tutte le Ricorrenti")
                                 if recurringTransactionsCount > 0 {
                                     Text("\(recurringTransactionsCount) transazioni")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(Color.orbMuted)
                                 } else {
                                     Text("Nessuna transazione ricorrente")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                             }
                             Spacer()
@@ -530,17 +514,17 @@ struct SettingsView: View {
                     } label: {
                         HStack {
                             Image(systemName: "calendar.badge.clock")
-                                .foregroundStyle(.red)
+                                .foregroundStyle(Color.orbNegative)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Elimina Tutte le Programmate")
                                 if scheduledTransactionsCount > 0 {
                                     Text("\(scheduledTransactionsCount) transazioni")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(Color.orbMuted)
                                 } else {
                                     Text("Nessuna transazione programmata")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                             }
                             Spacer()
@@ -553,7 +537,7 @@ struct SettingsView: View {
                     } label: {
                         HStack {
                             Image(systemName: "ladybug")
-                                .foregroundStyle(.purple)
+                                .foregroundStyle(Color.orbHighlight)
                             Text("Database Debug")
                             Spacer()
                         }
@@ -564,7 +548,7 @@ struct SettingsView: View {
                     } label: {
                         HStack {
                             Image(systemName: "waveform.path")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.orbHighlight)
                             Text("Test Haptic Feedback")
                             Spacer()
                         }
@@ -575,7 +559,7 @@ struct SettingsView: View {
                     } label: {
                         HStack {
                             Image(systemName: "doc.text.magnifyingglass")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.orbHighlight)
                             Text("Log Sistema")
                             Spacer()
                         }
@@ -586,21 +570,21 @@ struct SettingsView: View {
                     } label: {
                         HStack {
                             Image(systemName: "bell.slash")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.orbHighlight)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Pulisci Notifiche Orfane")
                                 Text("Rimuovi notifiche per transazioni eliminate")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                             Spacer()
                             if let count = orphanNotificationsCount, count > 0 {
                                 Text("\(count)")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.white)
+                                    .font(.orbCaption.bold())
+                                    .foregroundStyle(Color.orbOnAccent)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
-                                    .background(Capsule().fill(Color.orange))
+                                    .background(Capsule().fill(Color.orbHighlight))
                             }
                         }
                     }
@@ -618,9 +602,10 @@ struct SettingsView: View {
                     Text("Zona Pericolosa")
                 } footer: {
                     Text("Le transazioni ricorrenti includono template e tutte le transazioni generate. Le transazioni programmate sono tutte quelle in attesa. 'Elimina Tutti i Dati' rimuoverà conti, transazioni e categorie.")
-                }
-            }
+                }.listRowBackground(Color.orbCard)
+            }.orbScreen().background(OrbTabReselect(tab: 4))
             .navigationTitle("Impostazioni")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationBarTitleDisplayMode(.large)
             .alert("Elimina Transazioni Ricorrenti", isPresented: $showingDeleteRecurringAlert) {
                 Button("Annulla", role: .cancel) { }
@@ -699,16 +684,16 @@ struct SettingsView: View {
             switch appSettings.themeMode {
             case .system:
                 Image(systemName: "iphone")
-                    .font(.title2)
-                    .foregroundStyle(.blue)
+                    .font(.orbTitle2)
+                    .foregroundStyle(Color.orbHighlight)
             case .light:
                 Image(systemName: "sun.max.fill")
-                    .font(.title2)
-                    .foregroundStyle(.orange)
+                    .font(.orbTitle2)
+                    .foregroundStyle(Color.orbHighlight)
             case .dark:
                 Image(systemName: "moon.fill")
-                    .font(.title2)
-                    .foregroundStyle(.indigo)
+                    .font(.orbTitle2)
+                    .foregroundStyle(Color.orbHighlight)
             }
         }
     }
@@ -841,13 +826,13 @@ struct BiometricAuthToggle: View {
         )) {
             HStack {
                 Image(systemName: biometricIcon)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color.orbHighlight)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(biometricManager.biometricName)
                     if !biometricManager.biometricAvailable {
                         Text("Non disponibile")
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbNegative)
                     }
                 }
             }

@@ -110,9 +110,7 @@ struct IncomeVsExpensesWidget: View {
                 formatter.locale = Locale(identifier: "it_IT")
                 let dayName = formatter.string(from: dayDate)
 
-                if income > 0 || expenses > 0 {
-                    result.append((month: dayName, income: income, expenses: expenses))
-                }
+                result.append((month: dayName, income: income, expenses: expenses))
             }
         } else {
             // Mostra i mesi per gli altri periodi
@@ -199,22 +197,7 @@ struct IncomeVsExpensesWidget: View {
             print("📊 [IncomeVsExpenses] RISULTATO \(monthName): Entrate=\(income), Uscite=\(expenses), Transazioni=\(monthTransactions.count)")
             #endif
 
-            // Solo aggiunge il mese se ci sono transazioni effettive con importi
-            let hasData = income > 0 || expenses > 0
-
-                #if DEBUG
-                if hasData {
-                    print("📊 [IncomeVsExpenses] ✅ AGGIUNTO \(monthName) al grafico")
-                    result.append((month: monthName, income: income, expenses: expenses))
-                } else {
-                    print("📊 [IncomeVsExpenses] ❌ SALTATO \(monthName) (nessun dato)")
-                }
-                print("📊 ─────────────────────────────────────")
-                #else
-                if hasData {
-                    result.append((month: monthName, income: income, expenses: expenses))
-                }
-                #endif
+                result.append((month: monthName, income: income, expenses: expenses))
             }
         }
 
@@ -231,38 +214,10 @@ struct IncomeVsExpensesWidget: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Image(systemName: "arrow.up.arrow.down.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.green, .red],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-
-                Text("Entrate vs Uscite")
-                    .font(.headline.bold())
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.green, .red],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-
-                Spacer()
-
-                // Period Picker
-                Picker("Periodo", selection: $selectedPeriod) {
-                    ForEach(IncomeExpensePeriod.allCases, id: \.self) { period in
-                        Text(period.rawValue).tag(period)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 180)
+                Text("Entrate e uscite").font(.orbHeadline).lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 4)
+                OrbCompactPeriod(values: IncomeExpensePeriod.allCases, selection: $selectedPeriod)
             }
-
             Menu {
                 Button {
                     selectedAccountId = nil
@@ -282,60 +237,25 @@ struct IncomeVsExpensesWidget: View {
             } label: {
                 HStack(spacing: 4) {
                     Text(selectedAccountId == nil ? "Tutti i Conti" : (accounts.first(where: { $0.id == selectedAccountId })?.name ?? "Tutti"))
-                        .font(.caption)
-                        .foregroundStyle(.blue)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbHighlight)
                     Image(systemName: "chevron.down")
-                        .font(.caption2)
-                        .foregroundStyle(.blue)
+                        .font(.orbCaption2)
+                        .foregroundStyle(Color.orbHighlight)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.blue.opacity(0.1))
+                        .fill(Color.orbAccent.opacity(0.1))
                 )
             }
 
-            if monthlyData.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "chart.bar")
-                        .font(.largeTitle)
-                        .foregroundStyle(.secondary)
+            OrbColumnsChart(points: monthlyData.map { OrbChartPoint(label: $0.month, amount: NSDecimalNumber(decimal: $0.income).doubleValue, second: NSDecimalNumber(decimal: $0.expenses).doubleValue) }, symbol: preferredCurrencyRecord?.displaySymbol ?? "€", paired: true, title: "Entrate e uscite")
 
-                    Text("Nessun dato disponibile")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 30)
-            } else {
-                Chart {
-                    ForEach(monthlyData, id: \.month) { data in
-                        BarMark(
-                            x: .value("Month", data.month),
-                            y: .value("Amount", Double(truncating: data.income as NSDecimalNumber))
-                        )
-                        .foregroundStyle(.green.gradient)
-                        .position(by: .value("Type", "Entrate"))
-
-                        BarMark(
-                            x: .value("Month", data.month),
-                            y: .value("Amount", Double(truncating: data.expenses as NSDecimalNumber))
-                        )
-                        .foregroundStyle(.red.gradient)
-                        .position(by: .value("Type", "Uscite"))
-                    }
-                }
-                .frame(height: 180)
-                .chartLegend(position: .bottom, spacing: 8)
-                .chartYAxis {
-                    AxisMarks(position: .leading)
-                }
-                .drawingGroup() // Optimize rendering performance
-            }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(in: .rect(cornerRadius: 16))
+        .orbSurface()
     }
 }

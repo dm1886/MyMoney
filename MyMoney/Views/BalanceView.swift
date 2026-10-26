@@ -16,6 +16,7 @@ struct BalanceView: View {
     @Query private var exchangeRates: [ExchangeRate]  // Per aggiornamenti reattivi
     @Query private var transactions: [Transaction]    // Per aggiornamenti reattivi quando transazioni cambiano
 
+    @State private var collapsedGroups: Set<String> = []
     @State private var showingAddAccount = false
 
     var preferredCurrencyRecord: CurrencyRecord? {
@@ -172,6 +173,7 @@ struct BalanceView: View {
 
     // Calcola il saldo dell'account direttamente dalle transazioni
     private func calculateAccountBalance(_ account: Account) -> Decimal {
+        if account.investmentProfile != nil { return account.investmentNetWorth }
         var balance = account.initialBalance
         let tracker = DeletedTransactionTracker.shared
 
@@ -270,6 +272,9 @@ struct BalanceView: View {
                     weeklyExpenses: weeklyExpenses,
                     currencySymbol: preferredCurrencyRecord?.displaySymbol ?? "EUR"
                 )
+                .padding(.bottom, 12)
+                .background(Color.orbCard, in: RoundedRectangle(cornerRadius: 20))
+                .padding(.horizontal, 16)
                 .padding(.bottom, 16)
 
                 // Lista conti
@@ -279,14 +284,14 @@ struct BalanceView: View {
 
                         Image(systemName: "wallet.pass")
                             .font(.system(size: 60))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
 
                         Text("Nessun conto")
-                            .font(.title3.bold())
+                            .font(.orbTitle3.bold())
 
                         Text("Aggiungi il tuo primo conto per iniziare a tracciare le tue finanze")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.orbSubheadline)
+                            .foregroundStyle(Color.orbMuted)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 40)
 
@@ -297,155 +302,154 @@ struct BalanceView: View {
                         // Contanti Section
                         if !cashAccounts.isEmpty {
                             Section {
-                                ForEach(cashAccounts) { account in
-                                    NavigationLink(destination: AccountDetailView(account: account)) {
-                                        AccountRow(
+                                ForEach(collapsedGroups.contains("cashAccounts") ? [] : cashAccounts) { account in
+                                    OrbAccountLink(
                                             account: account,
                                             preferredCurrency: appSettings.preferredCurrencyEnum,
                                             preferredCurrencyRecord: preferredCurrencyRecord,
                                             exchangeRatesCount: exchangeRates.count
                                         )
-                                    }
                                 }
                             } header: {
                                 sectionHeader(
                                     title: "Contanti",
                                     icon: "banknote.fill",
-                                    color: .green,
-                                    total: sectionTotal(for: cashAccounts)
+                                    color: Color.orbPositive,
+                                    total: sectionTotal(for: cashAccounts),
+                                    groupID: "cashAccounts"
                                 )
-                            }
+                            }.listRowBackground(Color.orbCard)
                         }
 
                         // Pagamento Section
                         if !paymentAccounts.isEmpty {
                             Section {
-                                ForEach(paymentAccounts) { account in
-                                    NavigationLink(destination: AccountDetailView(account: account)) {
-                                        AccountRow(
+                                ForEach(collapsedGroups.contains("paymentAccounts") ? [] : paymentAccounts) { account in
+                                    OrbAccountLink(
                                             account: account,
                                             preferredCurrency: appSettings.preferredCurrencyEnum,
                                             preferredCurrencyRecord: preferredCurrencyRecord,
                                             exchangeRatesCount: exchangeRates.count
                                         )
-                                    }
                                 }
                             } header: {
                                 sectionHeader(
                                     title: "Pagamento",
                                     icon: "creditcard.fill",
-                                    color: .blue,
-                                    total: sectionTotal(for: paymentAccounts)
+                                    color: Color.orbAccent,
+                                    total: sectionTotal(for: paymentAccounts),
+                                    groupID: "paymentAccounts"
                                 )
-                            }
+                            }.listRowBackground(Color.orbCard)
                         }
 
                         // Carte Prepagate Section
                         if !prepaidCardAccounts.isEmpty {
                             Section {
-                                ForEach(prepaidCardAccounts) { account in
-                                    NavigationLink(destination: AccountDetailView(account: account)) {
-                                        AccountRow(
+                                ForEach(collapsedGroups.contains("prepaidCardAccounts") ? [] : prepaidCardAccounts) { account in
+                                    OrbAccountLink(
                                             account: account,
                                             preferredCurrency: appSettings.preferredCurrencyEnum,
                                             preferredCurrencyRecord: preferredCurrencyRecord,
                                             exchangeRatesCount: exchangeRates.count
                                         )
-                                    }
                                 }
                             } header: {
                                 sectionHeader(
                                     title: "Carte Prepagate",
                                     icon: "creditcard.fill",
-                                    color: .cyan,
-                                    total: sectionTotal(for: prepaidCardAccounts)
+                                    color: Color.orbSecondary,
+                                    total: sectionTotal(for: prepaidCardAccounts),
+                                    groupID: "prepaidCardAccounts"
                                 )
-                            }
+                            }.listRowBackground(Color.orbCard)
                         }
 
                         // Attività Section
                         if !assetAccounts.isEmpty {
                             Section {
-                                ForEach(assetAccounts) { account in
-                                    NavigationLink(destination: AccountDetailView(account: account)) {
-                                        AccountRow(
+                                ForEach(collapsedGroups.contains("assetAccounts") ? [] : assetAccounts) { account in
+                                    OrbAccountLink(
                                             account: account,
                                             preferredCurrency: appSettings.preferredCurrencyEnum,
                                             preferredCurrencyRecord: preferredCurrencyRecord,
                                             exchangeRatesCount: exchangeRates.count
                                         )
-                                    }
                                 }
                             } header: {
                                 sectionHeader(
                                     title: "Attività",
                                     icon: "building.columns.fill",
-                                    color: .purple,
-                                    total: sectionTotal(for: assetAccounts)
+                                    color: Color.orbAccent,
+                                    total: sectionTotal(for: assetAccounts),
+                                    groupID: "assetAccounts"
                                 )
-                            }
+                            }.listRowBackground(Color.orbCard)
                         }
 
                         // Carta di Credito Section
                         if !creditCardAccounts.isEmpty {
                             Section {
-                                ForEach(creditCardAccounts) { account in
-                                    NavigationLink(destination: AccountDetailView(account: account)) {
-                                        AccountRow(
+                                ForEach(collapsedGroups.contains("creditCardAccounts") ? [] : creditCardAccounts) { account in
+                                    OrbAccountLink(
                                             account: account,
                                             preferredCurrency: appSettings.preferredCurrencyEnum,
                                             preferredCurrencyRecord: preferredCurrencyRecord,
                                             exchangeRatesCount: exchangeRates.count
                                         )
-                                    }
                                 }
                             } header: {
                                 sectionHeader(
                                     title: "Carta di Credito",
                                     icon: "creditcard.fill",
-                                    color: .orange,
+                                    color: Color.orbHighlight,
                                     total: sectionTotal(for: creditCardAccounts),
+                                    groupID: "creditCardAccounts",
                                     isDebt: true
                                 )
-                            }
+                            }.listRowBackground(Color.orbCard)
                         }
 
                         // Passività Section
                         if !liabilityAccounts.isEmpty {
                             Section {
-                                ForEach(liabilityAccounts) { account in
-                                    NavigationLink(destination: AccountDetailView(account: account)) {
-                                        AccountRow(
+                                ForEach(collapsedGroups.contains("liabilityAccounts") ? [] : liabilityAccounts) { account in
+                                    OrbAccountLink(
                                             account: account,
                                             preferredCurrency: appSettings.preferredCurrencyEnum,
                                             preferredCurrencyRecord: preferredCurrencyRecord,
                                             exchangeRatesCount: exchangeRates.count
                                         )
-                                    }
                                 }
                             } header: {
                                 sectionHeader(
                                     title: "Passività",
                                     icon: "chart.line.downtrend.xyaxis",
-                                    color: .red,
+                                    color: Color.orbNegative,
                                     total: sectionTotal(for: liabilityAccounts),
+                                    groupID: "liabilityAccounts",
                                     isDebt: true
                                 )
-                            }
+                            }.listRowBackground(Color.orbCard)
                         }
-                    }
+                        Section {
+                            NetWorthTrendWidget(accounts: accounts, allCurrencies: allCurrencies)
+                        }.listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+                    }.orbScreen()
                 }
             }
-            .background(Color(.systemGroupedBackground))
+            .background(Color.orbBackground)
+            .background(OrbTabReselect(tab: 1))
             .navigationTitle("Bilancio")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Aggiungi", systemImage: "plus.circle.fill") {
+                    Button("Conto", systemImage: "wallet.pass") {
                         showingAddAccount = true
                     }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.glass)
+                    .labelStyle(.titleAndIcon)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Aggiungi conto")
                 }
             }
             .sheet(isPresented: $showingAddAccount) {
@@ -454,24 +458,35 @@ struct BalanceView: View {
         }
     }
 
-    private func sectionHeader(title: String, icon: String, color: Color, total: Decimal, isDebt: Bool = false) -> some View {
+    private func sectionHeader(title: String, icon: String, color: Color, total: Decimal, groupID: String, isDebt: Bool = false) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                if collapsedGroups.contains(groupID) { collapsedGroups.remove(groupID) }
+                else { collapsedGroups.insert(groupID) }
+            }
+        } label: {
         HStack {
             HStack(spacing: 6) {
                 Image(systemName: icon)
                     .foregroundStyle(color)
                 Text(title)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.orbText)
             }
+            Image(systemName: "chevron.right")
+                .font(.caption).rotationEffect(.degrees(collapsedGroups.contains(groupID) ? 0 : 90))
             Spacer()
             Text(formatSectionTotal(total, isDebt: isDebt))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.orbMuted)
         }
-        .font(.subheadline.bold())
-        .textCase(nil)
+        .font(.orbSubheadline.bold())
+        .textCase(nil).frame(minHeight: 44)
+        }.buttonStyle(.plain)
+        .accessibilityHint(collapsedGroups.contains(groupID) ? "Espandi gruppo" : "Comprimi gruppo")
     }
 
     private func formatSectionTotal(_ amount: Decimal, isDebt: Bool) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
@@ -482,33 +497,34 @@ struct BalanceView: View {
         let amountString = formatter.string(from: displayAmount as NSDecimalNumber) ?? "0,00"
 
         let symbol = preferredCurrencyRecord?.displaySymbol ?? (appSettings.preferredCurrencyEnum.rawValue == "USD" ? "$" : appSettings.preferredCurrencyEnum.rawValue)
-        let flag = preferredCurrencyRecord?.flagEmoji ?? appSettings.preferredCurrencyEnum.flag
+
 
         // Per debiti (carte di credito, passività), mostra + o - in base al segno effettivo
         if isDebt {
             if amount < 0 {
                 // Negativo = debito
-                return "-\(symbol)\(amountString) \(flag)"
+                return "-\(symbol) \(amountString)"
             } else if amount > 0 {
                 // Positivo = credito
-                return "+\(symbol)\(amountString) \(flag)"
+                return "+\(symbol) \(amountString)"
             } else {
                 // Zero
-                return "\(symbol)\(amountString) \(flag)"
+                return "\(symbol) \(amountString)"
             }
         } else {
-            return "\(symbol)\(amountString) \(flag)"
+            return "\(symbol) \(amountString)"
         }
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
 
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
-        return "\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
+        return OrbCurrency.string(amount, symbol: appSettings.preferredCurrencyEnum.symbol)
     }
 }
 
@@ -523,9 +539,10 @@ struct AccountRow: View {
 
     private func displayBalance(for accountBalance: Decimal) -> String {
         // For credit cards and liabilities, show absolute value (debts are stored as negative)
-        let displayAmount = (account.accountType == .creditCard || account.accountType == .liability) ? abs(accountBalance) : accountBalance
+        let displayAmount = account.accountType == .liability ? abs(accountBalance) : accountBalance
 
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
@@ -536,22 +553,23 @@ struct AccountRow: View {
 
         // Usa la currency del conto, non quella preferita
         let symbol = account.currencyRecord?.displaySymbol ?? (account.currency.rawValue == "USD" ? "$" : account.currency.rawValue)
-        let flag = account.currencyRecord?.flagEmoji ?? account.currency.flag
 
-        return "\(symbol)\(amountString) \(flag)"
+
+        return "\(symbol) \(amountString)"
     }
 
     private func balanceColor(for balance: Decimal) -> Color {
         if account.accountType == .creditCard || account.accountType == .liability {
             // For debts, negative (debt exists) is red, zero/positive is green
-            return balance < 0 ? .red : .green
+            return balance < 0 ? Color.orbNegative : Color.orbPositive
         } else {
             // For normal accounts, negative is red, positive is primary
-            return balance < 0 ? .red : .primary
+            return balance < 0 ? Color.orbNegative : Color.orbText
         }
     }
 
     private func calculateBalance(for account: Account) -> Decimal {
+        if account.investmentProfile != nil { return account.investmentNetWorth }
         var balance = account.initialBalance
         let tracker = DeletedTransactionTracker.shared
 
@@ -668,26 +686,26 @@ struct AccountRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(account.name)
-                    .font(.body)
-                    .foregroundStyle(.primary)
+                    .font(.orbBody)
+                    .foregroundStyle(Color.orbText)
 
                 Text(account.accountType.rawValue)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbMuted)
             }
 
             Spacer()
 
             VStack(alignment: .trailing, spacing: 4) {
-                Text(displayBalance(for: balance))
-                    .font(.body.bold())
+                Text(displayBalance(for: balance)).lineLimit(1).minimumScaleFactor(0.2)
+                    .font(.orbBody.bold())
                     .foregroundStyle(balanceColor(for: balance))
 
                 // Mostra saldo convertito nella valuta preferita solo se diversa
                 if let convertedText = convertedBalanceText(for: balance) {
-                    Text(convertedText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(convertedText).lineLimit(1).minimumScaleFactor(0.2)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                 }
             }
         }
@@ -695,6 +713,7 @@ struct AccountRow: View {
 
     private func formatDecimal(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
@@ -715,7 +734,7 @@ struct AccountRow: View {
             context: modelContext
         )
 
-        let displayAmount = (account.accountType == .creditCard || account.accountType == .liability) ? abs(convertedBalance) : convertedBalance
+        let displayAmount = account.accountType == .liability ? abs(convertedBalance) : convertedBalance
 
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -726,9 +745,9 @@ struct AccountRow: View {
 
         let amountString = formatter.string(from: displayAmount as NSDecimalNumber) ?? "0,00"
         let symbol = preferredCurr.displaySymbol
-        let flag = preferredCurr.flagEmoji
 
-        return "\(symbol)\(amountString) \(flag)"
+
+        return "\(symbol) \(amountString)"
     }
 }
 

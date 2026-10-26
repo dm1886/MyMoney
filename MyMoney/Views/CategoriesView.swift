@@ -34,9 +34,9 @@ struct CategoriesView: View {
                         } label: {
                             HStack {
                                 Image(systemName: "plus.circle.fill")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.orbHighlight)
                                 Text("Aggiungi Categoria")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.orbHighlight)
                             }
                         }
                     } header: {
@@ -57,11 +57,11 @@ struct CategoriesView: View {
                                 Text(group.name)
                                 Spacer()
                                 Image(systemName: "chevron.right")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption2)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
-                    }
+                    }.listRowBackground(Color.orbCard)
                 }
 
                 Section {
@@ -70,13 +70,13 @@ struct CategoriesView: View {
                     } label: {
                         HStack {
                             Image(systemName: "folder.badge.plus")
-                                .foregroundStyle(.green)
+                                .foregroundStyle(Color.orbPositive)
                             Text("Nuovo Gruppo")
-                                .foregroundStyle(.green)
+                                .foregroundStyle(Color.orbPositive)
                         }
                     }
-                }
-            }
+                }.listRowBackground(Color.orbCard)
+            }.orbScreen()
             .navigationTitle("Categorie")
             .navigationBarTitleDisplayMode(.large)
             .sheet(isPresented: $showingAddGroup) {
@@ -123,12 +123,12 @@ struct CategoryRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(category.name)
-                    .font(.body)
+                    .font(.orbBody)
 
                 if let defaultAccount = category.defaultAccount {
                     Text("Conto: \(defaultAccount.name)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                 }
             }
 

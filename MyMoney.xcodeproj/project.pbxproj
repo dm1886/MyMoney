@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		B0B00000000000000000000B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AE29DF7B2F065B9B00576D2A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AE29DF822F065B9B00576D2A;
+			remoteInfo = MyMoney;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		AE29DF832F065B9B00576D2A /* MyMoney.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyMoney.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B0B000000000000000000003 /* MyMoneyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = MyMoneyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -29,10 +40,22 @@
 			path = MyMoney;
 			sourceTree = "<group>";
 		};
+		B0B000000000000000000002 /* MyMoneyTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MyMoneyTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		AE29DF802F065B9B00576D2A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B0B000000000000000000005 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -46,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				AE29DF852F065B9B00576D2A /* MyMoney */,
+				B0B000000000000000000002 /* MyMoneyTests */,
 				AE29DF842F065B9B00576D2A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -54,6 +78,7 @@
 			isa = PBXGroup;
 			children = (
 				AE29DF832F065B9B00576D2A /* MyMoney.app */,
+				B0B000000000000000000003 /* MyMoneyTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -82,6 +107,27 @@
 			productName = MyMoney;
 			productReference = AE29DF832F065B9B00576D2A /* MyMoney.app */;
 			productType = "com.apple.product-type.application";
+		};
+		B0B000000000000000000001 /* MyMoneyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B0B000000000000000000007 /* Build configuration list for PBXNativeTarget "MyMoneyTests" */;
+			buildPhases = (
+				B0B000000000000000000004 /* Sources */,
+				B0B000000000000000000005 /* Frameworks */,
+				B0B000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B0B00000000000000000000A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				B0B000000000000000000002 /* MyMoneyTests */,
+			);
+			name = MyMoneyTests;
+			productName = MyMoneyTests;
+			productReference = B0B000000000000000000003 /* MyMoneyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -113,12 +159,20 @@
 			projectRoot = "";
 			targets = (
 				AE29DF822F065B9B00576D2A /* MyMoney */,
+				B0B000000000000000000001 /* MyMoneyTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		AE29DF812F065B9B00576D2A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B0B000000000000000000006 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -135,7 +189,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B0B000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B0B00000000000000000000A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AE29DF822F065B9B00576D2A /* MyMoney */;
+			targetProxy = B0B00000000000000000000B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		AE29DF8C2F065B9B00576D2A /* Debug */ = {
@@ -337,6 +406,40 @@
 			};
 			name = Release;
 		};
+		B0B000000000000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = damianomiazzi.MyMoneyTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MyMoney.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MyMoney";
+			};
+			name = Debug;
+		};
+		B0B000000000000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = damianomiazzi.MyMoneyTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MyMoney.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MyMoney";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -354,6 +457,15 @@
 			buildConfigurations = (
 				AE29DF8F2F065B9B00576D2A /* Debug */,
 				AE29DF902F065B9B00576D2A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B0B000000000000000000007 /* Build configuration list for PBXNativeTarget "MyMoneyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B0B000000000000000000008 /* Debug */,
+				B0B000000000000000000009 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

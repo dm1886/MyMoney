@@ -80,6 +80,20 @@ extension EnvironmentValues {
 final class AppSettings {
     static let shared = AppSettings()
 
+    var selectedThemeId: String = "notte" {
+        didSet { UserDefaults.standard.set(selectedThemeId, forKey: "selectedThemeId") }
+    }
+    var customThemesData: Data = Data() {
+        didSet { UserDefaults.standard.set(customThemesData, forKey: "customThemesData") }
+    }
+    var customThemes: [AppTheme] {
+        get { (try? JSONDecoder().decode([AppTheme].self, from: customThemesData)) ?? [] }
+        set { if let data = try? JSONEncoder().encode(newValue) { customThemesData = data } }
+    }
+    var reduceDecorativeMotion = false {
+        didSet { UserDefaults.standard.set(reduceDecorativeMotion, forKey: "reduceDecorativeMotion") }
+    }
+
     var preferredCurrency: String = Currency.EUR.rawValue {
         didSet {
             UserDefaults.standard.set(preferredCurrency, forKey: "preferredCurrency")
@@ -175,6 +189,21 @@ final class AppSettings {
         // isDarkMode è deprecato e rimane a false di default
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         self.accentColorHex = UserDefaults.standard.string(forKey: "accentColorHex") ?? "#007AFF"
+        self.customThemesData = UserDefaults.standard.data(forKey: "customThemesData") ?? Data()
+        self.reduceDecorativeMotion = UserDefaults.standard.bool(forKey: "reduceDecorativeMotion")
+        if let saved = UserDefaults.standard.string(forKey: "selectedThemeId") {
+            self.selectedThemeId = saved
+        } else {
+            if self.accentColorHex.uppercased() != "#007AFF" {
+                let migrated = ThemeFactory.make(name: "Il mio colore", primary: self.accentColorHex,
+                                                 secondary: ThemePresets.notte.dark.a2, tone: .neutral)
+                self.customThemes = self.customThemes + [migrated]
+                self.selectedThemeId = migrated.id
+            }
+            // Property observers do not persist assignments made during initialization.
+            UserDefaults.standard.set(self.customThemesData, forKey: "customThemesData")
+            UserDefaults.standard.set(self.selectedThemeId, forKey: "selectedThemeId")
+        }
         self.recurringDetectionEnabled = UserDefaults.standard.bool(forKey: "recurringDetectionEnabled")
         self.recurringDetectionDays = UserDefaults.standard.integer(forKey: "recurringDetectionDays")
         if self.recurringDetectionDays == 0 {

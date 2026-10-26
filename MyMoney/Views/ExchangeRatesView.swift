@@ -38,7 +38,7 @@ struct ExchangeRatesView: View {
                 } label: {
                     HStack {
                         Text("Da")
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Color.orbText)
 
                         Spacer()
 
@@ -46,11 +46,11 @@ struct ExchangeRatesView: View {
                             HStack(spacing: 8) {
                                 Text(currency.flagEmoji)
                                 Text(currency.code)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         } else {
                             Text("Seleziona")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                         }
                     }
                 }
@@ -60,7 +60,7 @@ struct ExchangeRatesView: View {
                 } label: {
                     HStack {
                         Text("A")
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Color.orbText)
 
                         Spacer()
 
@@ -68,11 +68,11 @@ struct ExchangeRatesView: View {
                             HStack(spacing: 8) {
                                 Text(currency.flagEmoji)
                                 Text(currency.code)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         } else {
                             Text("Seleziona")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                         }
                     }
                 }
@@ -82,33 +82,33 @@ struct ExchangeRatesView: View {
                 if let from = selectedFromCurrencyRecord, let to = selectedToCurrencyRecord {
                     Text("\(from.name) → \(to.name)")
                 }
-            }
+            }.listRowBackground(Color.orbCard)
 
             Section {
                 if let from = selectedFromCurrencyRecord, let to = selectedToCurrencyRecord {
                     if from.code == to.code {
                         Text("Le valute devono essere diverse")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
                     } else {
                         HStack {
                             Text("1 \(from.code)")
                             Spacer()
                             if let rate = currentRate {
                                 Text("= \(formatRate(rate)) \(to.code)")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             } else {
                                 Text("Non disponibile")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
                 } else {
                     Text("Seleziona due valute")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.orbMuted)
                 }
             } header: {
                 Text("Tasso di Cambio Attuale")
-            }
+            }.listRowBackground(Color.orbCard)
 
             Section {
                 HStack {
@@ -133,7 +133,7 @@ struct ExchangeRatesView: View {
                 Text("Aggiorna Tasso")
             } footer: {
                 Text("Inserisci il tasso di cambio personalizzato. Ad esempio, se 1 EUR = 1.10 USD, inserisci 1.10")
-            }
+            }.listRowBackground(Color.orbCard)
 
             // RIMOSSO: Lista completa dei tassi (troppo lenta con 140+ valute)
             // Gli utenti possono vedere i tassi nella schermata di selezione valuta
@@ -158,6 +158,7 @@ struct ExchangeRatesView: View {
 
     private func formatRate(_ rate: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 4

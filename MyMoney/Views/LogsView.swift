@@ -61,19 +61,19 @@ struct LogsView: View {
                                 filterLevel = level
                             } label: {
                                 Text(level.rawValue)
-                                    .font(.subheadline)
+                                    .font(.orbSubheadline)
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 8)
                                     .background(
                                         RoundedRectangle(cornerRadius: 20)
-                                            .fill(filterLevel == level ? appSettings.accentColor.opacity(0.2) : Color(.secondarySystemBackground))
+                                            .fill(filterLevel == level ? Color.orbAccent.opacity(0.2) : Color.orbCard)
                                     )
-                                    .foregroundStyle(filterLevel == level ? appSettings.accentColor : .secondary)
+                                    .foregroundStyle(filterLevel == level ? Color.orbAccent : Color.orbMuted)
                             }
                         }
                     }
                     .padding(.horizontal)
-                }
+                }.orbScreen()
                 .padding(.vertical, 12)
 
                 Divider()
@@ -83,14 +83,14 @@ struct LogsView: View {
                     VStack(spacing: 16) {
                         Image(systemName: "doc.text.magnifyingglass")
                             .font(.system(size: 60))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
 
                         Text("Nessun log")
-                            .font(.headline)
+                            .font(.orbHeadline)
 
                         Text("I log dell'app appariranno qui")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.orbSubheadline)
+                            .foregroundStyle(Color.orbMuted)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -99,7 +99,7 @@ struct LogsView: View {
                             VStack(alignment: .leading, spacing: 0) {
                                 Text(filteredLogs)
                                     .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(Color.orbText)
                                     .textSelection(.enabled)
                                     .padding()
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -116,10 +116,10 @@ struct LogsView: View {
                                 }
                             }
                         }
-                    }
+                    }.orbScreen()
                 }
             }
-            .background(Color(.systemGroupedBackground))
+            .background(Color.orbBackground)
             .navigationTitle("Log Sistema")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -128,7 +128,7 @@ struct LogsView: View {
                         autoRefresh.toggle()
                     } label: {
                         Image(systemName: autoRefresh ? "arrow.clockwise.circle.fill" : "arrow.clockwise.circle")
-                            .foregroundStyle(autoRefresh ? appSettings.accentColor : .secondary)
+                            .foregroundStyle(autoRefresh ? Color.orbAccent : Color.orbMuted)
                     }
                 }
 

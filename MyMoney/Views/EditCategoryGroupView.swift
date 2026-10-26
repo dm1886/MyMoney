@@ -52,7 +52,7 @@ struct EditCategoryGroupView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 6))
                             } else {
                                 Image(systemName: selectedIcon)
-                                    .font(.title2)
+                                    .font(.orbTitle2)
                                     .foregroundStyle(selectedColor)
                             }
                         }
@@ -68,18 +68,18 @@ struct EditCategoryGroupView: View {
                                     selectedPhoto = nil
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                                 .buttonStyle(.plain)
                             } else {
                                 Image(systemName: "photo")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
 
                     ColorPicker("Colore", selection: $selectedColor)
-                }
+                }.listRowBackground(Color.orbCard)
 
                 Section {
                     Picker("Applicabilità", selection: $selectedApplicability) {
@@ -96,7 +96,7 @@ struct EditCategoryGroupView: View {
                     Text("Visibilità")
                 } footer: {
                     Text("Scegli in quali tipi di transazione questo gruppo e le sue categorie saranno visibili")
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // Mostra le categorie associate
                 if let categories = group.categories, !categories.isEmpty {
@@ -119,9 +119,9 @@ struct EditCategoryGroupView: View {
                         }
                     } header: {
                         Text("Categorie (\(categories.count))")
-                    }
+                    }.listRowBackground(Color.orbCard)
                 }
-            }
+            }.orbScreen()
             .navigationTitle("Modifica Gruppo")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

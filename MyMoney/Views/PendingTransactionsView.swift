@@ -22,14 +22,14 @@ struct PendingTransactionsView: View {
                 VStack(spacing: 16) {
                     Image(systemName: "checkmark.circle")
                         .font(.system(size: 60))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color.orbPositive)
 
                     Text("Nessuna Transazione in Attesa")
-                        .font(.title3.bold())
+                        .font(.orbTitle3.bold())
 
                     Text("Le transazioni programmate che richiedono conferma appariranno qui")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.orbSubheadline)
+                        .foregroundStyle(Color.orbMuted)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                 }
@@ -45,7 +45,7 @@ struct PendingTransactionsView: View {
                         .listRowBackground(Color.clear)
                 }
             }
-        }
+        }.orbScreen()
         .listStyle(.plain)
         .navigationTitle("Da Confermare")
         .navigationBarTitleDisplayMode(.inline)
@@ -116,49 +116,49 @@ struct PendingTransactionCard: View {
                 } else {
                     ZStack {
                         Circle()
-                            .fill(Color(hex: transaction.transactionType.color)?.opacity(0.2) ?? .orange.opacity(0.2))
+                            .fill(transaction.transactionType.orbColor.opacity(0.2))
                             .frame(width: 50, height: 50)
 
                         Image(systemName: transaction.category?.icon ?? transaction.transactionType.icon)
-                            .font(.title3)
-                            .foregroundStyle(Color(hex: transaction.transactionType.color) ?? .orange)
+                            .font(.orbTitle3)
+                            .foregroundStyle(transaction.transactionType.orbColor)
                     }
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(displayTitle)
-                        .font(.headline)
+                        .font(.orbHeadline)
                     
                     // Dettagli trasferimento (se applicabile)
                     if let transferDetail = transferDetail {
                         Text(transferDetail)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                     }
 
                     HStack(spacing: 4) {
                         Image(systemName: "clock")
-                            .font(.caption)
+                            .font(.orbCaption)
                         Text(transaction.date.formatted(date: .abbreviated, time: .shortened))
-                            .font(.caption)
+                            .font(.orbCaption)
                     }
-                    .foregroundStyle(isOverdue ? .red : .secondary)
+                    .foregroundStyle(isOverdue ? Color.orbNegative : Color.orbMuted)
                 }
 
                 Spacer()
 
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text(transaction.displayAmount)
-                        .font(.title3.bold())
-                        .foregroundStyle(Color(hex: transaction.transactionType.color) ?? .orange)
+                    Text(transaction.orbDisplayAmount)
+                        .font(.orbTitle3.bold())
+                        .foregroundStyle(transaction.transactionType.orbColor)
 
                     if isOverdue {
                         Text("In Ritardo")
-                            .font(.caption2.bold())
-                            .foregroundStyle(.white)
+                            .font(.orbCaption2.bold())
+                            .foregroundStyle(Color.orbOnAccent)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.red))
+                            .background(Capsule().fill(Color.orbNegative))
                     }
                 }
             }
@@ -167,11 +167,11 @@ struct PendingTransactionCard: View {
             if !transaction.notes.isEmpty {
                 HStack {
                     Image(systemName: "note.text")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                     Text(transaction.notes)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.orbSubheadline)
+                        .foregroundStyle(Color.orbMuted)
                         .lineLimit(2)
                     Spacer()
                 }
@@ -180,11 +180,11 @@ struct PendingTransactionCard: View {
             if let account = transaction.account {
                 HStack {
                     Image(systemName: "wallet.pass")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                     Text(account.name)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.orbSubheadline)
+                        .foregroundStyle(Color.orbMuted)
                     Spacer()
                 }
             }
@@ -200,13 +200,13 @@ struct PendingTransactionCard: View {
                         Image(systemName: "xmark.circle.fill")
                         Text("Annulla")
                     }
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.red)
+                    .font(.orbSubheadline.bold())
+                    .foregroundStyle(Color.orbNegative)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .background(
                         RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.red.opacity(0.1))
+                            .fill(Color.orbNegative.opacity(0.1))
                     )
                 }
 
@@ -217,15 +217,15 @@ struct PendingTransactionCard: View {
                         Image(systemName: "checkmark.circle.fill")
                         Text("Conferma")
                     }
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white)
+                    .font(.orbSubheadline.bold())
+                    .foregroundStyle(Color.orbOnAccent)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .background(
                         RoundedRectangle(cornerRadius: 10)
                             .fill(
                                 LinearGradient(
-                                    colors: [.green, .green.opacity(0.8)],
+                                    colors: [Color.orbPositive, Color.orbPositive.opacity(0.8)],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
@@ -235,7 +235,7 @@ struct PendingTransactionCard: View {
             }
         }
         .padding()
-        .glassEffect(in: .rect(cornerRadius: 16))
+        .orbSurface()
         .alert("Conferma Transazione", isPresented: $showingConfirmAlert) {
             Button("Annulla", role: .cancel) { }
             Button("Conferma") {

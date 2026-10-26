@@ -21,6 +21,9 @@ struct AccountDetailView: View {
     @Environment(\.appSettings) var appSettings
     @Environment(\.colorScheme) var colorScheme
     @Bindable var account: Account
+    var initialAction: OrbAccountAction? = nil
+    @State private var showingInvestmentConfiguration = false
+    @State private var initialActionHandled = false
 
     @State private var showingEditSheet = false
     @State private var showingDeleteAlert = false
@@ -79,6 +82,7 @@ struct AccountDetailView: View {
 
     // Calcola saldo on-the-fly
     private var calculatedBalance: Decimal {
+        if account.investmentProfile != nil { return account.currentBalance }
         var balance = account.initialBalance
         let tracker = DeletedTransactionTracker.shared
 
@@ -168,8 +172,11 @@ struct AccountDetailView: View {
 
     // Balance label based on account type
     private var balanceLabel: String {
+        if account.investmentProfile != nil { return "Liquidità attuale" }
         switch account.accountType {
-        case .creditCard, .liability:
+        case .creditCard:
+            return calculatedBalance >= 0 ? "Credito di proprietà" : "Debito Attuale"
+        case .liability:
             return "Debito Attuale"
         default:
             return "Saldo Attuale"
@@ -180,10 +187,10 @@ struct AccountDetailView: View {
     private var balanceColor: Color {
         if account.accountType == .creditCard || account.accountType == .liability {
             // For debts, negative (debt exists) is red, zero/positive is green
-            return calculatedBalance < 0 ? .red : .green
+            return calculatedBalance < 0 ? Color.orbNegative : Color.orbPositive
         } else {
             // For normal accounts, negative is red, positive is primary
-            return calculatedBalance < 0 ? .red : .primary
+            return calculatedBalance < 0 ? Color.orbNegative : Color.orbText
         }
     }
 
@@ -192,9 +199,9 @@ struct AccountDetailView: View {
         if account.accountType == .creditCard || account.accountType == .liability {
             // For debts, show absolute value (debts are stored as negative)
             let debtAmount = abs(amount)
-            return "\(account.currency.rawValue) \(formatDecimal(debtAmount))"
+            return "\(account.currencyRecord?.displaySymbol ?? account.currency.symbol) \(formatDecimal(debtAmount))"
         } else {
-            return "\(account.currency.rawValue) \(formatDecimal(amount))"
+            return "\(account.currencyRecord?.displaySymbol ?? account.currency.symbol) \(formatDecimal(amount))"
         }
     }
 
@@ -228,54 +235,80 @@ struct AccountDetailView: View {
 
                     VStack(spacing: 4) {
                         Text(account.name)
-                            .font(.title.bold())
+                            .font(.orbTitle.bold())
 
                         Text(account.accountType.rawValue)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.orbSubheadline)
+                            .foregroundStyle(Color.orbMuted)
                     }
 
                     VStack(spacing: 4) {
                         Text(balanceLabel)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.orbSubheadline)
+                            .foregroundStyle(Color.orbMuted)
 
                         Text(formatBalance(calculatedBalance))
-                            .font(.system(size: 36, weight: .bold, design: .rounded))
+                            .font(.orb(36, weight: .bold, relativeTo: .title)).lineLimit(1).minimumScaleFactor(0.2)
                             .foregroundStyle(balanceColor)
                     }
 
                     // Show credit limit for credit cards
                     if account.accountType == .creditCard, let limit = account.creditLimit, limit > 0 {
-                        HStack(spacing: 4) {
+                        VStack(spacing: 4) {
                             Text("Limite:")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("\(account.currency.rawValue) \(formatDecimal(limit))")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
+                                .font(.orbCaption)
+                                .foregroundStyle(Color.orbMuted)
+                            Text("\(account.currencyRecord?.displaySymbol ?? account.currency.symbol) \(formatDecimal(limit))")
+                                .font(.orbCaption.bold())
+                                .foregroundStyle(Color.orbMuted)
 
                             // Available credit
                             let availableCredit = limit + calculatedBalance // balance is negative for debt
                             Text("• Disponibile:")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("\(account.currency.rawValue) \(formatDecimal(availableCredit))")
-                                .font(.caption.bold())
-                                .foregroundStyle(availableCredit > 0 ? .green : .red)
+                                .font(.orbCaption)
+                                .foregroundStyle(Color.orbMuted)
+                            Text("\(account.currencyRecord?.displaySymbol ?? account.currency.symbol) \(formatDecimal(availableCredit))")
+                                .font(.orbCaption.bold())
+                                .foregroundStyle(availableCredit > 0 ? Color.orbPositive : Color.orbNegative)
                         }
                     }
 
                     if !account.accountDescription.isEmpty {
                         Text(account.accountDescription)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
+                            .font(.orbBody)
+                            .foregroundStyle(Color.orbMuted)
                             .multilineTextAlignment(.center)
                     }
                 }
+                .padding(20)
                 .frame(maxWidth: .infinity)
+                .background(account.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 24))
+                .overlay(RoundedRectangle(cornerRadius: 24).stroke(account.color.opacity(0.3), lineWidth: 1))
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
+            }.listRowBackground(Color.orbCard)
+
+            if account.accountType == .asset {
+                Section("Attività") {
+                    if let profile = account.investmentProfile {
+                        NavigationLink {
+                            Group {
+                                if account.investmentProfile?.projection != nil { InvestmentProjectionView(account: account) }
+                                else { InvestmentAccountView(account: account) }
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Label(profile.mode.title, systemImage: profile.mode == .stocks ? "chart.line.uptrend.xyaxis" : "percent")
+                                Text(OrbCurrency.string(account.investmentNetWorth, symbol: account.currencySymbol)).font(.orbHeadline)
+                                Text(profile.projection != nil ? "Crescita attesa e riconciliazione manuale" : (profile.mode == .stocks ? "Liquidità, titoli e piani di accumulo" : "Valore con interessi lordi stimati")).font(.orbCaption).foregroundStyle(Color.orbMuted)
+                            }
+                        }
+                    } else if account.hasInvalidInvestmentData {
+                        Text(InvestmentError.corruptData.localizedDescription).foregroundStyle(Color.orbNegative)
+                    } else {
+                        Button("Configura interesse annuo o conto azioni") { showingInvestmentConfiguration = true }
+                    }
+                }.sheet(isPresented: $showingInvestmentConfiguration) { InvestmentConfigurationView(account: account) }
             }
 
             // Filtri Section
@@ -284,7 +317,7 @@ struct AccountDetailView: View {
                     // Filtro data
                     HStack {
                         Image(systemName: "calendar")
-                            .foregroundStyle(appSettings.accentColor)
+                            .foregroundStyle(Color.orbHighlight)
 
                         if let selectedDate = selectedDate {
                             DatePicker(
@@ -301,11 +334,11 @@ struct AccountDetailView: View {
                                 self.selectedDate = nil
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         } else {
                             Text("Filtra per data")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
 
                             Spacer()
 
@@ -313,8 +346,8 @@ struct AccountDetailView: View {
                                 self.selectedDate = Date()
                             } label: {
                                 Text("Seleziona")
-                                    .font(.subheadline)
-                                    .foregroundStyle(appSettings.accentColor)
+                                    .font(.orbSubheadline)
+                                    .foregroundStyle(Color.orbHighlight)
                             }
                         }
                     }
@@ -322,7 +355,7 @@ struct AccountDetailView: View {
                     // Ordinamento
                     HStack {
                         Image(systemName: "arrow.up.arrow.down")
-                            .foregroundStyle(appSettings.accentColor)
+                            .foregroundStyle(Color.orbHighlight)
 
                         Picker("Ordina", selection: $sortOption) {
                             ForEach(SortOption.allCases, id: \.self) { option in
@@ -333,7 +366,7 @@ struct AccountDetailView: View {
                     }
                 } header: {
                     Text("Filtri")
-                }
+                }.listRowBackground(Color.orbCard)
             }
 
             // Transactions Sections
@@ -342,20 +375,20 @@ struct AccountDetailView: View {
                     VStack(spacing: 16) {
                         Image(systemName: "list.bullet.clipboard")
                             .font(.system(size: 50))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
 
                         Text(selectedDate == nil ? "Nessuna transazione" : "Nessuna transazione per questa data")
-                            .font(.headline)
+                            .font(.orbHeadline)
 
                         Text(selectedDate == nil ? "Le transazioni per questo conto appariranno qui" : "Prova a selezionare un'altra data")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.orbSubheadline)
+                            .foregroundStyle(Color.orbMuted)
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
                     .listRowBackground(Color.clear)
-                }
+                }.listRowBackground(Color.orbCard)
             } else {
                 ForEach(groupedTransactions, id: \.0) { date, transactions in
                     Section {
@@ -375,12 +408,12 @@ struct AccountDetailView: View {
                         }
                     } header: {
                         Text(formatDateHeader(date))
-                            .font(.subheadline.bold())
+                            .font(.orbSubheadline.bold())
                             .textCase(nil)
-                    }
+                    }.listRowBackground(Color.orbCard)
                 }
             }
-        }
+        }.orbScreen()
         .navigationTitle("Dettagli Conto")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -389,7 +422,7 @@ struct AccountDetailView: View {
                     showingFilters.toggle()
                 } label: {
                     Image(systemName: "line.3.horizontal.decrease.circle\(showingFilters ? ".fill" : "")")
-                        .foregroundStyle(appSettings.accentColor)
+                        .foregroundStyle(Color.orbHighlight)
                 }
             }
 
@@ -447,6 +480,16 @@ struct AccountDetailView: View {
         }
         .onAppear {
             account.updateBalance(context: modelContext)
+            if !initialActionHandled {
+                initialActionHandled = true
+                switch initialAction {
+                case .transaction: showingAddTransaction = true
+                case .adjust: showingBalanceAdjustment = true
+                case .edit: showingEditSheet = true
+                case .delete: showingDeleteAlert = true
+                case nil: break
+                }
+            }
         }
         .alert("Elimina Transazione Ricorrente", isPresented: $showingDeleteRecurringAlert) {
             Button("Annulla", role: .cancel) {
@@ -471,6 +514,7 @@ struct AccountDetailView: View {
 
     private func formatDecimal(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
@@ -577,7 +621,7 @@ struct AccountTransactionRow: View {
                             .frame(width: 50, height: 50)
 
                         Image(systemName: transaction.category?.icon ?? defaultIcon)
-                            .font(.title3)
+                            .font(.orbTitle3)
                             .foregroundStyle(iconColor)
                     }
                 }
@@ -585,35 +629,35 @@ struct AccountTransactionRow: View {
                 // Info
                 VStack(alignment: .leading, spacing: 4) {
                     Text(displayTitle)
-                        .font(.body.bold())
-                        .foregroundStyle(.primary)
+                        .font(.orbBody.bold())
+                        .foregroundStyle(Color.orbText)
                     
                     // Dettagli trasferimento (se applicabile)
                     if let transferDetail = transferDetail {
                         Text(transferDetail)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                     }
 
                     HStack(spacing: 4) {
                         Text(transaction.date.formatted(date: .omitted, time: .shortened))
-                            .font(.caption)
+                            .font(.orbCaption)
 
                         if transaction.isScheduled && transaction.status == .executed {
                             Image(systemName: "bolt.fill")
-                                .font(.caption2)
+                                .font(.orbCaption2)
                         }
                     }
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.orbMuted)
                 }
 
                 Spacer()
 
                 // Amount
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text(transaction.displayAmount)
-                        .font(.body.bold())
-                        .foregroundStyle(.primary)
+                    Text(transaction.orbDisplayAmount)
+                        .font(.orbBody.bold())
+                        .foregroundStyle(Color.orbText)
                 }
             }
             .padding()
@@ -626,7 +670,7 @@ struct AccountTransactionRow: View {
             .fill(lineColor)
             .frame(height: 3)
         }
-        .glassEffect(in: .rect(cornerRadius: 12))
+        .orbSurface()
     }
 
     private var displayTitle: String {
@@ -655,11 +699,11 @@ struct AccountTransactionRow: View {
     }
     
     private var iconBackgroundColor: Color {
-        return (transaction.category?.color ?? appSettings.accentColor).opacity(0.15)
+        return (transaction.category?.color ?? Color.orbAccent).opacity(0.15)
     }
 
     private var iconColor: Color {
-        return transaction.category?.color ?? appSettings.accentColor
+        return transaction.category?.color ?? Color.orbAccent
     }
 
     private var defaultIcon: String {
@@ -679,30 +723,30 @@ struct AccountTransactionRow: View {
     private var amountBackgroundColor: Color {
         switch transaction.transactionType {
         case .expense:
-            return .red.opacity(0.15)
+            return Color.orbNegative.opacity(0.15)
         case .income:
-            return .green.opacity(0.15)
+            return Color.orbPositive.opacity(0.15)
         case .transfer:
-            return .blue.opacity(0.15)
+            return Color.orbAccent.opacity(0.15)
         case .liabilityPayment:
-            return .orange.opacity(0.15)
+            return Color.orbHighlight.opacity(0.15)
         case .adjustment:
-            return .orange.opacity(0.15)
+            return Color.orbHighlight.opacity(0.15)
         }
     }
 
     private var lineColor: Color {
         switch transaction.transactionType {
         case .expense:
-            return .red
+            return Color.orbNegative
         case .income:
-            return .green
+            return Color.orbPositive
         case .liabilityPayment:
-            return .orange
+            return Color.orbHighlight
         case .transfer:
-            return .blue
+            return Color.orbAccent
         case .adjustment:
-            return .orange
+            return Color.orbHighlight
         }
     }
 }
@@ -741,8 +785,7 @@ struct TransactionRow: View {
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
-        let amountString = formatter.string(from: converted as NSDecimalNumber) ?? "0.00"
-        return "\(account.currency.symbol)\(amountString)"
+        return OrbCurrency.string(converted, symbol: account.currencyRecord?.displaySymbol ?? account.currency.symbol)
     }
 
     var body: some View {
@@ -759,35 +802,35 @@ struct TransactionRow: View {
             } else {
                 ZStack {
                     Circle()
-                        .fill(Color(hex: transaction.transactionType.color)?.opacity(0.2) ?? .blue.opacity(0.2))
+                        .fill(transaction.transactionType.orbColor.opacity(0.2))
                         .frame(width: 44, height: 44)
 
                     Image(systemName: transaction.category?.icon ?? transaction.transactionType.icon)
-                        .foregroundStyle(Color(hex: transaction.transactionType.color) ?? .blue)
+                        .foregroundStyle(transaction.transactionType.orbColor)
                 }
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(transaction.category?.name ?? transaction.transactionType.rawValue)
-                        .font(.body.bold())
+                        .font(.orbBody.bold())
 
                     // Icona per transazioni programmate eseguite
                     if transaction.isScheduled && transaction.status == .executed {
                         Image(systemName: "clock.badge.checkmark.fill")
-                            .font(.caption)
-                            .foregroundStyle(.blue)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbHighlight)
                     }
                 }
 
                 Text(transaction.date.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbMuted)
 
                 if !transaction.notes.isEmpty {
                     Text(transaction.notes)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                         .lineLimit(1)
                 }
 
@@ -795,11 +838,11 @@ struct TransactionRow: View {
                 if needsConversion {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.caption2)
-                        Text("Originale: \(transaction.displayAmount)")
+                            .font(.orbCaption2)
+                        Text("Originale: \(transaction.orbDisplayAmount)")
                     }
-                    .font(.caption)
-                    .foregroundStyle(.blue)
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbHighlight)
                 }
             }
 
@@ -808,17 +851,17 @@ struct TransactionRow: View {
             VStack(alignment: .trailing, spacing: 4) {
                 if let displayText = formattedConvertedDisplay {
                     Text(formatTransactionAmount(displayText))
-                        .font(.body.bold())
+                        .font(.orbBody.bold())
                         .foregroundStyle(transactionColor)
                 } else {
-                    Text(formatTransactionAmount(transaction.displayAmount))
-                        .font(.body.bold())
+                    Text(formatTransactionAmount(transaction.orbDisplayAmount))
+                        .font(.orbBody.bold())
                         .foregroundStyle(transactionColor)
                 }
             }
         }
         .padding()
-        .glassEffect(in: .rect(cornerRadius: 12))
+        .orbSurface()
     }
 
     private func formatTransactionAmount(_ displayAmount: String) -> String {
@@ -841,15 +884,15 @@ struct TransactionRow: View {
     private var transactionColor: Color {
         switch transaction.transactionType {
         case .expense:
-            return .red
+            return Color.orbNegative
         case .income:
-            return .green
+            return Color.orbPositive
         case .liabilityPayment:
-            return .orange
+            return Color.orbHighlight
         case .transfer:
-            return .blue
+            return Color.orbAccent
         case .adjustment:
-            return transaction.amount >= 0 ? .green : .red
+            return transaction.amount >= 0 ? Color.orbPositive : Color.orbNegative
         }
     }
 }

@@ -65,94 +65,18 @@ struct TopCategoriesWidget: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "list.number")
-                    .font(.title2)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.yellow, .orange],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
-                Text("Top Categorie")
-                    .font(.headline.bold())
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.yellow, .orange],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-
-                Spacer()
-
-                Text("Questo Mese")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-
-            if topCategories.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "tray")
-                        .font(.largeTitle)
-                        .foregroundStyle(.secondary)
-
-                    Text("Nessuna spesa questo mese")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-            } else {
-                VStack(spacing: 12) {
-                    ForEach(Array(topCategories.enumerated()), id: \.offset) { index, item in
-                        HStack(spacing: 12) {
-                            Text("\(index + 1)")
-                                .font(.title3.bold())
-                                .foregroundStyle(.tertiary)
-                                .frame(width: 24)
-
-                            ZStack {
-                                Circle()
-                                    .fill(item.category.color.opacity(0.15))
-                                    .frame(width: 36, height: 36)
-
-                                Image(systemName: item.category.icon)
-                                    .font(.caption)
-                                    .foregroundStyle(item.category.color)
-                            }
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.category.name)
-                                    .font(.body.bold())
-                                    .foregroundStyle(.primary)
-
-                                Text("\(item.count) transazioni")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            Text(formatAmount(item.amount))
-                                .font(.body.bold())
-                                .foregroundStyle(.primary)
-                        }
-                    }
-                }
+        OrbCard {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Top categorie").font(.orbHeadline).lineLimit(1)
+                if topCategories.isEmpty { Text("Nessuna spesa nel periodo").font(.orbSubheadline).foregroundStyle(Color.orbMuted) }
+                OrbRankedBars(slices: topCategories.map { OrbCategorySlice(id: $0.category.id.uuidString, name: $0.category.name, amount: NSDecimalNumber(decimal: $0.amount).doubleValue, color: $0.category.color) }, symbol: preferredCurrencyRecord?.displaySymbol ?? "€")
             }
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(in: .rect(cornerRadius: 16))
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
         let symbol = preferredCurrencyRecord?.displaySymbol ?? "$"
-        let flag = preferredCurrencyRecord?.flagEmoji ?? ""
-        return "\(symbol)\(FormatterCache.formatCurrency(amount)) \(flag)"
+
+        return "\(symbol) \(FormatterCache.formatCurrencyFixed(amount))"
     }
 }

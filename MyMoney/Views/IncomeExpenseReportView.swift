@@ -249,6 +249,9 @@ struct IncomeExpenseReportView: View {
                 summaryCards
                     .padding(.horizontal)
 
+                if selectedPeriod == .thisMonth {
+                    OrbCard { OrbCumulativeChart(transactions: transactions.filter { selectedAccounts.isEmpty || selectedAccounts.contains($0.account?.id ?? UUID()) }, currency: preferredCurrencyRecord) }.padding(.horizontal)
+                }
                 // Chart Type Toggle
                 chartTypeToggle
                     .padding(.horizontal)
@@ -258,8 +261,8 @@ struct IncomeExpenseReportView: View {
                     .padding(.horizontal)
                     .padding(.bottom, 20)
             }
-        }
-        .background(Color(.systemGroupedBackground))
+        }.orbScreen()
+        .background(Color.orbBackground)
         .navigationTitle("Entrate e Uscite")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingAccountPicker) {
@@ -291,8 +294,8 @@ struct IncomeExpenseReportView: View {
     private var periodSelector: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Periodo")
-                .font(.headline)
-                .foregroundStyle(.primary)
+                .font(.orbHeadline)
+                .foregroundStyle(Color.orbText)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
@@ -314,12 +317,12 @@ struct IncomeExpenseReportView: View {
                     }
                 }
                 .padding(.horizontal, 4)
-            }
+            }.orbScreen()
 
             // Show date range
             Text(formatDateRange(dateRange))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.orbCaption)
+                .foregroundStyle(Color.orbMuted)
                 .padding(.leading, 4)
         }
     }
@@ -333,30 +336,30 @@ struct IncomeExpenseReportView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Conti")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+                        .font(.orbHeadline)
+                        .foregroundStyle(Color.orbText)
 
                     if selectedAccounts.isEmpty || selectedAccounts.count == accounts.count {
                         Text("Tutti i conti")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.orbSubheadline)
+                            .foregroundStyle(Color.orbMuted)
                     } else {
                         Text("\(selectedAccounts.count) conti selezionati")
-                            .font(.subheadline)
-                            .foregroundStyle(appSettings.accentColor)
+                            .font(.orbSubheadline)
+                            .foregroundStyle(Color.orbHighlight)
                     }
                 }
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbMuted)
             }
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(Color.orbCard)
             )
         }
     }
@@ -369,7 +372,7 @@ struct IncomeExpenseReportView: View {
             IncomeExpenseSummaryCard(
                 title: "Entrate",
                 amount: totalIncome,
-                color: .green,
+                color: Color.orbPositive,
                 icon: "arrow.down.circle.fill",
                 currency: appSettings.preferredCurrencyEnum.rawValue
             )
@@ -378,7 +381,7 @@ struct IncomeExpenseReportView: View {
             IncomeExpenseSummaryCard(
                 title: "Uscite",
                 amount: totalExpense,
-                color: .red,
+                color: Color.orbNegative,
                 icon: "arrow.up.circle.fill",
                 currency: appSettings.preferredCurrencyEnum.rawValue
             )
@@ -400,13 +403,13 @@ struct IncomeExpenseReportView: View {
                     Image(systemName: "chart.bar.fill")
                     Text("Barre")
                 }
-                .font(.subheadline.bold())
-                .foregroundStyle(chartType == .bar ? .white : appSettings.accentColor)
+                .font(.orbSubheadline.bold())
+                .foregroundStyle(chartType == .bar ? Color.orbOnAccent : Color.orbAccent)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(chartType == .bar ? appSettings.accentColor : Color(.secondarySystemGroupedBackground))
+                        .fill(chartType == .bar ? Color.orbAccent : Color.orbCard)
                 )
             }
 
@@ -420,13 +423,13 @@ struct IncomeExpenseReportView: View {
                     Image(systemName: "chart.pie.fill")
                     Text("Torta")
                 }
-                .font(.subheadline.bold())
-                .foregroundStyle(chartType == .pie ? .white : appSettings.accentColor)
+                .font(.orbSubheadline.bold())
+                .foregroundStyle(chartType == .pie ? Color.orbOnAccent : Color.orbAccent)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(chartType == .pie ? appSettings.accentColor : Color(.secondarySystemGroupedBackground))
+                        .fill(chartType == .pie ? Color.orbAccent : Color.orbCard)
                 )
             }
         }
@@ -438,8 +441,8 @@ struct IncomeExpenseReportView: View {
     private var chartView: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Bilancio: \(formatAmount(netBalance))")
-                .font(.title3.bold())
-                .foregroundStyle(netBalance >= 0 ? .green : .red)
+                .font(.orbTitle3.bold())
+                .foregroundStyle(netBalance >= 0 ? Color.orbPositive : Color.orbNegative)
                 .padding(.horizontal, 4)
 
             if chartType == .bar {
@@ -459,199 +462,38 @@ struct IncomeExpenseReportView: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.secondarySystemGroupedBackground))
+                .fill(Color.orbCard)
         )
     }
 
     private var barChartView: some View {
-        Chart {
-            BarMark(
-                x: .value("Importo", Double(truncating: totalIncome as NSDecimalNumber)),
-                y: .value("Tipo", "Entrate")
-            )
-            .foregroundStyle(
-                LinearGradient(
-                    colors: [.green.opacity(0.8), .green],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-            .annotation(position: .trailing) {
-                Text(formatAmount(totalIncome))
-                    .font(.caption.bold())
-                    .foregroundStyle(.green)
+        OrbColumnsChart(points: reportColumns, symbol: preferredCurrencyRecord?.displaySymbol ?? "€", paired: true, title: "Entrate e uscite")
+    }
+    private var reportColumns: [OrbChartPoint] {
+        let calendar = Calendar.current
+        let days = calendar.dateComponents([.day], from: dateRange.start, to: dateRange.end).day ?? 0
+        let component: Calendar.Component = days > 60 ? .month : .day
+        let groups = Dictionary(grouping: filteredTransactions) { calendar.dateInterval(of: component, for: $0.date)!.start }
+        return groups.keys.sorted().map { date in
+            var income: Decimal = 0, expense: Decimal = 0
+            for t in groups[date] ?? [] {
+                let amount: Decimal
+                if let to = preferredCurrencyRecord {
+                    guard let from = t.currencyRecord else { continue }
+                    amount = CurrencyService.shared.convert(amount: t.amount, from: from, to: to, context: modelContext)
+                } else { amount = t.amount }
+                if t.transactionType == .income { income += amount }
+                if t.transactionType == .expense { expense += amount }
             }
-
-            BarMark(
-                x: .value("Importo", Double(truncating: totalExpense as NSDecimalNumber)),
-                y: .value("Tipo", "Uscite")
-            )
-            .foregroundStyle(
-                LinearGradient(
-                    colors: [.red.opacity(0.8), .red],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-            .annotation(position: .trailing) {
-                Text(formatAmount(totalExpense))
-                    .font(.caption.bold())
-                    .foregroundStyle(.red)
-            }
+            return OrbChartPoint(label: date.formatted(.dateTime.day().month(.abbreviated).locale(Locale(identifier: "it_IT"))), amount: NSDecimalNumber(decimal: income).doubleValue, second: NSDecimalNumber(decimal: expense).doubleValue, date: date)
         }
-        .chartXAxis {
-            AxisMarks(position: .bottom) { value in
-                AxisGridLine()
-                AxisValueLabel()
-            }
-        }
-        .chartYAxis {
-            AxisMarks(position: .leading) { value in
-                AxisValueLabel()
-            }
-        }
-        .frame(height: 200)
-        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: totalIncome)
-        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: totalExpense)
     }
 
     private var pieChartView: some View {
-        VStack(spacing: 20) {
-            ZStack {
-                Chart {
-                    SectorMark(
-                        angle: .value("Importo", Double(truncating: totalIncome as NSDecimalNumber)),
-                        innerRadius: .ratio(0.618),
-                        angularInset: 1.5
-                    )
-                    .foregroundStyle(.green.gradient)
-                    .annotation(position: .overlay) {
-                        if totalIncome > 0 {
-                            VStack(spacing: 2) {
-                                Text(formatPercentage(totalIncome, of: totalIncome + totalExpense))
-                                    .font(.title3.bold())
-                                    .foregroundStyle(.white)
-                                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                            }
-                        }
-                    }
-
-                    SectorMark(
-                        angle: .value("Importo", Double(truncating: totalExpense as NSDecimalNumber)),
-                        innerRadius: .ratio(0.618),
-                        angularInset: 1.5
-                    )
-                    .foregroundStyle(.red.gradient)
-                    .annotation(position: .overlay) {
-                        if totalExpense > 0 {
-                            VStack(spacing: 2) {
-                                Text(formatPercentage(totalExpense, of: totalIncome + totalExpense))
-                                    .font(.title3.bold())
-                                    .foregroundStyle(.white)
-                                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                            }
-                        }
-                    }
-                }
-                .frame(height: 280)
-                .chartLegend(.hidden)
-                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: totalIncome)
-                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: totalExpense)
-
-                // Testo al centro
-                VStack(spacing: 4) {
-                    if totalIncome > 0 && totalExpense > 0 {
-                        Text("Saldo Netto")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Text(formatAmount(netBalance))
-                            .font(.headline.bold())
-                            .foregroundStyle(netBalance >= 0 ? .green : .red)
-                    } else if totalIncome > 0 {
-                        Text("100%")
-                            .font(.title.bold())
-                            .foregroundStyle(.green)
-                        Text("Entrate")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if totalExpense > 0 {
-                        Text("100%")
-                            .font(.title.bold())
-                            .foregroundStyle(.red)
-                        Text("Uscite")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("Nessun dato")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-
-            // Legend con percentuali
-            VStack(spacing: 12) {
-                HStack(spacing: 12) {
-                    // Entrate
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(.green)
-                            .frame(width: 16, height: 16)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 4) {
-                                Text("Entrate")
-                                    .font(.subheadline.bold())
-                                Text("(\(formatPercentage(totalIncome, of: totalIncome + totalExpense)))")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Text(formatAmount(totalIncome))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(.green.opacity(0.1))
-                    )
-                }
-
-                HStack(spacing: 12) {
-                    // Uscite
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(.red)
-                            .frame(width: 16, height: 16)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 4) {
-                                Text("Uscite")
-                                    .font(.subheadline.bold())
-                                Text("(\(formatPercentage(totalExpense, of: totalIncome + totalExpense)))")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Text(formatAmount(totalExpense))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(.red.opacity(0.1))
-                    )
-                }
-            }
-        }
+        OrbDonutChart(slices: [
+            OrbCategorySlice(id: "income", name: "↑ Entrate", amount: NSDecimalNumber(decimal: totalIncome).doubleValue, color: .chartIncome),
+            OrbCategorySlice(id: "expense", name: "↓ Uscite", amount: NSDecimalNumber(decimal: totalExpense).doubleValue, color: .chartExpense)
+        ], symbol: preferredCurrencyRecord?.displaySymbol ?? "€")
     }
 
     // MARK: - Helper Methods
@@ -666,8 +508,8 @@ struct IncomeExpenseReportView: View {
 
     private func formatAmount(_ amount: Decimal) -> String {
         let symbol = preferredCurrencyRecord?.displaySymbol ?? "$"
-        let flag = preferredCurrencyRecord?.flagEmoji ?? ""
-        return "\(symbol)\(FormatterCache.formatCurrency(amount)) \(flag)"
+
+        return "\(symbol) \(FormatterCache.formatCurrencyFixed(amount))"
     }
 
     private func formatPercentage(_ amount: Decimal, of total: Decimal) -> String {
@@ -699,16 +541,16 @@ struct PeriodButton: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: period.icon)
-                    .font(.caption)
+                    .font(.orbCaption)
                 Text(period.rawValue)
-                    .font(.subheadline.bold())
+                    .font(.orbSubheadline.bold())
             }
-            .foregroundStyle(isSelected ? .white : .primary)
+            .foregroundStyle(isSelected ? Color.orbOnAccent : Color.orbText)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 20)
-                    .fill(isSelected ? Color.accentColor : Color(.tertiarySystemGroupedBackground))
+                    .fill(isSelected ? Color.accentColor : Color.orbCard2)
             )
         }
         .buttonStyle(PlainButtonStyle())
@@ -735,7 +577,7 @@ struct IncomeExpenseSummaryCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: icon)
-                    .font(.title3)
+                    .font(.orbTitle3)
                     .foregroundStyle(color)
 
                 Spacer()
@@ -743,11 +585,11 @@ struct IncomeExpenseSummaryCard: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.orbSubheadline)
+                    .foregroundStyle(Color.orbMuted)
 
                 Text(formatAmount(amount, currency: currency))
-                    .font(.title3.bold())
+                    .font(.orbTitle3.bold())
                     .foregroundStyle(color)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -767,8 +609,8 @@ struct IncomeExpenseSummaryCard: View {
 
     private func formatAmount(_ amount: Decimal, currency: String) -> String {
         let symbol = preferredCurrencyRecord?.displaySymbol ?? "$"
-        let flag = preferredCurrencyRecord?.flagEmoji ?? ""
-        return "\(symbol)\(FormatterCache.formatCurrency(amount)) \(flag)"
+
+        return "\(symbol) \(FormatterCache.formatCurrencyFixed(amount))"
     }
 }
 
@@ -808,19 +650,19 @@ struct AccountFilterSheet: View {
                     } label: {
                         HStack {
                             Text("Tutti i conti")
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.orbText)
 
                             Spacer()
 
                             if tempSelectedAccounts.count == accounts.count {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(appSettings.accentColor)
+                                    .foregroundStyle(Color.orbHighlight)
                             }
                         }
                     }
                 } header: {
                     Text("\(tempSelectedAccounts.count) di \(accounts.count) selezionati")
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // Sezioni per tipo di conto
                 ForEach(accountsByType, id: \.type) { section in
@@ -848,24 +690,24 @@ struct AccountFilterSheet: View {
 
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(account.name)
-                                            .font(.body)
-                                            .foregroundStyle(.primary)
+                                            .font(.orbBody)
+                                            .foregroundStyle(Color.orbText)
 
                                         Text(formatAmount(account.currentBalance, currency: account.currency.rawValue))
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                            .font(.orbCaption)
+                                            .foregroundStyle(Color.orbMuted)
                                     }
 
                                     Spacer()
 
                                     if tempSelectedAccounts.contains(account.id) {
                                         Image(systemName: "checkmark.circle.fill")
-                                            .foregroundStyle(appSettings.accentColor)
-                                            .font(.title3)
+                                            .foregroundStyle(Color.orbHighlight)
+                                            .font(.orbTitle3)
                                     } else {
                                         Image(systemName: "circle")
-                                            .foregroundStyle(.tertiary)
-                                            .font(.title3)
+                                            .foregroundStyle(Color.orbMuted)
+                                            .font(.orbTitle3)
                                     }
                                 }
                             }
@@ -873,15 +715,15 @@ struct AccountFilterSheet: View {
                     } header: {
                         HStack(spacing: 6) {
                             Image(systemName: section.type.icon)
-                                .foregroundStyle(appSettings.accentColor)
+                                .foregroundStyle(Color.orbHighlight)
                             Text(section.type.rawValue)
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.orbText)
                         }
-                        .font(.subheadline.bold())
+                        .font(.orbSubheadline.bold())
                         .textCase(nil)
-                    }
+                    }.listRowBackground(Color.orbCard)
                 }
-            }
+            }.orbScreen()
             .navigationTitle("Seleziona Conti")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -910,8 +752,8 @@ struct AccountFilterSheet: View {
     private func formatAmount(_ amount: Decimal, currency: String) -> String {
         let currencyRecord = allCurrencies.first { $0.code == currency }
         let symbol = currencyRecord?.displaySymbol ?? (currency == "USD" ? "$" : currency)
-        let flag = currencyRecord?.flagEmoji ?? ""
-        return "\(symbol)\(FormatterCache.formatCurrency(amount)) \(flag)"
+
+        return "\(symbol) \(FormatterCache.formatCurrencyFixed(amount))"
     }
 }
 
@@ -947,8 +789,8 @@ struct CustomDateRangeSheet: View {
                     Text("Seleziona periodo personalizzato")
                 } footer: {
                     Text("La data di fine non può essere precedente alla data di inizio")
-                }
-            }
+                }.listRowBackground(Color.orbCard)
+            }.orbScreen()
             .navigationTitle("Periodo Personalizzato")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

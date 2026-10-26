@@ -56,14 +56,14 @@ struct ScheduledTransactionsView: View {
                     VStack(spacing: 16) {
                         Image(systemName: emptyStateIcon)
                             .font(.system(size: 60))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
 
                         Text(emptyStateTitle)
-                            .font(.title3.bold())
+                            .font(.orbTitle3.bold())
 
                         Text(emptyStateMessage)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.orbSubheadline)
+                            .foregroundStyle(Color.orbMuted)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 40)
                     }
@@ -79,7 +79,7 @@ struct ScheduledTransactionsView: View {
                             .listRowBackground(Color.clear)
                     }
                 }
-            }
+            }.orbScreen()
             .listStyle(.plain)
         }
         .navigationTitle("Transazioni Programmate")
@@ -127,8 +127,8 @@ struct ScheduledTransactionRow: View {
     }
 
     var statusColor: Color {
-        guard !isDeleted else { return .gray }
-        return Color(hex: transaction.status.color) ?? .gray
+        guard !isDeleted else { return Color.orbMuted }
+        return Color(hex: transaction.status.color) ?? Color.orbMuted
     }
 
     var executionTypeText: String {
@@ -186,31 +186,31 @@ struct ScheduledTransactionRow: View {
             // Info
             VStack(alignment: .leading, spacing: 4) {
                 Text(displayTitle)
-                    .font(.body.bold())
+                    .font(.orbBody.bold())
                 
                 // Dettagli trasferimento (se applicabile)
                 if let transferDetail = transferDetail {
                     Text(transferDetail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                 }
 
                 Text(transaction.date.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbMuted)
 
                 HStack(spacing: 4) {
                     Image(systemName: executionTypeIcon)
-                        .font(.caption2)
+                        .font(.orbCaption2)
                     Text(executionTypeText)
-                        .font(.caption2)
+                        .font(.orbCaption2)
                 }
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.orbHighlight)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(
                     Capsule()
-                        .fill(Color.blue.opacity(0.1))
+                        .fill(Color.orbAccent.opacity(0.1))
                 )
             }
 
@@ -218,12 +218,12 @@ struct ScheduledTransactionRow: View {
 
             // Amount & Status
             VStack(alignment: .trailing, spacing: 4) {
-                Text(transaction.displayAmount)
-                    .font(.body.bold())
-                    .foregroundStyle(.primary)
+                Text(transaction.orbDisplayAmount)
+                    .font(.orbBody.bold())
+                    .foregroundStyle(Color.orbText)
 
                 Text(transaction.status.rawValue)
-                    .font(.caption2.bold())
+                    .font(.orbCaption2.bold())
                     .foregroundStyle(statusColor)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)
@@ -234,7 +234,7 @@ struct ScheduledTransactionRow: View {
             }
         }
         .padding()
-        .glassEffect(in: .rect(cornerRadius: 12))
+        .orbSurface()
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) {
                 showingDeleteAlert = true

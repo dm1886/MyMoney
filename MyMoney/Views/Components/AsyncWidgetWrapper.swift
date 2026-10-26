@@ -54,36 +54,36 @@ struct AsyncWidgetWrapper<Content: View>: View {
             AsyncWidgetWrapper(delayMilliseconds: 0) {
                 VStack {
                     Text("Widget 1 Loaded")
-                        .font(.headline)
+                        .font(.orbHeadline)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 200)
-                .background(Color.blue.opacity(0.2))
+                .background(Color.orbAccent.opacity(0.2))
                 .cornerRadius(16)
             }
 
             AsyncWidgetWrapper(delayMilliseconds: 100) {
                 VStack {
                     Text("Widget 2 Loaded")
-                        .font(.headline)
+                        .font(.orbHeadline)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 200)
-                .background(Color.green.opacity(0.2))
+                .background(Color.orbPositive.opacity(0.2))
                 .cornerRadius(16)
             }
 
             AsyncWidgetWrapper(delayMilliseconds: 200) {
                 VStack {
                     Text("Widget 3 Loaded")
-                        .font(.headline)
+                        .font(.orbHeadline)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 200)
-                .background(Color.orange.opacity(0.2))
+                .background(Color.orbHighlight.opacity(0.2))
                 .cornerRadius(16)
             }
         }
         .padding()
-    }
+    }.orbScreen()
 }

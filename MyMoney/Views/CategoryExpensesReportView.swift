@@ -191,16 +191,19 @@ struct CategoryExpensesReportView: View {
                         chartView
                             .padding(.horizontal)
                         
+                        if selectedPeriod == .thisMonth || selectedPeriod == .lastMonth {
+                            OrbCalendarChart(transactions: filteredTransactions, currency: preferredCurrencyRecord, month: dateRange.start).padding(.horizontal)
+                        }
                         // Category List
                         categoryList
                             .padding(.horizontal)
                             .padding(.bottom, 20)
                     }
-                }
+                }.orbScreen()
                 .transition(.opacity)
             }
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Color.orbBackground)
         .navigationTitle("Spese per Categoria")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingAccountPicker) {
@@ -240,8 +243,8 @@ struct CategoryExpensesReportView: View {
     private var periodSelector: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Periodo")
-                .font(.headline)
-                .foregroundStyle(.primary)
+                .font(.orbHeadline)
+                .foregroundStyle(Color.orbText)
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
@@ -263,12 +266,12 @@ struct CategoryExpensesReportView: View {
                     }
                 }
                 .padding(.horizontal, 4)
-            }
+            }.orbScreen()
             
             // Show date range
             Text(formatDateRange(dateRange))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.orbCaption)
+                .foregroundStyle(Color.orbMuted)
                 .padding(.leading, 4)
         }
     }
@@ -282,30 +285,30 @@ struct CategoryExpensesReportView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Conti")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+                        .font(.orbHeadline)
+                        .foregroundStyle(Color.orbText)
                     
                     if selectedAccounts.isEmpty || selectedAccounts.count == accounts.count {
                         Text("Tutti i conti")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.orbSubheadline)
+                            .foregroundStyle(Color.orbMuted)
                     } else {
                         Text("\(selectedAccounts.count) conti selezionati")
-                            .font(.subheadline)
-                            .foregroundStyle(appSettings.accentColor)
+                            .font(.orbSubheadline)
+                            .foregroundStyle(Color.orbHighlight)
                     }
                 }
                 
                 Spacer()
                 
                 Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbMuted)
             }
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(Color.orbCard)
             )
         }
     }
@@ -316,17 +319,17 @@ struct CategoryExpensesReportView: View {
         VStack(spacing: 12) {
             HStack {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.red)
+                    .font(.orbTitle2)
+                    .foregroundStyle(Color.orbNegative)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Totale Spese")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.orbSubheadline)
+                        .foregroundStyle(Color.orbMuted)
                     
                     Text(formatAmount(totalExpenses))
-                        .font(.title2.bold())
-                        .foregroundStyle(.primary)
+                        .font(.orbTitle2.bold())
+                        .foregroundStyle(Color.orbText)
                 }
                 
                 Spacer()
@@ -334,7 +337,7 @@ struct CategoryExpensesReportView: View {
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(Color.orbCard)
             )
         }
     }
@@ -353,13 +356,13 @@ struct CategoryExpensesReportView: View {
                     Image(systemName: "chart.pie.fill")
                     Text("Torta")
                 }
-                .font(.subheadline.bold())
-                .foregroundStyle(chartType == .pie ? .white : appSettings.accentColor)
+                .font(.orbSubheadline.bold())
+                .foregroundStyle(chartType == .pie ? Color.orbOnAccent : Color.orbAccent)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(chartType == .pie ? appSettings.accentColor : Color(.secondarySystemGroupedBackground))
+                        .fill(chartType == .pie ? Color.orbAccent : Color.orbCard)
                 )
             }
             
@@ -373,13 +376,13 @@ struct CategoryExpensesReportView: View {
                     Image(systemName: "chart.bar.fill")
                     Text("Barre")
                 }
-                .font(.subheadline.bold())
-                .foregroundStyle(chartType == .bar ? .white : appSettings.accentColor)
+                .font(.orbSubheadline.bold())
+                .foregroundStyle(chartType == .bar ? Color.orbOnAccent : Color.orbAccent)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(chartType == .bar ? appSettings.accentColor : Color(.secondarySystemGroupedBackground))
+                        .fill(chartType == .bar ? Color.orbAccent : Color.orbCard)
                 )
             }
         }
@@ -393,18 +396,18 @@ struct CategoryExpensesReportView: View {
             VStack(spacing: 12) {
                 Image(systemName: "chart.pie")
                     .font(.system(size: 48))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.orbMuted)
                 
                 Text("Nessuna spesa nel periodo selezionato")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.orbSubheadline)
+                    .foregroundStyle(Color.orbMuted)
             }
             .frame(height: 280)
             .frame(maxWidth: .infinity)
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(Color.orbCard)
             )
         } else {
             VStack(alignment: .leading, spacing: 16) {
@@ -425,57 +428,20 @@ struct CategoryExpensesReportView: View {
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(Color.orbCard)
             )
         }
     }
     
     private var pieChartView: some View {
-        VStack(spacing: 20) {
-            Chart {
-                ForEach(categoryExpenseData) { data in
-                    SectorMark(
-                        angle: .value("Importo", Double(truncating: data.amount as NSDecimalNumber)),
-                        innerRadius: .ratio(0.618),
-                        angularInset: 1.5
-                    )
-                    .foregroundStyle(Color(hex: data.category.colorHex) ?? .gray)
-                }
-            }
-            .frame(height: 280)
-            .chartLegend(.hidden)
-            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: categoryExpenseData.count)
-        }
+        OrbDonutChart(slices: categoryExpenseData.map { OrbCategorySlice(id: $0.category.id.uuidString, name: $0.category.name, amount: NSDecimalNumber(decimal: $0.amount).doubleValue, color: $0.category.color) }, symbol: preferredCurrencyRecord?.displaySymbol ?? "€")
     }
     
     private var barChartView: some View {
-        Chart {
-            ForEach(categoryExpenseData.prefix(10)) { data in
-                BarMark(
-                    x: .value("Importo", Double(truncating: data.amount as NSDecimalNumber)),
-                    y: .value("Categoria", data.category.name)
-                )
-                .foregroundStyle(Color(hex: data.category.colorHex) ?? .gray)
-                .annotation(position: .trailing) {
-                    Text(formatAmount(data.amount))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
+        VStack(spacing: 14) {
+            OrbRankedBars(slices: categoryExpenseData.map { OrbCategorySlice(id: $0.category.id.uuidString, name: $0.category.name, amount: NSDecimalNumber(decimal: $0.amount).doubleValue, color: $0.category.color) }, symbol: preferredCurrencyRecord?.displaySymbol ?? "€")
+            OrbChartTable(title: "Spese per categoria", points: categoryExpenseData.map { OrbChartPoint(label: $0.category.name, amount: NSDecimalNumber(decimal: $0.amount).doubleValue) }, symbol: preferredCurrencyRecord?.displaySymbol ?? "€")
         }
-        .chartXAxis {
-            AxisMarks(position: .bottom) { _ in
-                AxisGridLine()
-                AxisValueLabel()
-            }
-        }
-        .chartYAxis {
-            AxisMarks(position: .leading) { _ in
-                AxisValueLabel()
-            }
-        }
-        .frame(height: max(CGFloat(categoryExpenseData.prefix(10).count) * 40, 200))
-        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: categoryExpenseData.count)
     }
     
     // MARK: - Category List
@@ -483,14 +449,14 @@ struct CategoryExpensesReportView: View {
     private var categoryList: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Dettaglio per Categoria")
-                .font(.headline)
-                .foregroundStyle(.primary)
+                .font(.orbHeadline)
+                .foregroundStyle(Color.orbText)
                 .padding(.horizontal, 4)
             
             if categoryExpenseData.isEmpty {
                 Text("Nessuna categoria con spese")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.orbSubheadline)
+                    .foregroundStyle(Color.orbMuted)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding()
             } else {
@@ -507,6 +473,7 @@ struct CategoryExpensesReportView: View {
     
     private func formatAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .currency
         formatter.currencyCode = appSettings.preferredCurrencyEnum.rawValue
         formatter.maximumFractionDigits = 2
@@ -539,41 +506,42 @@ struct CategoryExpenseRow: View {
             // Category Icon
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
-                    .fill((Color(hex: data.category.colorHex) ?? .gray).opacity(0.15))
+                    .fill((Color(hex: data.category.colorHex) ?? Color.orbMuted).opacity(0.15))
                     .frame(width: 40, height: 40)
                 
                 Image(systemName: data.category.icon)
                     .font(.system(size: 18))
-                    .foregroundStyle(Color(hex: data.category.colorHex) ?? .gray)
+                    .foregroundStyle(Color(hex: data.category.colorHex) ?? Color.orbMuted)
             }
             
             // Category Name
             VStack(alignment: .leading, spacing: 2) {
                 Text(data.category.name)
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.primary)
+                    .font(.orbSubheadline.bold())
+                    .foregroundStyle(Color.orbText)
                 
-                Text("\(String(format: "%.1f", data.percentage))%")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("\(String(format: "%.1f", locale: Locale(identifier: "it_IT"), data.percentage))%")
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbMuted)
             }
             
             Spacer()
             
             // Amount
             Text(formatAmount(data.amount))
-                .font(.subheadline.bold())
-                .foregroundStyle(.primary)
+                .font(.orbSubheadline.bold())
+                .foregroundStyle(Color.orbText)
         }
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemGroupedBackground))
+                .fill(Color.orbCard)
         )
     }
     
     private func formatAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .currency
         formatter.currencyCode = appSettings.preferredCurrencyEnum.rawValue
         formatter.maximumFractionDigits = 2

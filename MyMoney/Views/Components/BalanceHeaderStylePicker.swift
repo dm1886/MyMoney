@@ -24,26 +24,26 @@ struct BalanceHeaderStylePicker: View {
                         ZStack {
                             RoundedRectangle(cornerRadius: 10)
                                 .fill(appSettings.balanceHeaderStyle == style ?
-                                      appSettings.accentColor.opacity(0.15) :
-                                      Color(.systemGray5))
+                                      Color.orbAccent.opacity(0.15) :
+                                      Color.orbCard2)
                                 .frame(width: 44, height: 44)
 
                             Image(systemName: style.icon)
-                                .font(.title3)
+                                .font(.orbTitle3)
                                 .foregroundStyle(appSettings.balanceHeaderStyle == style ?
-                                                 appSettings.accentColor :
+                                                 Color.orbAccent :
                                                  .secondary)
                         }
 
                         // Info
                         VStack(alignment: .leading, spacing: 4) {
                             Text(style.rawValue)
-                                .font(.body.weight(.medium))
-                                .foregroundStyle(.primary)
+                                .font(.orbBody.weight(.medium))
+                                .foregroundStyle(Color.orbText)
 
                             Text(style.description)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.orbCaption)
+                                .foregroundStyle(Color.orbMuted)
                                 .lineLimit(2)
                         }
 
@@ -52,8 +52,8 @@ struct BalanceHeaderStylePicker: View {
                         // Checkmark
                         if appSettings.balanceHeaderStyle == style {
                             Image(systemName: "checkmark.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(appSettings.accentColor)
+                                .font(.orbTitle2)
+                                .foregroundStyle(Color.orbHighlight)
                         }
                     }
                     .padding(.vertical, 4)
@@ -61,13 +61,13 @@ struct BalanceHeaderStylePicker: View {
                 .listRowBackground(
                     RoundedRectangle(cornerRadius: 12)
                         .fill(appSettings.balanceHeaderStyle == style ?
-                              appSettings.accentColor.opacity(0.08) :
+                              Color.orbAccent.opacity(0.08) :
                               Color.clear)
                         .padding(.horizontal, 4)
                         .padding(.vertical, 2)
                 )
             }
-        }
+        }.orbScreen()
         .listStyle(.insetGrouped)
         .navigationTitle("Stile Bilancio")
         .navigationBarTitleDisplayMode(.inline)
@@ -82,7 +82,7 @@ struct BalanceHeaderStylePreview: View {
         VStack(spacing: 20) {
             // Preview of selected style
             Text("Anteprima")
-                .font(.headline)
+                .font(.orbHeadline)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal)
 

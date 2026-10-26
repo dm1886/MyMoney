@@ -76,10 +76,10 @@ struct CurrencySelectionView: View {
                             } header: {
                                 HStack {
                                     Image(systemName: "star.fill")
-                                        .foregroundStyle(.yellow)
+                                        .foregroundStyle(Color.orbHighlight)
                                     Text("Più Usate")
                                 }
-                            }
+                            }.listRowBackground(Color.orbCard)
                         }
 
                         // Recent section
@@ -91,10 +91,10 @@ struct CurrencySelectionView: View {
                             } header: {
                                 HStack {
                                     Image(systemName: "clock.fill")
-                                        .foregroundStyle(.blue)
+                                        .foregroundStyle(Color.orbHighlight)
                                     Text("Recenti")
                                 }
-                            }
+                            }.listRowBackground(Color.orbCard)
                         }
 
                         // Alphabetical sections
@@ -105,12 +105,12 @@ struct CurrencySelectionView: View {
                                 }
                             } header: {
                                 Text(letter)
-                                    .font(.headline)
-                                    .foregroundStyle(.primary)
+                                    .font(.orbHeadline)
+                                    .foregroundStyle(Color.orbText)
                                     .id(letter)  // For scrolling
-                            }
+                            }.listRowBackground(Color.orbCard)
                         }
-                    }
+                    }.orbScreen()
                     .searchable(text: $searchText, prompt: "Cerca valuta")
                     .listStyle(.plain)
                 }
@@ -159,16 +159,16 @@ struct CurrencySelectionView: View {
             HStack(spacing: 12) {
                 // Flag
                 Text(currency.flagEmoji)
-                    .font(.largeTitle)
+                    .font(.orbDisplay)
 
                 // Code and Name
                 VStack(alignment: .leading, spacing: 4) {
                     Text(currency.code)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+                        .font(.orbHeadline)
+                        .foregroundStyle(Color.orbText)
                     Text(currency.name)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.orbSubheadline)
+                        .foregroundStyle(Color.orbMuted)
                 }
 
                 Spacer()
@@ -179,11 +179,11 @@ struct CurrencySelectionView: View {
                     let key = "\(preferredCurrency.code)-\(currency.code)"
                     if let rate = ratesCache[key] {
                         Text(formatRate(rate))
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color.gray.opacity(0.1))
+                            .background(Color.orbMuted.opacity(0.1))
                             .cornerRadius(8)
                     }
                 }
@@ -191,7 +191,7 @@ struct CurrencySelectionView: View {
                 // Checkmark
                 if selectedCurrency?.code == currency.code {
                     Image(systemName: "checkmark")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.orbHighlight)
                 }
             }
         }
@@ -217,6 +217,7 @@ struct CurrencySelectionView: View {
 
     private func formatRate(_ rate: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 4
@@ -235,7 +236,7 @@ struct AlphabeticalIndex: View {
             ForEach(letters, id: \.self) { letter in
                 Text(letter)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(selectedLetter == letter ? .blue : .secondary)
+                    .foregroundStyle(selectedLetter == letter ? Color.orbAccent : Color.orbMuted)
                     .frame(width: 20, height: 16)
                     .onTapGesture {
                         scrollTo(letter: letter)

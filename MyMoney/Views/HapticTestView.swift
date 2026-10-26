@@ -32,7 +32,7 @@ struct HapticTestView: View {
                     Button("Rigid Impact") {
                         HapticManager.shared.rigid()
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 Section("Notification Feedback") {
                     Button("Success") {
@@ -46,17 +46,18 @@ struct HapticTestView: View {
                     Button("Error") {
                         HapticManager.shared.error()
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 Section("Selection Feedback") {
                     Button("Selection Changed") {
                         HapticManager.shared.selectionFeedback()
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 Section("Context-Specific") {
                     Button("Transaction Saved") {
                         HapticManager.shared.transactionSaved()
+        NotificationCenter.default.post(name: .orbSaveFeedback, object: nil)
                     }
 
                     Button("Transaction Deleted") {
@@ -70,8 +71,8 @@ struct HapticTestView: View {
                     Button("Chart Type Changed") {
                         HapticManager.shared.chartTypeChanged()
                     }
-                }
-            }
+                }.listRowBackground(Color.orbCard)
+            }.orbScreen()
             .navigationTitle("Haptic Test")
             .navigationBarTitleDisplayMode(.inline)
         }

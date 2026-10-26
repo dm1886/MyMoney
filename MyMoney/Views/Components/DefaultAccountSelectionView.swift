@@ -21,32 +21,32 @@ struct DefaultAccountSelectionView: View {
 
         let cashAccounts = accounts.filter { $0.accountType == .cash }
         if !cashAccounts.isEmpty {
-            groups.append((.cash, "Contanti", "banknote.fill", .green, cashAccounts))
+            groups.append((.cash, "Contanti", "banknote.fill", .orbPositive, cashAccounts))
         }
 
         let paymentAccounts = accounts.filter { $0.accountType == .payment }
         if !paymentAccounts.isEmpty {
-            groups.append((.payment, "Pagamento", "creditcard.fill", .blue, paymentAccounts))
+            groups.append((.payment, "Pagamento", "creditcard.fill", .orbAccent, paymentAccounts))
         }
 
         let prepaidAccounts = accounts.filter { $0.accountType == .prepaidCard }
         if !prepaidAccounts.isEmpty {
-            groups.append((.prepaidCard, "Carte Prepagate", "creditcard.fill", .cyan, prepaidAccounts))
+            groups.append((.prepaidCard, "Carte Prepagate", "creditcard.fill", .orbSecondary, prepaidAccounts))
         }
 
         let creditCardAccounts = accounts.filter { $0.accountType == .creditCard }
         if !creditCardAccounts.isEmpty {
-            groups.append((.creditCard, "Carta di Credito", "creditcard.fill", .orange, creditCardAccounts))
+            groups.append((.creditCard, "Carta di Credito", "creditcard.fill", .orbHighlight, creditCardAccounts))
         }
 
         let assetAccounts = accounts.filter { $0.accountType == .asset }
         if !assetAccounts.isEmpty {
-            groups.append((.asset, "Attività", "building.columns.fill", .purple, assetAccounts))
+            groups.append((.asset, "Attività", "building.columns.fill", .orbAccent, assetAccounts))
         }
 
         let liabilityAccounts = accounts.filter { $0.accountType == .liability }
         if !liabilityAccounts.isEmpty {
-            groups.append((.liability, "Passività", "chart.line.downtrend.xyaxis", .red, liabilityAccounts))
+            groups.append((.liability, "Passività", "chart.line.downtrend.xyaxis", .orbNegative, liabilityAccounts))
         }
 
         return groups
@@ -57,7 +57,7 @@ struct DefaultAccountSelectionView: View {
             // Option for no default account
             Section {
                 noneOptionRow
-            }
+            }.listRowBackground(Color.orbCard)
 
             // Grouped accounts by type
             ForEach(groupedAccountsByType, id: \.0) { _, title, icon, color, typeAccounts in
@@ -70,13 +70,13 @@ struct DefaultAccountSelectionView: View {
                         Image(systemName: icon)
                             .foregroundStyle(color)
                         Text(title)
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Color.orbText)
                     }
-                    .font(.subheadline.bold())
+                    .font(.orbSubheadline.bold())
                     .textCase(nil)
-                }
+                }.listRowBackground(Color.orbCard)
             }
-        }
+        }.orbScreen()
         .listStyle(.insetGrouped)
         .navigationTitle("Conto Predefinito")
         .navigationBarTitleDisplayMode(.inline)
@@ -90,21 +90,21 @@ struct DefaultAccountSelectionView: View {
             HStack {
                 ZStack {
                     Circle()
-                        .fill(Color.gray.opacity(0.2))
+                        .fill(Color.orbMuted.opacity(0.2))
                         .frame(width: 44, height: 44)
 
                     Image(systemName: "xmark.circle")
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color.orbMuted)
                 }
 
                 Text("Nessuno")
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.orbText)
 
                 Spacer()
 
                 if selectedAccount == nil {
                     Image(systemName: "checkmark")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.orbHighlight)
                         .fontWeight(.semibold)
                 }
             }
@@ -121,15 +121,15 @@ struct DefaultAccountSelectionView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(account.name)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(Color.orbText)
 
                     if let currencyRecord = account.currencyRecord {
                         HStack(spacing: 4) {
                             Text(currencyRecord.flagEmoji)
-                                .font(.caption2)
+                                .font(.orbCaption2)
                             Text(currencyRecord.code)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.orbCaption)
+                                .foregroundStyle(Color.orbMuted)
                         }
                     }
                 }
@@ -138,13 +138,13 @@ struct DefaultAccountSelectionView: View {
 
                 VStack(alignment: .trailing, spacing: 4) {
                     Text(formatBalance(account))
-                        .font(.body)
-                        .foregroundColor(account.currentBalance < 0 ? .red : .primary)
+                        .font(.orbBody)
+                        .foregroundColor(account.currentBalance < 0 ? Color.orbNegative : Color.orbText)
 
                     if selectedAccount?.id == account.id {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(account.color)
-                            .font(.caption)
+                            .font(.orbCaption)
                     }
                 }
             }
@@ -153,12 +153,13 @@ struct DefaultAccountSelectionView: View {
 
     private func formatBalance(_ account: Account) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
         let code = account.currencyRecord?.code ?? account.currency.rawValue
         let amountString = formatter.string(from: account.currentBalance as NSDecimalNumber) ?? "0.00"
-        return "\(code) \(amountString)"
+        return "\(Currency(rawValue: code)?.symbol ?? code) \(amountString)"
     }
 
     @ViewBuilder

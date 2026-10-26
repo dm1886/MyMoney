@@ -24,8 +24,8 @@ struct GroupSelectionView: View {
                 ForEach(categoryGroups) { group in
                     groupRow(group)
                 }
-            }
-        }
+            }.listRowBackground(Color.orbCard)
+        }.orbScreen()
         .listStyle(.insetGrouped)
         .navigationTitle("Seleziona Gruppo")
         .navigationBarTitleDisplayMode(.inline)
@@ -39,21 +39,21 @@ struct GroupSelectionView: View {
             HStack {
                 ZStack {
                     Circle()
-                        .fill(Color.gray.opacity(0.2))
+                        .fill(Color.orbMuted.opacity(0.2))
                         .frame(width: 40, height: 40)
 
                     Image(systemName: "folder")
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(Color.orbMuted)
                 }
 
                 Text("Nessun Gruppo")
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.orbText)
 
                 Spacer()
 
                 if selectedGroup == nil {
                     Image(systemName: "checkmark")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.orbHighlight)
                         .fontWeight(.semibold)
                 }
             }
@@ -71,18 +71,18 @@ struct GroupSelectionView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(group.name)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(Color.orbText)
 
                     Text("\(group.categories?.count ?? 0) categorie")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                 }
 
                 Spacer()
 
                 if selectedGroup?.id == group.id {
                     Image(systemName: "checkmark")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.orbHighlight)
                         .fontWeight(.semibold)
                 }
             }

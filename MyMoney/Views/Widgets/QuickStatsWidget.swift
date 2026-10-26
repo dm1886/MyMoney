@@ -35,89 +35,24 @@ struct QuickStatsWidget: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            HStack {
-                Image(systemName: "square.grid.2x2.fill")
-                    .font(.title3)
-                    .foregroundStyle(.blue)
-
-                Text("Statistiche")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-            }
-
-            HStack(spacing: 12) {
-                // Conti Attivi
-                VStack(spacing: 8) {
-                    Image(systemName: "creditcard.fill")
-                        .font(.title)
-                        .foregroundStyle(.blue)
-
-                    Text("\(accounts.count)")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-
-                    Text("Conti")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.blue.opacity(0.1))
-                )
-
-                // Transazioni Oggi
-                VStack(spacing: 8) {
-                    Image(systemName: "list.bullet")
-                        .font(.title)
-                        .foregroundStyle(.green)
-
-                    Text("\(todayTransactions.count)")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-
-                    Text("Oggi")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.green.opacity(0.1))
-                )
-
-                // In Attesa (se presenti)
-                if overdueTransactions > 0 {
-                    VStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.title)
-                            .foregroundStyle(.orange)
-
-                        Text("\(overdueTransactions)")
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .foregroundStyle(.primary)
-
-                        Text("Attesa")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.orange.opacity(0.1))
-                    )
+        OrbCard {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Statistiche rapide").font(.orbHeadline).lineLimit(1)
+                HStack(spacing: 8) {
+                    tile("Conti", count: accounts.count, icon: "creditcard.fill")
+                    tile("Oggi", count: todayTransactions.count, icon: "list.bullet")
+                    if overdueTransactions > 0 { tile("Attesa", count: overdueTransactions, icon: "clock") }
                 }
             }
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(in: .rect(cornerRadius: 16))
+    }
+    private func tile(_ title: String, count: Int, icon: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon).font(.system(size: 16)).foregroundStyle(Color.orbHighlight)
+                .frame(width: 36, height: 36).background(Color.orbCard2, in: Circle())
+            Text("\(count)").font(.orbTitle2).monospacedDigit()
+            Text(title).font(.orbCaption).foregroundStyle(Color.orbMuted)
+        }.frame(maxWidth: .infinity)
     }
 }
 

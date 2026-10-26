@@ -24,6 +24,8 @@ final class Account {
     var imageData: Data?
     var accountDescription: String
     var createdAt: Date
+    // Optional additive field: legacy accounts retain their existing behavior.
+    var investmentData: Data? = nil
 
     @Relationship(deleteRule: .cascade, inverse: \Transaction.account)
     var transactions: [Transaction]?
@@ -86,8 +88,12 @@ final class Account {
     }
 
     @MainActor func updateBalance(context: ModelContext? = nil) {
+        if let profile = investmentProfile {
+            currentBalance = investmentCashBeforeTrades(at: Date()) + profile.cashAdjustment(at: Date())
+            return
+        }
         guard let transactions = transactions else {
-            currentBalance = initialBalance
+            currentBalance = initialBalance + (investmentProfile?.cashAdjustment(at: Date()) ?? 0)
             return
         }
 
@@ -178,7 +184,7 @@ final class Account {
             }
         }
 
-        currentBalance = balance
+        currentBalance = balance + (investmentProfile?.cashAdjustment(at: Date()) ?? 0)
     }
 }
 
@@ -232,4 +238,9 @@ extension Color {
 
         return String(format: "#%02X%02X%02X", r, g, b)
     }
+}
+
+/// Stored credit-card balances are net assets/debt; the credit facility is excluded.
+enum CreditCardMath {
+    static func netBalance(available: Decimal, limit: Decimal) -> Decimal { available - limit }
 }

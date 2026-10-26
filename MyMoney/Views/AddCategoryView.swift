@@ -52,11 +52,11 @@ struct AddCategoryView: View {
                                             .foregroundStyle(group.color)
                                     }
                                     Text(group.name)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                             } else {
                                 Text("Nessun Gruppo")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
@@ -64,7 +64,7 @@ struct AddCategoryView: View {
                     Text("Gruppo")
                 } footer: {
                     Text("Seleziona il gruppo a cui appartiene questa categoria")
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // MARK: - Category Info
                 Section("Informazioni") {
@@ -84,7 +84,7 @@ struct AddCategoryView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 6))
                             } else {
                                 Image(systemName: selectedIcon)
-                                    .font(.title2)
+                                    .font(.orbTitle2)
                                     .foregroundStyle(selectedColor)
                             }
                         }
@@ -100,18 +100,18 @@ struct AddCategoryView: View {
                                     selectedPhoto = nil
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                                 .buttonStyle(.plain)
                             } else {
                                 Image(systemName: "photo")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
 
                     ColorPicker("Colore", selection: $selectedColor)
-                }
+                }.listRowBackground(Color.orbCard)
 
                 // MARK: - Default Account
                 Section {
@@ -132,21 +132,21 @@ struct AddCategoryView: View {
                                             .clipShape(Circle())
                                     } else {
                                         Image(systemName: account.icon)
-                                            .foregroundStyle(Color(hex: account.colorHex) ?? .gray)
+                                            .foregroundStyle(Color(hex: account.colorHex) ?? Color.orbMuted)
                                     }
                                     Text(account.name)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                             } else {
                                 Text("Nessuno")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
                 } footer: {
                     Text("Il conto selezionato automaticamente quando usi questa categoria")
-                }
-            }
+                }.listRowBackground(Color.orbCard)
+            }.orbScreen()
             .navigationTitle("Nuova Categoria")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -198,6 +198,7 @@ struct AddCategoryView: View {
 
         // Haptic feedback for successful category creation
         HapticManager.shared.categorySaved()
+        NotificationCenter.default.post(name: .orbSaveFeedback, object: nil)
 
         dismiss()
     }

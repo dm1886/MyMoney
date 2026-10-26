@@ -18,6 +18,7 @@ struct TodayView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.appSettings) var appSettings
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.orbMotionAllowed) private var orbMotion
     @Environment(\.scenePhase) private var scenePhase
     // CRITICAL: Use @State instead of @Query to control when transactions update
     // This prevents SwiftUI from accessing deleted transactions during its update cycle
@@ -246,21 +247,22 @@ struct TodayView: View {
 
     private func formatAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
-        return "\(appSettings.preferredCurrencyEnum.rawValue) \(amountString)"
+        return OrbCurrency.string(amount, symbol: appSettings.preferredCurrencyEnum.symbol)
     }
 
     // Colore del totale basato sul segno
     private var totalColor: Color {
         if dayTransactionsTotal > 0 {
-            return .green
+            return Color.orbPositive
         } else if dayTransactionsTotal < 0 {
-            return .red
+            return Color.orbNegative
         } else {
-            return .secondary
+            return Color.orbMuted
         }
     }
 
@@ -371,10 +373,13 @@ struct TodayView: View {
                             .padding(.bottom, 12)
                     }
                 }
-                .glassEffect(in: .rect(cornerRadius: 16))
+                .orbSurface()
                 .padding(.horizontal)
                 .padding(.top, 12)
                 .padding(.bottom, 16)
+
+                dayStrip
+                    .padding(.bottom, 16)
 
                 // LISTA TRANSAZIONI
                 // CRITICAL FIX: Mostra sempre transactionsList anche se allTransactions è vuoto
@@ -385,7 +390,8 @@ struct TodayView: View {
                     transactionsList
                 }
             }
-            .background(Color(.systemGroupedBackground))
+            .background(Color.orbBackground)
+            .navigationTitle("Oggi")
             .navigationBarTitleDisplayMode(.inline)
 
             
@@ -478,17 +484,13 @@ struct TodayView: View {
                     refreshTransactionsSafely()
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Aggiungi", systemImage: "plus.circle.fill") {
-                        showingAddTransaction = true
-                    }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.glass)
-                }
+            .background(OrbTabReselect(tab: 2))
+            .onReceive(NotificationCenter.default.publisher(for: .orbAddTransaction)) { _ in showingAddTransaction = true }
+            .onReceive(NotificationCenter.default.publisher(for: .orbShowDate)) { note in
+                if let date = note.object as? Date { selectedDate = date }
             }
             .sheet(isPresented: $showingAddTransaction) {
-                TransactionTypeSelectionView(selectedType: $selectedTransactionType)
+                AddTransactionView(transactionType: .expense, initialDate: selectedDate)
             }
             .sheet(item: $selectedTransactionType, onDismiss: {
                 // Refresh transactions when AddTransactionView closes
@@ -537,6 +539,37 @@ struct TodayView: View {
         }
     }
 
+    private var dayStrip: some View {
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2
+        let start = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start ?? selectedDate
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(0..<7, id: \.self) { offset in
+                    if let date = calendar.date(byAdding: .day, value: offset, to: start) {
+                        let selected = calendar.isDate(date, inSameDayAs: selectedDate)
+                        let hasTransactions = validTransactions.contains { calendar.isDate($0.date, inSameDayAs: date) }
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.25)) { selectedDate = date }
+                            HapticManager.shared.selectionFeedback()
+                        } label: {
+                            VStack(spacing: 5) {
+                                Text(date.formatted(.dateTime.weekday(.abbreviated).locale(Locale(identifier: "it_IT")))).font(.orbCaption2)
+                                Text(date.formatted(.dateTime.day())).font(.orbHeadline)
+                                Circle().fill(hasTransactions ? (selected ? Color.orbOnAccent : Color.orbHighlight) : .clear)
+                                    .frame(width: 4, height: 4)
+                            }.frame(minWidth: 40, minHeight: 64).padding(.horizontal, 3)
+                                .foregroundStyle(selected ? Color.orbOnAccent : Color.orbMuted)
+                                .background(selected ? Color.orbAccent : Color.orbCard, in: Capsule())
+                        }.buttonStyle(.plain)
+                            .accessibilityLabel(date.formatted(date: .complete, time: .omitted))
+                            .accessibilityAddTraits(selected ? .isSelected : [])
+                    }
+                }
+            }.padding(.horizontal, 16)
+        }
+    }
+
     // MARK: - Date Header
 
     private var dateHeader: some View {
@@ -549,16 +582,16 @@ struct TodayView: View {
             } label: {
                 HStack(spacing: 12) {
                     Text(dayNumber)
-                        .font(.system(size: 56, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
+                        .font(.orb(56, weight: .bold, relativeTo: .title))
+                        .foregroundStyle(Color.orbText)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(weekdayName)
-                            .font(.headline)
-                            .foregroundStyle(.primary)
+                            .font(.orbHeadline)
+                            .foregroundStyle(Color.orbText)
                         Text(monthYear)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.orbSubheadline)
+                            .foregroundStyle(Color.orbMuted)
                     }
                 }
             }
@@ -575,7 +608,7 @@ struct TodayView: View {
                             innerRadius: .ratio(0.5),
                             angularInset: 2
                         )
-                        .foregroundStyle(.red.gradient)
+                        .foregroundStyle(Color.chartExpense.gradient)
                     }
                     if dayIncome > 0 {
                         SectorMark(
@@ -583,9 +616,9 @@ struct TodayView: View {
                             innerRadius: .ratio(0.5),
                             angularInset: 2
                         )
-                        .foregroundStyle(.green.gradient)
+                        .foregroundStyle(Color.chartIncome.gradient)
                     }
-                }
+                }.chartPlotStyle { $0.modifier(OrbChartReveal(kind: .pie)) }
                 .frame(width: 56, height: 56)
                 .chartLegend(.hidden)
             }
@@ -604,14 +637,14 @@ struct TodayView: View {
                     }
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.title3)
-                        .foregroundStyle(appSettings.accentColor)
+                        .font(.orbTitle3)
+                        .foregroundStyle(Color.orbHighlight)
                 }
 
                 Spacer()
 
                 Text(monthYear)
-                    .font(.headline)
+                    .font(.orbHeadline)
 
                 Spacer()
 
@@ -621,8 +654,8 @@ struct TodayView: View {
                     }
                 } label: {
                     Image(systemName: "chevron.right")
-                        .font(.title3)
-                        .foregroundStyle(appSettings.accentColor)
+                        .font(.orbTitle3)
+                        .foregroundStyle(Color.orbHighlight)
                 }
             }
             .padding(.horizontal)
@@ -632,8 +665,8 @@ struct TodayView: View {
                 // Header giorni settimana
                 ForEach(["lun", "mar", "mer", "gio", "ven", "sab", "dom"], id: \.self) { day in
                     Text(day)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                         .frame(maxWidth: .infinity)
                 }
 
@@ -655,8 +688,8 @@ struct TodayView: View {
                         selectedDate = Date()
                     }
                 }
-                .font(.caption)
-                .foregroundStyle(appSettings.accentColor)
+                .font(.orbCaption)
+                .foregroundStyle(Color.orbHighlight)
 
                 Spacer()
 
@@ -665,13 +698,13 @@ struct TodayView: View {
                         showingCalendar = false
                     }
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.orbCaption)
+                .foregroundStyle(Color.orbMuted)
             }
             .padding(.horizontal)
         }
         .padding(.vertical, 12)
-        .glassEffect(in: .rect(cornerRadius: 12))
+        .orbSurface()
     }
 
     private func calendarDayCell(date: Date) -> some View {
@@ -694,20 +727,20 @@ struct TodayView: View {
         } label: {
             VStack(spacing: 2) {
                 Text("\(Calendar.current.component(.day, from: date))")
-                    .font(.body)
-                    .foregroundStyle(isSelected ? .white : (isToday ? appSettings.accentColor : .primary))
+                    .font(.orbBody)
+                    .foregroundStyle(isSelected ? Color.orbOnAccent : (isToday ? Color.orbAccent : Color.orbText))
 
                 // Mostra puntini in base al tipo di transazioni
                 HStack(spacing: 2) {
                     if hasTransactions {
                         Circle()
-                            .fill(isSelected ? .white : appSettings.accentColor)
+                            .fill(isSelected ? Color.orbOnAccent : Color.orbAccent)
                             .frame(width: 4, height: 4)
                     }
 
                     if hasScheduledTransactions {
                         Circle()
-                            .fill(isSelected ? .white : .orange)
+                            .fill(isSelected ? Color.orbOnAccent : Color.orbHighlight)
                             .frame(width: 4, height: 4)
                     }
 
@@ -724,7 +757,7 @@ struct TodayView: View {
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected ? appSettings.accentColor : (isToday ? appSettings.accentColor.opacity(0.1) : Color.clear))
+                    .fill(isSelected ? Color.orbAccent : (isToday ? Color.orbAccent.opacity(0.1) : Color.clear))
             )
         }
         .buttonStyle(PlainButtonStyle())
@@ -808,18 +841,18 @@ struct TodayView: View {
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(pattern.category.name)
-                                    .font(.body)
+                                    .font(.orbBody)
 
                                 HStack(spacing: 4) {
                                     Text("Ripetuta \(pattern.occurrences) volte")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(Color.orbMuted)
                                     Text("•")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(Color.orbMuted)
                                     Text(pattern.account.name)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                             }
 
@@ -827,20 +860,20 @@ struct TodayView: View {
 
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text(formatAmount(pattern.averageAmount))
-                                    .font(.body.bold())
+                                    .font(.orbBody.bold())
 
                                 Button {
                                     patternToConfirm = pattern
                                     showingConfirmPatternAlert = true
                                 } label: {
                                     Text("Conferma")
-                                        .font(.caption.bold())
-                                        .foregroundStyle(.white)
+                                        .font(.orbCaption.bold())
+                                        .foregroundStyle(Color.orbOnAccent)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 6)
                                         .background(
                                             Capsule()
-                                                .fill(appSettings.accentColor)
+                                                .fill(Color.orbAccent)
                                         )
                                 }
                             }
@@ -851,19 +884,19 @@ struct TodayView: View {
                     HStack {
                         HStack(spacing: 6) {
                             Image(systemName: "repeat.circle.fill")
-                                .foregroundStyle(.purple)
+                                .foregroundStyle(Color.orbHighlight)
                             Text("Ricorrenti Suggerite")
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.orbText)
                         }
                         Spacer()
                     }
-                    .font(.subheadline.bold())
+                    .font(.orbSubheadline.bold())
                     .textCase(nil)
 //                    .padding(.horizontal, 16)
                 } footer: {
                     Text("Queste transazioni sono state rilevate come ricorrenti negli ultimi \(appSettings.recurringDetectionDays) giorni. Premi 'Conferma' per registrarle.")
 //                        .padding(.horizontal, 16)
-                }
+                }.listRowBackground(Color.orbCard)
             }
 
             // Sezione PREVISTE (automatiche)
@@ -874,6 +907,8 @@ struct TodayView: View {
                             EditTransactionView(transaction: transaction)
                         } label: {
                             TransactionRowView(transaction: transaction)
+                                .padding(.vertical, 6)
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.orbLine, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
@@ -887,25 +922,25 @@ struct TodayView: View {
                             } label: {
                                 Label("Duplica", systemImage: "doc.on.doc")
                             }
-                            .tint(.blue)
+                            .tint(Color.orbAccent)
                         }
                     }
                 } header: {
                     HStack {
                         HStack(spacing: 6) {
                             Image(systemName: "calendar.badge.clock")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.orbHighlight)
                             Text("Previste")
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.orbText)
                         }
                         Spacer()
                         Text(formatAmount(previsteTotal))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
                     }
-                    .font(.subheadline.bold())
+                    .font(.orbSubheadline.bold())
                     .textCase(nil)
 //                    .padding(.horizontal, 16)
-                }
+                }.listRowBackground(Color.orbCard)
             }
 
             // Sezione DA CONFERMARE (manuali o scadute)
@@ -915,7 +950,7 @@ struct TodayView: View {
                         NavigationLink {
                             EditTransactionView(transaction: transaction)
                         } label: {
-                            TransactionRowView(transaction: transaction)
+                            TransactionRowView(transaction: transaction).modifier(OrbShimmer())
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
@@ -929,25 +964,25 @@ struct TodayView: View {
                             } label: {
                                 Label("Duplica", systemImage: "doc.on.doc")
                             }
-                            .tint(.blue)
+                            .tint(Color.orbAccent)
                         }
                     }
                 } header: {
                     HStack {
                         HStack(spacing: 6) {
                             Image(systemName: "clock.badge.exclamationmark")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.orbHighlight)
                             Text("Da Confermare")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Color.orbHighlight)
                         }
                         Spacer()
                         Text(formatAmount(daConfermareTota))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
                     }
-                    .font(.subheadline.bold())
+                    .font(.orbSubheadline.bold())
                     .textCase(nil)
 //                    .padding(.horizontal, 16)
-                }
+                }.listRowBackground(Color.orbCard)
             }
 
             // Sezione transazioni eseguite
@@ -971,27 +1006,28 @@ struct TodayView: View {
                             } label: {
                                 Label("Duplica", systemImage: "doc.on.doc")
                             }
-                            .tint(.blue)
+                            .tint(Color.orbAccent)
                         }
                     }
                 } header: {
                     HStack {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
+                                .foregroundStyle(Color.orbPositive)
                             Text("Eseguite")
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.orbText)
                         }
                         Spacer()
                         Text(formatAmount(dayTransactionsTotal))
                             .foregroundStyle(totalColor)
                     }
-                    .font(.subheadline.bold())
+                    .font(.orbSubheadline.bold())
                     .textCase(nil)
 //                    .padding(.horizontal, 16)
-                }
+                }.listRowBackground(Color.orbCard)
             }
-        }
+        }.orbScreen()
+        .animation(orbMotion ? .spring(response: 0.45, dampingFraction: 0.8) : nil, value: dayTransactions.count)
         .id(patternsUpdateTrigger)  // CRITICAL FIX: Forza il refresh della List quando i pattern cambiano
 //        .listStyle(.plain)
     }
@@ -1004,15 +1040,15 @@ struct TodayView: View {
 
             Image(systemName: "list.bullet.clipboard")
                 .font(.system(size: 60))
-                .foregroundStyle(appSettings.accentColor.opacity(0.3))
+                .foregroundStyle(Color.orbAccent.opacity(0.3))
 
             Text("Nessuna transazione")
-                .font(.title3.bold())
-                .foregroundStyle(.primary)
+                .font(.orbTitle3.bold())
+                .foregroundStyle(Color.orbText)
 
             Text("Tocca + per aggiungere una transazione")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.orbSubheadline)
+                .foregroundStyle(Color.orbMuted)
 
             Spacer()
         }
@@ -1257,33 +1293,33 @@ struct TransactionRowView: View {
                 // Info
                 VStack(alignment: .leading, spacing: 4) {
                     Text(displayTitle)
-                        .font(.body)
-                        .foregroundStyle(.primary)
+                        .font(.orbBody)
+                        .foregroundStyle(Color.orbText)
 
                     HStack(spacing: 4) {
                         if transaction.modelContext != nil && transaction.isScheduled {
                             Image(systemName: "clock")
-                                .font(.caption2)
+                                .font(.orbCaption2)
                             Text(transaction.date.formatted(date: .omitted, time: .shortened))
-                                .font(.caption)
+                                .font(.orbCaption)
                         } else if transaction.modelContext != nil {
                             Text(transaction.date.formatted(date: .omitted, time: .shortened))
-                                .font(.caption)
+                                .font(.orbCaption)
                         }
 
                         if transaction.modelContext != nil && transaction.isScheduled, let icon = scheduleIcon {
                             Image(systemName: icon)
-                                .font(.caption2)
+                                .font(.orbCaption2)
                         }
                     }
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.orbMuted)
                 }
 
                 Spacer()
 
                 // Amount with colored background
-                Text(transaction.modelContext != nil ? transaction.displayAmount : "")
-                    .font(.body.bold())
+                Text(transaction.modelContext != nil ? transaction.orbDisplayAmount : "")
+                    .font(.orbBody.bold())
                     .foregroundStyle(amountTextColor)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
@@ -1322,23 +1358,23 @@ struct TransactionRowView: View {
     }
 
     private var iconBackgroundColor: Color {
-        guard !isDeleted else { return .gray.opacity(0.15) }
-        guard transaction.modelContext != nil else { return .gray.opacity(0.15) }
+        guard !isDeleted else { return Color.orbMuted.opacity(0.15) }
+        guard transaction.modelContext != nil else { return Color.orbMuted.opacity(0.15) }
 
         if transaction.isScheduled {
-            return .orange.opacity(0.15)
+            return Color.orbHighlight.opacity(0.15)
         }
-        return (transaction.category?.color ?? appSettings.accentColor).opacity(0.15)
+        return (transaction.category?.color ?? Color.orbAccent).opacity(0.15)
     }
 
     private var iconColor: Color {
-        guard !isDeleted else { return .gray }
-        guard transaction.modelContext != nil else { return .gray }
+        guard !isDeleted else { return Color.orbMuted }
+        guard transaction.modelContext != nil else { return Color.orbMuted }
 
         if transaction.isScheduled {
-            return .orange
+            return Color.orbHighlight
         }
-        return transaction.category?.color ?? appSettings.accentColor
+        return transaction.category?.color ?? Color.orbAccent
     }
 
     private var defaultIcon: String {
@@ -1359,54 +1395,54 @@ struct TransactionRowView: View {
 
     // Background color for amount based on transaction type
     private var amountBackgroundColor: Color {
-        guard !isDeleted else { return .gray.opacity(0.15) }
+        guard !isDeleted else { return Color.orbMuted.opacity(0.15) }
 
         switch cachedTransactionType {
         case .expense:
-            return .red.opacity(0.15)
+            return Color.orbNegative.opacity(0.15)
         case .income:
-            return .green.opacity(0.15)
+            return Color.orbPositive.opacity(0.15)
         case .transfer:
-            return .blue.opacity(0.15)
+            return Color.orbAccent.opacity(0.15)
         case .liabilityPayment:
-            return .orange.opacity(0.15)
+            return Color.orbHighlight.opacity(0.15)
         case .adjustment:
-            return .orange.opacity(0.15)
+            return Color.orbHighlight.opacity(0.15)
         }
     }
 
     // Text color for amount based on transaction type
     private var amountTextColor: Color {
-        guard !isDeleted else { return .gray.opacity(0.15) }
+        guard !isDeleted else { return Color.orbMuted.opacity(0.15) }
 
         switch cachedTransactionType {
         case .expense:
-            return .red
+            return Color.orbNegative
         case .income:
-            return .green
+            return Color.orbPositive
         case .transfer:
-            return .blue
+            return Color.orbAccent
         case .liabilityPayment:
-            return .orange
+            return Color.orbHighlight
         case .adjustment:
-            return .orange
+            return Color.orbHighlight
         }
     }
 
     private var lineColor: Color {
-        guard !isDeleted else { return .gray }
+        guard !isDeleted else { return Color.orbMuted }
 
         switch cachedTransactionType {
         case .expense:
-            return .red
+            return Color.orbNegative
         case .income:
-            return .green
+            return Color.orbPositive
         case .transfer:
-            return .blue
+            return Color.orbAccent
         case .liabilityPayment:
-            return .orange
+            return Color.orbHighlight
         case .adjustment:
-            return .orange
+            return Color.orbHighlight
         }
     }
 

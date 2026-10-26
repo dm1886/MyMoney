@@ -16,81 +16,26 @@ struct BiometricAuthView: View {
 
     var body: some View {
         ZStack {
-            // Blurred background
-            Color.black.opacity(0.9)
-                .ignoresSafeArea()
-
-            VStack(spacing: 40) {
+            Color.orbBackground.ignoresSafeArea()
+            VStack(spacing: 28) {
                 Spacer()
-
-                // App Icon/Logo
-                VStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.green.opacity(0.2))
-                            .frame(width: 100, height: 100)
-
-                        Image(systemName: "dollarsign.circle.fill")
-                            .font(.system(size: 60))
-                            .foregroundStyle(.green)
-                    }
-
-                    Text("MoneyTracker")
-                        .font(.title.bold())
-                        .foregroundStyle(.white)
-                }
-
-                // Biometric Icon
-                VStack(spacing: 20) {
-                    Image(systemName: biometricIcon)
-                        .font(.system(size: 80))
-                        .foregroundStyle(.blue)
-
-                    VStack(spacing: 8) {
-                        Text("Sblocca con \(biometricManager.biometricName)")
-                            .font(.title3.bold())
-                            .foregroundStyle(.white)
-
-                        Text("Accedi per visualizzare i tuoi dati finanziari")
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.7))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
-                    }
-                }
-
+                Text("MyMoney").font(.orbTitle)
+                Text("Accedi per visualizzare i tuoi dati finanziari")
+                    .font(.orbSubheadline).foregroundStyle(Color.orbMuted).multilineTextAlignment(.center)
+                OrbView(size: 170, showsRings: true) {
+                    Image(systemName: biometricIcon).font(.system(size: 54, weight: .light))
+                }.padding(.vertical, 24).accessibilityHidden(true)
+                Text("Sblocca con \(biometricManager.biometricName)").font(.orbHeadline)
                 Spacer()
-
-                // Authenticate Button
-                VStack(spacing: 16) {
-                    Button {
-                        authenticate()
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: biometricIcon)
-                                .font(.title3)
-                            Text("Autentica con \(biometricManager.biometricName)")
-                                .font(.headline)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundStyle(.white)
-                        .cornerRadius(12)
-                    }
-                    .padding(.horizontal, 40)
-
-                    // Alternative: Use Passcode
-                    Button {
-                        authenticateWithPasscode()
-                    } label: {
-                        Text("Usa il Passcode del Dispositivo")
-                            .font(.subheadline)
-                            .foregroundStyle(.blue)
-                    }
+                Button { authenticate() } label: {
+                    Label("Autentica con \(biometricManager.biometricName)", systemImage: biometricIcon)
+                }.buttonStyle(OrbPrimaryButtonStyle())
+                Button { authenticateWithPasscode() } label: {
+                    Text("Usa il Passcode del Dispositivo").font(.orbSubheadline)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .overlay(Capsule().stroke(Color.orbLine, lineWidth: 1))
                 }
-                .padding(.bottom, 40)
-            }
+            }.padding(.horizontal, 28).padding(.bottom, 30).riseIn()
         }
         .alert("Autenticazione Fallita", isPresented: $showingError) {
             Button("Riprova", role: .cancel) {

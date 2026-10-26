@@ -19,112 +19,112 @@ struct DatabaseDebugView: View {
         List {
             Section {
                 Text("Total: \(allTransactions.count)")
-                    .font(.headline)
+                    .font(.orbHeadline)
 
                 ForEach(Array(allTransactions.enumerated()), id: \.element.id) { index, transaction in
                     VStack(alignment: .leading, spacing: 4) {
                         Text("[\(index)] ID: \(transaction.id.uuidString.prefix(8))...")
-                            .font(.caption.monospaced())
+                            .font(.orbCaption.monospaced())
 
                         HStack {
                             Text("Type:")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                             Text(transaction.transactionType.rawValue)
                                 .bold()
                         }
-                        .font(.caption)
+                        .font(.orbCaption)
 
                         HStack {
                             Text("Amount:")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                             Text("\(transaction.amount as NSDecimalNumber)")
                                 .bold()
                         }
-                        .font(.caption)
+                        .font(.orbCaption)
 
                         HStack {
                             Text("Date:")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                             Text(transaction.date.formatted())
                         }
-                        .font(.caption)
+                        .font(.orbCaption)
 
                         HStack {
                             Text("Status:")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                             Text(transaction.status.rawValue)
-                                .foregroundStyle(transaction.status == .pending ? .orange : .green)
+                                .foregroundStyle(transaction.status == .pending ? Color.orbHighlight : Color.orbPositive)
                         }
-                        .font(.caption)
+                        .font(.orbCaption)
 
                         if transaction.isScheduled {
                             HStack {
                                 Text("⏰ SCHEDULED:")
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(Color.orbHighlight)
                                     .bold()
                                 Text(transaction.date.formatted())
                             }
-                            .font(.caption)
+                            .font(.orbCaption)
 
                             HStack {
                                 Text("Auto:")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                                 Text(transaction.isAutomatic ? "YES" : "NO")
                             }
-                            .font(.caption)
+                            .font(.orbCaption)
                         }
 
                         if transaction.isRecurring {
                             HStack {
                                 Text("🔄 RECURRING TEMPLATE")
-                                    .foregroundStyle(.purple)
+                                    .foregroundStyle(Color.orbHighlight)
                                     .bold()
                             }
-                            .font(.caption)
+                            .font(.orbCaption)
 
                             if let rule = transaction.recurrenceRule {
                                 Text("Rule: \(rule.displayString)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
 
                             if let endDate = transaction.recurrenceEndDate {
                                 Text("End: \(endDate.formatted())")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
 
                         if let parentId = transaction.parentRecurringTransactionId {
                             HStack {
                                 Text("🔗 CHILD OF:")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.orbHighlight)
                                 Text(parentId.uuidString.prefix(8) + "...")
-                                    .font(.caption.monospaced())
+                                    .font(.orbCaption.monospaced())
                             }
-                            .font(.caption)
+                            .font(.orbCaption)
                         }
 
                         HStack {
                             Text("Account:")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                             Text(transaction.account?.name ?? "nil")
                         }
-                        .font(.caption)
+                        .font(.orbCaption)
 
                         if let category = transaction.category {
                             HStack {
                                 Text("Category:")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                                 Text(category.name)
                             }
-                            .font(.caption)
+                            .font(.orbCaption)
                         }
 
                         if !transaction.notes.isEmpty {
                             Text("Notes: \(transaction.notes)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.orbCaption)
+                                .foregroundStyle(Color.orbMuted)
                                 .lineLimit(2)
                         }
                     }
@@ -132,48 +132,48 @@ struct DatabaseDebugView: View {
                 }
             } header: {
                 Text("Transactions")
-            }
+            }.listRowBackground(Color.orbCard)
 
             Section {
                 Text("Total: \(allAccounts.count)")
-                    .font(.headline)
+                    .font(.orbHeadline)
 
                 ForEach(allAccounts) { account in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(account.name)
-                            .font(.headline)
+                            .font(.orbHeadline)
 
                         HStack {
                             Text("Balance:")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                             Text("\(account.currentBalance as NSDecimalNumber)")
                                 .bold()
                         }
-                        .font(.caption)
+                        .font(.orbCaption)
 
                         HStack {
                             Text("Currency:")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                             Text(account.currencyRecord?.code ?? "nil")
                         }
-                        .font(.caption)
+                        .font(.orbCaption)
 
                         HStack {
                             Text("Transactions count:")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                             Text("\(account.transactions?.count ?? 0)")
                         }
-                        .font(.caption)
+                        .font(.orbCaption)
                     }
                     .padding(.vertical, 4)
                 }
             } header: {
                 Text("Accounts")
-            }
+            }.listRowBackground(Color.orbCard)
 
             Section {
                 Text("Total: \(allCategories.count)")
-                    .font(.headline)
+                    .font(.orbHeadline)
 
                 ForEach(allCategories) { category in
                     VStack(alignment: .leading, spacing: 4) {
@@ -187,37 +187,37 @@ struct DatabaseDebugView: View {
                         if let group = category.categoryGroup {
                             HStack {
                                 Text("Group:")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                                 Text(group.name)
                             }
-                            .font(.caption)
+                            .font(.orbCaption)
                         }
 
                         HStack {
                             Text("Usage:")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                             Text("\(category.usageCount)")
                         }
-                        .font(.caption)
+                        .font(.orbCaption)
 
                         if let lastUsed = category.lastUsedDate {
                             HStack {
                                 Text("Last used:")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                                 Text(lastUsed.formatted(date: .abbreviated, time: .omitted))
                             }
-                            .font(.caption)
+                            .font(.orbCaption)
                         }
                     }
                     .padding(.vertical, 4)
                 }
             } header: {
                 Text("Categories")
-            }
+            }.listRowBackground(Color.orbCard)
 
             Section {
                 Text("Total: \(allCurrencies.count)")
-                    .font(.headline)
+                    .font(.orbHeadline)
 
                 ForEach(allCurrencies) { currency in
                     HStack {
@@ -226,13 +226,13 @@ struct DatabaseDebugView: View {
                             .bold()
                         Spacer()
                         Text(currency.name)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                     }
                 }
             } header: {
                 Text("Currencies")
-            }
+            }.listRowBackground(Color.orbCard)
 
             Section {
                 Button("Print All to Console") {
@@ -248,8 +248,8 @@ struct DatabaseDebugView: View {
                 }
             } header: {
                 Text("Actions")
-            }
-        }
+            }.listRowBackground(Color.orbCard)
+        }.orbScreen()
         .navigationTitle("Database Debug")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

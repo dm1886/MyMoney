@@ -39,26 +39,26 @@ struct GroupedCategoryPickerView: View {
                         VStack(spacing: 12) {
                             ZStack {
                                 Circle()
-                                    .fill(Color.blue.opacity(0.15))
+                                    .fill(Color.orbAccent.opacity(0.15))
                                     .frame(width: 60, height: 60)
                                 
                                 Image(systemName: "plus.circle.fill")
                                     .font(.system(size: 28))
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.orbHighlight)
                             }
                             
                             VStack(spacing: 4) {
                                 Text("Nuovo Gruppo")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.primary)
+                                    .font(.orbCaption.bold())
+                                    .foregroundStyle(Color.orbText)
                                     .multilineTextAlignment(.center)
                                     .lineLimit(2)
                                     .fixedSize(horizontal: false, vertical: true)
                                     .frame(height: 32, alignment: .top)
                                 
                                 Text("Aggiungi")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption2)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                         .frame(maxWidth: .infinity, minHeight: 140)
@@ -66,10 +66,10 @@ struct GroupedCategoryPickerView: View {
                         .padding(.horizontal, 8)
                         .background(
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(Color(.secondarySystemGroupedBackground))
+                                .fill(Color.orbCard)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 16)
-                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                        .stroke(Color.orbMuted.opacity(0.2), lineWidth: 1)
                                 )
                         )
                     }
@@ -99,7 +99,7 @@ struct GroupedCategoryPickerView: View {
                     }
                 }
                 .padding()
-            }
+            }.orbScreen()
             .navigationTitle("Seleziona Gruppo")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -125,7 +125,7 @@ struct GroupedCategoryPickerView: View {
         
         var totalPercentage: Double = 0
         var budgetCount = 0
-        var maxColor: Color = .green
+        var highestPercentage: Double = 0
         
         for category in categories {
             guard let budget = budgets.first(where: { $0.category?.id == category.id }) else {
@@ -136,19 +136,13 @@ struct GroupedCategoryPickerView: View {
             totalPercentage += percentage
             budgetCount += 1
             
-            // Determina il colore peggiore (rosso > arancione > giallo > verde)
-            if percentage >= 100 {
-                maxColor = .red
-            } else if percentage >= 80 && maxColor != .red {
-                maxColor = .orange
-            } else if percentage >= 60 && maxColor != .red && maxColor != .orange {
-                maxColor = .yellow
-            }
+            // Compare severity numerically: dynamic theme colors are not stable identity values.
+            highestPercentage = max(highestPercentage, percentage)
         }
         
         if budgetCount > 0 {
             let avgPercentage = totalPercentage / Double(budgetCount)
-            return BudgetStatus(percentage: avgPercentage, color: maxColor)
+            return BudgetStatus(percentage: avgPercentage, color: highestPercentage >= 100 ? .orbNegative : highestPercentage >= 60 ? .orbHighlight : .orbPositive)
         }
         
         return nil
@@ -156,13 +150,13 @@ struct GroupedCategoryPickerView: View {
     
     private func getBudgetColor(percentage: Double) -> Color {
         if percentage >= 100 {
-            return .red
+            return Color.orbNegative
         } else if percentage >= 80 {
-            return .orange
+            return Color.orbHighlight
         } else if percentage >= 60 {
-            return .yellow
+            return Color.orbHighlight
         } else {
-            return .green
+            return Color.orbPositive
         }
     }
 }
@@ -199,26 +193,26 @@ struct GroupCardLabel: View {
                 
                 // Icon
                 Circle()
-                    .fill(Color(hex: group.colorHex)?.opacity(0.15) ?? .gray.opacity(0.15))
+                    .fill(Color(hex: group.colorHex)?.opacity(0.15) ?? Color.orbMuted.opacity(0.15))
                     .frame(width: 60, height: 60)
                 
                 Image(systemName: group.icon)
                     .font(.system(size: 28))
-                    .foregroundStyle(Color(hex: group.colorHex) ?? .gray)
+                    .foregroundStyle(Color(hex: group.colorHex) ?? Color.orbMuted)
             }
             
             VStack(spacing: 4) {
                 Text(group.name)
-                    .font(.caption.bold())
-                    .foregroundStyle(.primary)
+                    .font(.orbCaption.bold())
+                    .foregroundStyle(Color.orbText)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(height: 32, alignment: .top)
                 
                 Text("\(group.categories?.count ?? 0) categorie")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.orbCaption2)
+                    .foregroundStyle(Color.orbMuted)
             }
         }
         .frame(maxWidth: .infinity, minHeight: 140)
@@ -226,10 +220,10 @@ struct GroupCardLabel: View {
         .padding(.horizontal, 8)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.secondarySystemGroupedBackground))
+                .fill(Color.orbCard)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        .stroke(Color.orbMuted.opacity(0.2), lineWidth: 1)
                 )
         )
     }
@@ -269,27 +263,27 @@ struct CategoryGridView: View {
                             // Icon container con altezza fissa
                             ZStack {
                                 Circle()
-                                    .fill(Color.blue.opacity(0.15))
+                                    .fill(Color.orbAccent.opacity(0.15))
                                     .frame(width: 46, height: 46)
                                 
                                 Image(systemName: "plus.circle.fill")
                                     .font(.system(size: 22))
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.orbHighlight)
                             }
                             .frame(height: 56)
                             
                             // Text container con altezza fissa
                             VStack(spacing: 2) {
                                 Text("Nuova Categoria")
-                                    .font(.caption)
-                                    .foregroundStyle(.primary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbText)
                                     .multilineTextAlignment(.center)
                                     .lineLimit(2)
                                     .fixedSize(horizontal: false, vertical: true)
                                     .frame(height: 28, alignment: .top)
                                 
                                 Text(" ")
-                                    .font(.caption2)
+                                    .font(.orbCaption2)
                                     .frame(height: 14)
                             }
                             .frame(height: 42)
@@ -298,10 +292,10 @@ struct CategoryGridView: View {
                         .padding(.vertical, 8)
                         .background(
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(Color(.secondarySystemGroupedBackground))
+                                .fill(Color.orbCard)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                        .stroke(Color.orbMuted.opacity(0.2), lineWidth: 1)
                                 )
                         )
                     }
@@ -323,10 +317,10 @@ struct CategoryGridView: View {
                         VStack(spacing: 16) {
                             Image(systemName: "tray")
                                 .font(.system(size: 48))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                             Text("Nessuna categoria in questo gruppo")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.orbCaption)
+                                .foregroundStyle(Color.orbMuted)
                                 .multilineTextAlignment(.center)
                         }
                         .frame(maxWidth: .infinity)
@@ -335,7 +329,7 @@ struct CategoryGridView: View {
                     }
                 }
                 .padding()
-            }
+            }.orbScreen()
             .navigationTitle(group.name)
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingAddCategory) {
@@ -359,13 +353,13 @@ struct CategoryGridView: View {
         // Determina il colore in base alla percentuale
         let color: Color
         if percentage >= 100 {
-            color = .red
+            color = .orbNegative
         } else if percentage >= 80 {
-            color = .orange
+            color = .orbHighlight
         } else if percentage >= 60 {
-            color = .yellow
+            color = .orbHighlight
         } else {
-            color = .green
+            color = .orbPositive
         }
         
         return BudgetStatus(percentage: percentage, color: color)
@@ -411,18 +405,18 @@ struct CategoryCard: View {
                             .clipShape(Circle())
                     } else {
                         Circle()
-                            .fill(Color(hex: category.colorHex)?.opacity(0.15) ?? .gray.opacity(0.15))
+                            .fill(Color(hex: category.colorHex)?.opacity(0.15) ?? Color.orbMuted.opacity(0.15))
                             .frame(width: 46, height: 46)
                         
                         Image(systemName: category.icon)
                             .font(.system(size: 22))
-                            .foregroundStyle(Color(hex: category.colorHex) ?? .gray)
+                            .foregroundStyle(Color(hex: category.colorHex) ?? Color.orbMuted)
                     }
                     
                     // Selection indicator
                     if isSelected {
                         Circle()
-                            .strokeBorder(Color.blue, lineWidth: 3)
+                            .strokeBorder(Color.orbAccent, lineWidth: 3)
                             .frame(width: 56, height: 56)
                     }
                 }
@@ -431,8 +425,8 @@ struct CategoryCard: View {
                 // Text container con altezza fissa
                 VStack(spacing: 2) {
                     Text(category.name)
-                        .font(.caption)
-                        .foregroundStyle(.primary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbText)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -442,11 +436,11 @@ struct CategoryCard: View {
                     Group {
                         if let status = budgetStatus {
                             Text("\(Int(status.percentage))%")
-                                .font(.caption2.bold())
+                                .font(.orbCaption2.bold())
                                 .foregroundStyle(status.color)
                         } else {
                             Text(" ")
-                                .font(.caption2)
+                                .font(.orbCaption2)
                         }
                     }
                     .frame(height: 14)
@@ -457,10 +451,10 @@ struct CategoryCard: View {
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color.blue.opacity(0.1) : Color(.secondarySystemGroupedBackground))
+                    .fill(isSelected ? Color.orbAccent.opacity(0.1) : Color.orbCard)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            .stroke(Color.orbMuted.opacity(0.2), lineWidth: 1)
                     )
             )
         }

@@ -29,18 +29,18 @@ struct HistoricalBalanceView: View {
                 } label: {
                     HStack {
                         Text("Conto")
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Color.orbText)
                         Spacer()
                         if let account = selectedAccount {
                             Text(account.name)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                         } else {
                             Text("Seleziona conto")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.orbMuted)
                         }
                         Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                     }
                 }
 
@@ -58,11 +58,11 @@ struct HistoricalBalanceView: View {
                 if let account = selectedAccount {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Saldo al \(formatDateTime(selectedDate))")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(.orbSubheadline)
+                            .foregroundStyle(Color.orbMuted)
 
                         Text(formatAmount(calculatedBalance, currency: account.currency.rawValue))
-                            .font(.title2.bold())
+                            .font(.orbTitle2.bold())
                             .foregroundStyle(balanceColor)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -71,16 +71,21 @@ struct HistoricalBalanceView: View {
             } header: {
                 HStack(spacing: 6) {
                     Image(systemName: "clock.arrow.circlepath")
-                        .foregroundStyle(appSettings.accentColor)
+                        .foregroundStyle(Color.orbHighlight)
                     Text("Saldo Storico")
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(Color.orbText)
                 }
-                .font(.subheadline.bold())
+                .font(.orbSubheadline.bold())
                 .textCase(nil)
             } footer: {
                 Text("Visualizza il saldo di un conto a una data e ora specifica nel passato")
-            }
+            }.listRowBackground(Color.orbCard)
 
+            if let account = selectedAccount {
+                Section("Patrimonio nel tempo") {
+                    OrbHistoryChart(account: account, transactions: transactions, end: selectedDate)
+                }.listRowBackground(Color.orbCard)
+            }
             // Sezione Dettaglio Transazioni
             if let account = selectedAccount {
                 Section {
@@ -88,8 +93,8 @@ struct HistoricalBalanceView: View {
 
                     if relevantTransactions.isEmpty {
                         Text("Nessuna transazione fino a questa data")
-                            .foregroundStyle(.secondary)
-                            .font(.subheadline)
+                            .foregroundStyle(Color.orbMuted)
+                            .font(.orbSubheadline)
                     } else {
                         ForEach(relevantTransactions) { transaction in
                             TransactionHistoryRow(transaction: transaction, account: account)
@@ -98,18 +103,18 @@ struct HistoricalBalanceView: View {
                 } header: {
                     HStack(spacing: 6) {
                         Image(systemName: "list.bullet.clipboard")
-                            .foregroundStyle(appSettings.accentColor)
+                            .foregroundStyle(Color.orbHighlight)
                         Text("Transazioni fino a questa data")
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Color.orbText)
                         Spacer()
                         Text("\(getTransactionsUpToDate().count)")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
                     }
-                    .font(.subheadline.bold())
+                    .font(.orbSubheadline.bold())
                     .textCase(nil)
-                }
+                }.listRowBackground(Color.orbCard)
             }
-        }
+        }.orbScreen()
         .navigationTitle("Saldo Storico")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showingAccountPicker) {
@@ -142,6 +147,11 @@ struct HistoricalBalanceView: View {
         // Se la data selezionata è prima della creazione del conto, il saldo è 0
         if selectedDate < account.createdAt {
             calculatedBalance = 0
+            return
+        }
+
+        if let profile = account.investmentProfile {
+            calculatedBalance = account.investmentValue(profile: profile, at: selectedDate)
             return
         }
 
@@ -212,20 +222,21 @@ struct HistoricalBalanceView: View {
 
     private func formatAmount(_ amount: Decimal, currency: String) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0.00"
-        return "\(currency) \(amountString)"
+        return OrbCurrency.string(amount, symbol: Currency(rawValue: currency)?.symbol ?? currency)
     }
 
     private var balanceColor: Color {
         if calculatedBalance > 0 {
-            return .green
+            return Color.orbPositive
         } else if calculatedBalance < 0 {
-            return .red
+            return Color.orbNegative
         } else {
-            return .secondary
+            return Color.orbMuted
         }
     }
 }
@@ -251,24 +262,24 @@ struct AccountPickerSheet: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(account.name)
-                                    .font(.body)
-                                    .foregroundStyle(.primary)
+                                    .font(.orbBody)
+                                    .foregroundStyle(Color.orbText)
 
                                 Text(account.accountType.rawValue)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                             }
 
                             Spacer()
 
                             if selectedAccount?.id == account.id {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(appSettings.accentColor)
+                                    .foregroundStyle(Color.orbHighlight)
                             }
                         }
                     }
                 }
-            }
+            }.orbScreen()
             .navigationTitle("Seleziona Conto")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -305,19 +316,19 @@ struct TransactionHistoryRow: View {
             // Info
             VStack(alignment: .leading, spacing: 4) {
                 Text(displayTitle)
-                    .font(.body)
-                    .foregroundStyle(.primary)
+                    .font(.orbBody)
+                    .foregroundStyle(Color.orbText)
 
                 Text(formatDate(transaction.date))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbMuted)
             }
 
             Spacer()
 
             // Amount
             Text(displayAmount)
-                .font(.body.bold())
+                .font(.orbBody.bold())
                 .foregroundStyle(amountColor)
         }
         .padding(.vertical, 4)
@@ -359,8 +370,7 @@ struct TransactionHistoryRow: View {
             sign = "+"
         }
 
-        let amountString = formatter.string(from: abs(amount) as NSDecimalNumber) ?? "0.00"
-        return "\(sign)\(transaction.currency) \(amountString)"
+        return sign + OrbCurrency.string(abs(amount), symbol: transaction.currencyRecord?.displaySymbol ?? transaction.currency.symbol)
     }
 
     private var iconName: String {
@@ -386,18 +396,18 @@ struct TransactionHistoryRow: View {
         if transaction.account?.id == account.id {
             switch transaction.transactionType {
             case .expense:
-                return .red
+                return Color.orbNegative
             case .income:
-                return .green
+                return Color.orbPositive
             case .transfer:
-                return .blue
+                return Color.orbAccent
             case .liabilityPayment:
-                return .orange
+                return Color.orbHighlight
             case .adjustment:
-                return .orange
+                return Color.orbHighlight
             }
         } else {
-            return .green
+            return Color.orbPositive
         }
     }
 
@@ -409,14 +419,14 @@ struct TransactionHistoryRow: View {
         if transaction.account?.id == account.id {
             switch transaction.transactionType {
             case .expense, .transfer, .liabilityPayment:
-                return .red
+                return Color.orbNegative
             case .income:
-                return .green
+                return Color.orbPositive
             case .adjustment:
-                return transaction.amount >= 0 ? .green : .red
+                return transaction.amount >= 0 ? Color.orbPositive : Color.orbNegative
             }
         } else {
-            return .green
+            return Color.orbPositive
         }
     }
 

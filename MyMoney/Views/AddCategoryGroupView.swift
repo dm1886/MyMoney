@@ -42,7 +42,7 @@ struct AddCategoryGroupView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 6))
                             } else {
                                 Image(systemName: selectedIcon)
-                                    .font(.title2)
+                                    .font(.orbTitle2)
                                     .foregroundStyle(selectedColor)
                             }
                         }
@@ -58,18 +58,18 @@ struct AddCategoryGroupView: View {
                                     selectedPhoto = nil
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                                 .buttonStyle(.plain)
                             } else {
                                 Image(systemName: "photo")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
 
                     ColorPicker("Colore", selection: $selectedColor)
-                }
+                }.listRowBackground(Color.orbCard)
 
                 Section {
                     Picker("Applicabilità", selection: $selectedApplicability) {
@@ -86,8 +86,8 @@ struct AddCategoryGroupView: View {
                     Text("Visibilità")
                 } footer: {
                     Text("Scegli in quali tipi di transazione questo gruppo e le sue categorie saranno visibili")
-                }
-            }
+                }.listRowBackground(Color.orbCard)
+            }.orbScreen()
             .navigationTitle("Nuovo Gruppo")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

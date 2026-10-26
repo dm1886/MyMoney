@@ -55,9 +55,11 @@ struct NetWorthTrendWidget: View {
 
             for account in accounts {
                 guard let accountCurrency = account.currencyRecord else { continue }
-                // Use pre-calculated currentBalance instead of recalculating
+                let snapshotDate = min(now, calendar.dateInterval(of: .month, for: monthDate)!.end.addingTimeInterval(-1))
+                let ledger = Array(Dictionary(grouping: (account.transactions ?? []) + (account.incomingTransfers ?? []), by: \.id).values.compactMap(\.first))
+                let historical = monthOffset == 0 ? account.investmentNetWorth : OrbHistorySnapshot.balance(account: account, transactions: ledger, at: snapshotDate)
                 let converted = CurrencyService.shared.convert(
-                    amount: account.currentBalance,
+                    amount: historical,
                     from: accountCurrency,
                     to: preferredCurrency,
                     context: modelContext
@@ -69,113 +71,23 @@ struct NetWorthTrendWidget: View {
             formatter.dateFormat = "MMM"
             formatter.locale = Locale(identifier: "it_IT")
 
-            result.append((month: formatter.string(from: monthDate), netWorth: totalNetWorth))
+            let snapshotDate = min(now, calendar.dateInterval(of: .month, for: monthDate)!.end.addingTimeInterval(-1))
+            if accounts.contains(where: { $0.createdAt <= snapshotDate }) {
+                result.append((month: formatter.string(from: monthDate), netWorth: totalNetWorth))
+            }
         }
 
         return result
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.title2)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.blue, .cyan],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
-                Text("Andamento Patrimonio")
-                    .font(.headline.bold())
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.blue, .cyan],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-
-                Spacer()
-            }
-
-            // Period Selector
-            Menu {
-                ForEach(NetWorthPeriod.allCases, id: \.self) { period in
-                    Button {
-                        selectedPeriod = period
-                    } label: {
-                        HStack {
-                            Text(period.rawValue)
-                            if selectedPeriod == period {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Text(selectedPeriod.rawValue)
-                        .font(.caption)
-                        .foregroundStyle(.blue)
-                    Image(systemName: "chevron.down")
-                        .font(.caption2)
-                        .foregroundStyle(.blue)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.blue.opacity(0.1))
-                )
-            }
-
-            if monthlyNetWorth.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.largeTitle)
-                        .foregroundStyle(.secondary)
-
-                    Text("Nessun dato disponibile")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 30)
-            } else {
-                Chart {
-                    ForEach(monthlyNetWorth, id: \.month) { data in
-                        LineMark(
-                            x: .value("Month", data.month),
-                            y: .value("Net Worth", Double(truncating: data.netWorth as NSDecimalNumber))
-                        )
-                        .foregroundStyle(.blue.gradient)
-                        .interpolationMethod(.catmullRom)
-
-                        AreaMark(
-                            x: .value("Month", data.month),
-                            y: .value("Net Worth", Double(truncating: data.netWorth as NSDecimalNumber))
-                        )
-                        .foregroundStyle(.blue.opacity(0.1).gradient)
-                        .interpolationMethod(.catmullRom)
-                    }
-                }
-                .frame(height: 180)
-                .chartYAxis {
-                    AxisMarks(position: .leading)
-                }
-                .drawingGroup() // Optimize rendering performance
+        OrbCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Patrimonio nel tempo").font(.orbHeadline).lineLimit(1)
+                OrbCompactPeriod(values: NetWorthPeriod.allCases, selection: $selectedPeriod)
+                OrbAreaChart(points: monthlyNetWorth.map { OrbChartPoint(label: $0.month, amount: NSDecimalNumber(decimal: $0.netWorth).doubleValue) }, symbol: preferredCurrencyRecord?.displaySymbol ?? "€")
             }
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
-        )
     }
 }
 
@@ -286,23 +198,15 @@ struct SavingsRateWidget: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.title2)
+                    .font(.orbTitle2)
                     .foregroundStyle(
-                        LinearGradient(
-                            colors: [.mint, .green],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                        Color.orbPositive
                     )
 
                 Text("Risparmio & Spesa Media")
-                    .font(.headline.bold())
+                    .font(.orbHeadline.bold())
                     .foregroundStyle(
-                        LinearGradient(
-                            colors: [.mint, .green],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
+                        Color.orbPositive
                     )
 
                 Spacer()
@@ -325,17 +229,17 @@ struct SavingsRateWidget: View {
             } label: {
                 HStack(spacing: 4) {
                     Text(selectedPeriod.rawValue)
-                        .font(.caption)
-                        .foregroundStyle(.blue)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbHighlight)
                     Image(systemName: "chevron.down")
-                        .font(.caption2)
-                        .foregroundStyle(.blue)
+                        .font(.orbCaption2)
+                        .foregroundStyle(Color.orbHighlight)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.blue.opacity(0.1))
+                        .fill(Color.orbAccent.opacity(0.1))
                 )
             }
 
@@ -344,61 +248,61 @@ struct SavingsRateWidget: View {
                 // Savings Rate Section
                 VStack(alignment: .leading, spacing: 6) {
                     Text("\(Int(monthlyStats.savingsRate))%")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundStyle(monthlyStats.savingsRate >= 20 ? .green : monthlyStats.savingsRate >= 10 ? .orange : .red)
+                        .font(.orb(32, weight: .bold, relativeTo: .title))
+                        .foregroundStyle(monthlyStats.savingsRate >= 20 ? Color.orbPositive : monthlyStats.savingsRate >= 10 ? Color.orbHighlight : Color.orbNegative)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
 
                     Text("Risparmio")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption.bold())
+                        .foregroundStyle(Color.orbMuted)
 
                     Text("(Entrate - Uscite) / Entrate")
                         .font(.system(size: 8))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Color.orbMuted)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .padding(.horizontal, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(monthlyStats.savingsRate >= 20 ? Color.green.opacity(0.1) : monthlyStats.savingsRate >= 10 ? Color.orange.opacity(0.1) : Color.red.opacity(0.1))
+                        .fill(monthlyStats.savingsRate >= 20 ? Color.orbPositive.opacity(0.1) : monthlyStats.savingsRate >= 10 ? Color.orbHighlight.opacity(0.1) : Color.orbNegative.opacity(0.1))
                 )
 
                 // Daily Average Section
                 VStack(alignment: .leading, spacing: 6) {
                     Text(formatAmount(monthlyStats.dailyAverage))
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
+                        .font(.orb(28, weight: .bold, relativeTo: .title))
+                        .foregroundStyle(Color.orbText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
 
                     Text("al giorno")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption.bold())
+                        .foregroundStyle(Color.orbMuted)
 
                     Text("Spesa media del mese")
                         .font(.system(size: 8))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Color.orbMuted)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .padding(.horizontal, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(.secondarySystemGroupedBackground))
+                        .fill(Color.orbCard)
                 )
             }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(in: .rect(cornerRadius: 16))
+        .orbSurface()
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
         let symbol = preferredCurrencyRecord?.displaySymbol ?? "$"
-        let flag = preferredCurrencyRecord?.flagEmoji ?? ""
-        return "\(symbol)\(FormatterCache.formatCurrency(amount)) \(flag)"
+
+        return "\(symbol) \(FormatterCache.formatCurrencyFixed(amount))"
     }
 }
 
@@ -507,106 +411,12 @@ struct MonthlyComparisonWidget: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "arrow.left.arrow.right.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.indigo, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
-                Text("Confronto Mensile")
-                    .font(.headline.bold())
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.indigo, .purple],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-
-                Spacer()
-            }
-
-            Text("Confronta le spese di questo mese con quelle del mese precedente")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .padding(.bottom, 4)
-
-            VStack(spacing: 16) {
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Questo Mese")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        Text(formatAmount(comparison.thisMonth))
-                            .font(.title3.bold())
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(comparison.isIncrease ? Color.red.opacity(0.1) : Color.green.opacity(0.1))
-                    )
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Mese Scorso")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        Text(formatAmount(comparison.lastMonth))
-                            .font(.title3.bold())
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color(.secondarySystemGroupedBackground))
-                    )
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                Divider()
-
-                HStack {
-                    Image(systemName: comparison.isIncrease ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
-                        .foregroundStyle(comparison.isIncrease ? .red : .green)
-
-                    Text("\(Int(comparison.change))%")
-                        .font(.headline.bold())
-                        .foregroundStyle(comparison.isIncrease ? .red : .green)
-
-                    Text(comparison.isIncrease ? "in più rispetto al mese scorso" : "in meno rispetto al mese scorso")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Spacer()
-                }
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
-        )
+        OrbCard { OrbCumulativeChart(transactions: transactions, currency: preferredCurrencyRecord) }
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 0
@@ -614,8 +424,8 @@ struct MonthlyComparisonWidget: View {
         formatter.decimalSeparator = ","
         let amountString = formatter.string(from: amount as NSDecimalNumber) ?? "0"
         let symbol = preferredCurrencyRecord?.displaySymbol ?? "$"
-        let flag = preferredCurrencyRecord?.flagEmoji ?? ""
-        return "\(symbol)\(amountString) \(flag)"
+
+        return "\(symbol) \(amountString)"
     }
 }
 
@@ -637,7 +447,7 @@ struct AccountBalancesWidget: View {
         let grouped = Dictionary(grouping: accounts, by: { $0.accountType })
         return AccountType.allCases.compactMap { type in
             guard let accountsForType = grouped[type], !accountsForType.isEmpty else { return nil }
-            let sorted = accountsForType.sorted { $0.currentBalance > $1.currentBalance }
+            let sorted = accountsForType.sorted { $0.investmentNetWorth > $1.investmentNetWorth }
             return (type: type, accounts: sorted)
         }
     }
@@ -646,23 +456,15 @@ struct AccountBalancesWidget: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "creditcard.fill")
-                    .font(.title2)
+                    .font(.orbTitle2)
                     .foregroundStyle(
-                        LinearGradient(
-                            colors: [.teal, .blue],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                        Color.orbSecondary
                     )
 
                 Text("Saldi Conti")
-                    .font(.headline.bold())
+                    .font(.orbHeadline.bold())
                     .foregroundStyle(
-                        LinearGradient(
-                            colors: [.teal, .blue],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
+                        Color.orbSecondary
                     )
 
                 Spacer()
@@ -670,8 +472,8 @@ struct AccountBalancesWidget: View {
 
             if accounts.isEmpty {
                 Text("Nessun conto")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.orbSubheadline)
+                    .foregroundStyle(Color.orbMuted)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
             } else {
@@ -681,18 +483,18 @@ struct AccountBalancesWidget: View {
                             // Header tipologia
                             HStack(spacing: 6) {
                                 Image(systemName: typeGroup.type.icon)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption)
+                                    .foregroundStyle(Color.orbMuted)
                                 Text(typeGroup.type.rawValue)
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.secondary)
+                                    .font(.orbCaption.bold())
+                                    .foregroundStyle(Color.orbMuted)
                                     .textCase(.uppercase)
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color(.secondarySystemGroupedBackground))
+                                    .fill(Color.orbCard)
                             )
 
                             // Conti della tipologia
@@ -705,20 +507,20 @@ struct AccountBalancesWidget: View {
                                                 .frame(width: 32, height: 32)
 
                                             Image(systemName: account.icon)
-                                                .font(.caption)
+                                                .font(.orbCaption)
                                                 .foregroundStyle(account.color)
                                         }
 
                                         Text(account.name)
-                                            .font(.body)
-                                            .foregroundStyle(.primary)
+                                            .font(.orbBody)
+                                            .foregroundStyle(Color.orbText)
                                             .lineLimit(1)
 
                                         Spacer()
 
-                                        Text(formatAmount(account.currentBalance, currency: account.currency))
-                                            .font(.body.bold())
-                                            .foregroundStyle(account.currentBalance < 0 ? .red : .primary)
+                                        Text(formatAmount(account.investmentNetWorth, currency: account.currency))
+                                            .font(.orbBody.bold())
+                                            .foregroundStyle(account.investmentNetWorth < 0 ? Color.orbNegative : Color.orbText)
                                     }
                                 }
                             }
@@ -730,11 +532,12 @@ struct AccountBalancesWidget: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(in: .rect(cornerRadius: 16))
+        .orbSurface()
     }
 
     private func formatAmount(_ amount: Decimal, currency: Currency) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 0
@@ -744,11 +547,11 @@ struct AccountBalancesWidget: View {
 
         // Get symbol and flag emoji for the currency
         if let currencyRecord = allCurrencies.first(where: { $0.code == currency.rawValue }) {
-            return "\(currencyRecord.displaySymbol)\(amountString) \(currencyRecord.flagEmoji)"
+            return "\(currencyRecord.displaySymbol) \(amountString)"
         }
         // Fallback: use $ only for USD
         let fallbackSymbol = currency.rawValue == "USD" ? "$" : currency.rawValue
-        return "\(fallbackSymbol)\(amountString) \(currency.flag)"
+        return "\(fallbackSymbol) \(amountString)"
     }
 }
 
@@ -776,23 +579,15 @@ struct RecentTransactionsWidget: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "clock.arrow.circlepath")
-                    .font(.title2)
+                    .font(.orbTitle2)
                     .foregroundStyle(
-                        LinearGradient(
-                            colors: [.pink, .red],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                        Color.orbSecondary
                     )
 
                 Text("Transazioni Recenti")
-                    .font(.headline.bold())
+                    .font(.orbHeadline.bold())
                     .foregroundStyle(
-                        LinearGradient(
-                            colors: [.pink, .red],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
+                        Color.orbSecondary
                     )
 
                 Spacer()
@@ -800,8 +595,8 @@ struct RecentTransactionsWidget: View {
 
             if recentTransactions.isEmpty {
                 Text("Nessuna transazione")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.orbSubheadline)
+                    .foregroundStyle(Color.orbMuted)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
             } else {
@@ -811,54 +606,54 @@ struct RecentTransactionsWidget: View {
                             HStack(alignment: .center, spacing: 10) {
                                 ZStack {
                                     Circle()
-                                        .fill((transaction.category?.color ?? .blue).opacity(0.15))
+                                        .fill((transaction.category?.color ?? Color.orbAccent).opacity(0.15))
                                         .frame(width: 36, height: 36)
 
                                     Image(systemName: transaction.category?.icon ?? "questionmark")
-                                        .font(.caption)
-                                        .foregroundStyle(transaction.category?.color ?? .blue)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(transaction.category?.color ?? Color.orbAccent)
                                 }
 
                                 VStack(alignment: .leading, spacing: 3) {
                                     HStack(spacing: 6) {
                                         Text(transaction.category?.name ?? "Altro")
-                                            .font(.body.bold())
-                                            .foregroundStyle(.primary)
+                                            .font(.orbBody.bold())
+                                            .foregroundStyle(Color.orbText)
                                             .lineLimit(1)
 
                                         Image(systemName: transactionTypeIcon(for: transaction))
-                                            .font(.caption2)
+                                            .font(.orbCaption2)
                                             .foregroundStyle(transactionTypeColor(for: transaction))
                                     }
 
                                     if !transaction.notes.isEmpty {
                                         Text(transaction.notes)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                            .font(.orbCaption)
+                                            .foregroundStyle(Color.orbMuted)
                                             .lineLimit(1)
                                     }
 
                                     HStack(spacing: 6) {
                                         if let account = transaction.account {
                                             Text(account.name)
-                                                .font(.caption2)
-                                                .foregroundStyle(.tertiary)
+                                                .font(.orbCaption2)
+                                                .foregroundStyle(Color.orbMuted)
                                         }
 
                                         Text("•")
-                                            .font(.caption2)
-                                            .foregroundStyle(.tertiary)
+                                            .font(.orbCaption2)
+                                            .foregroundStyle(Color.orbMuted)
 
                                         Text(formatDateShort(transaction.date))
-                                            .font(.caption2)
-                                            .foregroundStyle(.tertiary)
+                                            .font(.orbCaption2)
+                                            .foregroundStyle(Color.orbMuted)
                                     }
                                 }
 
                                 Spacer()
 
                                 Text(formatTransactionAmount(transaction))
-                                    .font(.body.bold())
+                                    .font(.orbBody.bold())
                                     .foregroundStyle(transactionTypeColor(for: transaction))
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.8)
@@ -874,7 +669,7 @@ struct RecentTransactionsWidget: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(in: .rect(cornerRadius: 16))
+        .orbSurface()
     }
 
     private func transactionTypeIcon(for transaction: Transaction) -> String {
@@ -889,16 +684,17 @@ struct RecentTransactionsWidget: View {
 
     private func transactionTypeColor(for transaction: Transaction) -> Color {
         switch transaction.transactionType {
-        case .expense: return .red
-        case .income: return .green
-        case .transfer: return .blue
-        case .liabilityPayment: return .orange
-        case .adjustment: return .purple
+        case .expense: return Color.orbNegative
+        case .income: return Color.orbPositive
+        case .transfer: return Color.orbAccent
+        case .liabilityPayment: return Color.orbHighlight
+        case .adjustment: return Color.orbAccent
         }
     }
 
     private func formatTransactionAmount(_ transaction: Transaction) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 2
@@ -910,11 +706,11 @@ struct RecentTransactionsWidget: View {
 
         // Get symbol and flag emoji for the currency
         if let currencyRecord = allCurrencies.first(where: { $0.code == transaction.currency.rawValue }) {
-            return "\(sign)\(currencyRecord.displaySymbol)\(amountString) \(currencyRecord.flagEmoji)"
+            return "\(sign)\(currencyRecord.displaySymbol) \(amountString)"
         }
         // Fallback: use $ only for USD
         let fallbackSymbol = transaction.currency.rawValue == "USD" ? "$" : transaction.currency.rawValue
-        return "\(sign)\(fallbackSymbol)\(amountString) \(transaction.currency.flag)"
+        return "\(sign)\(fallbackSymbol) \(amountString)"
     }
 
     private func formatDateShort(_ date: Date) -> String {
@@ -954,36 +750,28 @@ struct UpcomingBillsWidget: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "bell.fill")
-                    .font(.title2)
+                    .font(.orbTitle2)
                     .foregroundStyle(
-                        LinearGradient(
-                            colors: [.orange, .yellow],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                        Color.orbHighlight
                     )
 
                 Text("Prossime Scadenze")
-                    .font(.headline.bold())
+                    .font(.orbHeadline.bold())
                     .foregroundStyle(
-                        LinearGradient(
-                            colors: [.orange, .yellow],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
+                        Color.orbHighlight
                     )
 
                 Spacer()
 
                 Text("30 Giorni")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbMuted)
             }
 
             if upcomingBills.isEmpty {
                 Text("Nessuna scadenza")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.orbSubheadline)
+                    .foregroundStyle(Color.orbMuted)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
             } else {
@@ -993,19 +781,19 @@ struct UpcomingBillsWidget: View {
                             HStack(alignment: .center, spacing: 10) {
                                 ZStack {
                                     Circle()
-                                        .fill((transaction.category?.color ?? .blue).opacity(0.15))
+                                        .fill((transaction.category?.color ?? Color.orbAccent).opacity(0.15))
                                         .frame(width: 36, height: 36)
 
                                     Image(systemName: transaction.category?.icon ?? "questionmark")
-                                        .font(.caption)
-                                        .foregroundStyle(transaction.category?.color ?? .blue)
+                                        .font(.orbCaption)
+                                        .foregroundStyle(transaction.category?.color ?? Color.orbAccent)
                                 }
 
                                 VStack(alignment: .leading, spacing: 3) {
                                     HStack(spacing: 6) {
                                         Text(transaction.category?.name ?? "Altro")
-                                            .font(.body.bold())
-                                            .foregroundStyle(.primary)
+                                            .font(.orbBody.bold())
+                                            .foregroundStyle(Color.orbText)
                                             .lineLimit(1)
 
                                         // Transaction type badge
@@ -1026,32 +814,32 @@ struct UpcomingBillsWidget: View {
 
                                     if !transaction.notes.isEmpty {
                                         Text(transaction.notes)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                            .font(.orbCaption)
+                                            .foregroundStyle(Color.orbMuted)
                                             .lineLimit(1)
                                     }
 
                                     HStack(spacing: 6) {
                                         if let account = transaction.account {
                                             Text(account.name)
-                                                .font(.caption2)
-                                                .foregroundStyle(.tertiary)
+                                                .font(.orbCaption2)
+                                                .foregroundStyle(Color.orbMuted)
                                         }
 
                                         Text("•")
-                                            .font(.caption2)
-                                            .foregroundStyle(.tertiary)
+                                            .font(.orbCaption2)
+                                            .foregroundStyle(Color.orbMuted)
 
                                         Text(formatDate(transaction.date))
-                                            .font(.caption2)
-                                            .foregroundStyle(.orange)
+                                            .font(.orbCaption2)
+                                            .foregroundStyle(Color.orbHighlight)
                                     }
                                 }
 
                                 Spacer()
 
                                 Text(formatAmount(transaction))
-                                    .font(.body.bold())
+                                    .font(.orbBody.bold())
                                     .foregroundStyle(transactionTypeColor(for: transaction))
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.8)
@@ -1067,7 +855,7 @@ struct UpcomingBillsWidget: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(in: .rect(cornerRadius: 16))
+        .orbSurface()
     }
 
     private func transactionTypeIcon(for transaction: Transaction) -> String {
@@ -1092,16 +880,17 @@ struct UpcomingBillsWidget: View {
 
     private func transactionTypeColor(for transaction: Transaction) -> Color {
         switch transaction.transactionType {
-        case .expense: return .red
-        case .income: return .green
-        case .transfer: return .blue
-        case .liabilityPayment: return .orange
-        case .adjustment: return .purple
+        case .expense: return Color.orbNegative
+        case .income: return Color.orbPositive
+        case .transfer: return Color.orbAccent
+        case .liabilityPayment: return Color.orbHighlight
+        case .adjustment: return Color.orbAccent
         }
     }
 
     private func formatAmount(_ transaction: Transaction) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 2
@@ -1111,11 +900,11 @@ struct UpcomingBillsWidget: View {
 
         // Get symbol and flag emoji for the currency
         if let currencyRecord = allCurrencies.first(where: { $0.code == transaction.currency.rawValue }) {
-            return "\(currencyRecord.displaySymbol)\(amountString) \(currencyRecord.flagEmoji)"
+            return "\(currencyRecord.displaySymbol) \(amountString)"
         }
         // Fallback: use $ only for USD
         let fallbackSymbol = transaction.currency.rawValue == "USD" ? "$" : transaction.currency.rawValue
-        return "\(fallbackSymbol)\(amountString) \(transaction.currency.flag)"
+        return "\(fallbackSymbol) \(amountString)"
     }
 
     private func formatDate(_ date: Date) -> String {

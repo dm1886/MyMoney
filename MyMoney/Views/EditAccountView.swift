@@ -67,14 +67,14 @@ struct EditAccountView: View {
                         ForEach(AccountType.allCases, id: \.self) { type in
                             Text(type.rawValue).tag(type)
                         }
-                    }
+                    }.disabled(account.investmentData != nil)
 
                     NavigationLink {
-                        CurrencySelectionView(selectedCurrency: $selectedCurrencyRecord)
+                        CurrencySelectionView(selectedCurrency: $selectedCurrencyRecord).disabled(account.investmentData != nil)
                     } label: {
                         HStack {
                             Text("Valuta")
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.orbText)
 
                             Spacer()
 
@@ -82,23 +82,23 @@ struct EditAccountView: View {
                                 HStack(spacing: 8) {
                                     Text(currency.flagEmoji)
                                     Text(currency.code)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Color.orbMuted)
                                 }
                             } else {
                                 Text("Seleziona")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 Section {
                     HStack {
                         Text(selectedCurrencyRecord?.code ?? selectedCurrency.rawValue)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
                         TextField("0,00", text: $initialBalance)
                             .keyboardType(.decimalPad)
-                            .font(.title3.bold())
+                            .font(.orbTitle3.bold())
                             .onChange(of: initialBalance) { oldValue, newValue in
                                 // Filtra caratteri non validi: permetti solo numeri, virgola e segno meno
                                 let filtered = newValue.filter { "0123456789,-".contains($0) }
@@ -130,7 +130,7 @@ struct EditAccountView: View {
                         Toggle(isOn: $isPositiveBalance) {
                             HStack {
                                 Image(systemName: isPositiveBalance ? "plus.circle.fill" : "minus.circle.fill")
-                                    .foregroundStyle(isPositiveBalance ? .green : .red)
+                                    .foregroundStyle(isPositiveBalance ? Color.orbPositive : Color.orbNegative)
                                 Text("Saldo in Positivo")
                             }
                         }
@@ -143,7 +143,7 @@ struct EditAccountView: View {
                     } else {
                         Text("Modifica il saldo iniziale del conto. Attenzione: questo modificherà il saldo base prima di sommare le transazioni.")
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 Section("Personalizzazione") {
                     Button {
@@ -153,7 +153,7 @@ struct EditAccountView: View {
                             Text("Icona")
                             Spacer()
                             Image(systemName: selectedIcon)
-                                .font(.title2)
+                                .font(.orbTitle2)
                                 .foregroundStyle(selectedColor)
                         }
                     }
@@ -172,17 +172,17 @@ struct EditAccountView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 8))
                             } else {
                                 Image(systemName: "photo")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.orbMuted)
                             }
                         }
                     }
-                }
+                }.listRowBackground(Color.orbCard)
 
                 Section("Descrizione") {
                     TextField("Aggiungi una descrizione (opzionale)", text: $accountDescription, axis: .vertical)
                         .lineLimit(3...6)
-                }
-            }
+                }.listRowBackground(Color.orbCard)
+            }.orbScreen()
             .navigationTitle("Modifica Conto")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -213,6 +213,11 @@ struct EditAccountView: View {
     }
 
     private func saveChanges() {
+        if account.investmentData != nil {
+            selectedType = account.accountType
+            selectedCurrencyRecord = account.currencyRecord
+            selectedCurrency = account.currency
+        }
         LogManager.shared.info("Saving account changes for: \(account.name)", category: "AccountEdit")
 
         // Track what changed

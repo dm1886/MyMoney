@@ -55,6 +55,7 @@ struct BackupData: Codable {
 }
 
 struct AccountBackup: Codable {
+    var investmentData: Data? = nil
     let id: String
     let name: String
     let accountType: String
@@ -142,6 +143,10 @@ struct ExchangeRateBackup: Codable {
 struct SettingsBackup: Codable {
     let preferredCurrency: String
     let themeMode: String
+    var selectedThemeId: String? = nil
+    var customThemes: [AppTheme]? = nil
+    var reduceDecorativeMotion: Bool? = nil
+    var accentColorHex: String? = nil
 }
 
 final class BackupManager {
@@ -200,7 +205,7 @@ final class BackupManager {
         let backupData = BackupData(
             version: "2.0.0",
             createdAt: Date(),
-            accounts: accounts.map { convertToBackup($0) },
+            accounts: try accounts.map { try convertToBackup($0, snapshotOnly: option == .accountsOnly) },
             transactions: transactionsToExport.map { convertToBackup($0) },
             categories: categoriesToExport.map { convertToBackup($0) },
             categoryGroups: categoryGroupsToExport.map { convertToBackup($0) },
@@ -208,7 +213,11 @@ final class BackupManager {
             exchangeRates: ratesToExport.map { convertToBackup($0) },
             settings: SettingsBackup(
                 preferredCurrency: AppSettings.shared.preferredCurrency,
-                themeMode: AppSettings.shared.themeMode.rawValue
+                themeMode: AppSettings.shared.themeMode.rawValue,
+                selectedThemeId: AppSettings.shared.selectedThemeId,
+                customThemes: AppSettings.shared.customThemes,
+                reduceDecorativeMotion: AppSettings.shared.reduceDecorativeMotion,
+                accentColorHex: AppSettings.shared.accentColorHex
             )
         )
 
@@ -232,6 +241,14 @@ final class BackupManager {
 
         let backupData = try decoder.decode(BackupData.self, from: data)
         LogManager.shared.info("Restoring backup version \(backupData.version) from \(backupData.createdAt.formatted())", category: "Backup")
+
+        // Validate additive investment payloads before touching the existing store.
+        for account in backupData.accounts {
+            if let payload = account.investmentData {
+                let profile = try JSONDecoder().decode(InvestmentProfile.self, from: payload)
+                try profile.validateStructure()
+            }
+        }
 
         // Elimina tutti i dati esistenti
         try deleteAllData(modelContext: modelContext)
@@ -316,6 +333,12 @@ final class BackupManager {
                 accountDescription: accountBackup.accountDescription
             )
             account.currentBalance = Decimal(string: accountBackup.currentBalance) ?? 0
+            account.createdAt = accountBackup.createdAt
+            if let data = accountBackup.investmentData {
+                let profile = try JSONDecoder().decode(InvestmentProfile.self, from: data)
+                try profile.validateStructure()
+                account.investmentData = data
+            }
 
             // Link currency record
             if let currencyCode = accountBackup.currencyRecordCode,
@@ -349,6 +372,7 @@ final class BackupManager {
         }
         LogManager.shared.info("Restored \(backupData.categories.count) categories", category: "Backup")
 
+        var restoredTransactionIDs: [UUID: UUID] = [:]
         // 6. Ripristina Transactions
         for transactionBackup in backupData.transactions {
             guard let account = accountIdMap[transactionBackup.accountId] else {
@@ -399,16 +423,31 @@ final class BackupManager {
                 transaction.parentRecurringTransactionId = UUID(uuidString: parentId)
             }
             transaction.adjustToWorkingDay = transactionBackup.adjustToWorkingDay ?? false
+            if let original = UUID(uuidString: transactionBackup.id) { restoredTransactionIDs[original] = transaction.id }
 
             modelContext.insert(transaction)
         }
         LogManager.shared.info("Restored \(backupData.transactions.count) transactions", category: "Backup")
+
+        for account in accountIdMap.values {
+            if var profile = account.investmentProfile, let ids = profile.interestCreditIDs {
+                profile.interestCreditIDs = ids.compactMap { restoredTransactionIDs[$0] }
+                account.investmentData = try JSONEncoder().encode(profile)
+            }
+        }
 
         // 7. Ripristina Settings
         AppSettings.shared.preferredCurrency = backupData.settings.preferredCurrency
         if let theme = ThemeMode(rawValue: backupData.settings.themeMode) {
             AppSettings.shared.themeMode = theme
         }
+        // Optional presentation settings keep pre-Orb JSON backups readable.
+        if let themes = backupData.settings.customThemes { AppSettings.shared.customThemes = themes }
+        if let id = backupData.settings.selectedThemeId {
+            AppSettings.shared.selectedThemeId = ThemeManager.shared.themes.contains { $0.id == id } ? id : "notte"
+        }
+        if let reduced = backupData.settings.reduceDecorativeMotion { AppSettings.shared.reduceDecorativeMotion = reduced }
+        if let accent = backupData.settings.accentColorHex { AppSettings.shared.accentColorHex = accent }
         LogManager.shared.info("Restored app settings", category: "Backup")
 
         try modelContext.save()
@@ -435,14 +474,26 @@ final class BackupManager {
         try modelContext.delete(model: CurrencyRecord.self)
     }
 
-    private func convertToBackup(_ account: Account) -> AccountBackup {
+    private func convertToBackup(_ account: Account, snapshotOnly: Bool = false) throws -> AccountBackup {
         // Encode imageData to Base64
         var imageDataString: String? = nil
         if let imageData = account.imageData {
             imageDataString = imageData.base64EncodedString()
         }
 
+        var investmentPayload = account.investmentData
+        if snapshotOnly, var profile = account.investmentProfile {
+            profile.archivedExternalFlows = account.investmentCashFlows
+            if let ids = profile.interestCreditIDs {
+                profile.interestAccrualRestarts = (account.transactions ?? []).filter {
+                    !DeletedTransactionTracker.shared.isDeleted($0.id) && $0.modelContext != nil && ids.contains($0.id) && $0.status == .executed
+                }.map(\.date)
+                profile.interestCreditIDs = nil
+            }
+            investmentPayload = try JSONEncoder().encode(profile)
+        }
         return AccountBackup(
+            investmentData: investmentPayload,
             id: account.id.uuidString,
             name: account.name,
             accountType: account.accountType.rawValue,

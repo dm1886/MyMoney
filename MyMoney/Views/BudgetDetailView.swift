@@ -39,6 +39,7 @@ struct BudgetDetailView: View {
 
     private func formatAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
@@ -50,7 +51,8 @@ struct BudgetDetailView: View {
             // Budget summary
             Section {
                 budgetSummary
-            }
+                OrbBudgetPace(budget: budget, spent: budget.spent(transactions: allTransactions, context: modelContext))
+            }.listRowBackground(Color.orbCard)
 
             // Transactions
             if budgetTransactions.isEmpty {
@@ -58,20 +60,20 @@ struct BudgetDetailView: View {
                     VStack(spacing: 12) {
                         Image(systemName: "tray")
                             .font(.system(size: 40))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.orbMuted)
 
                         Text("Nessuna transazione")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
+                            .font(.orbHeadline)
+                            .foregroundStyle(Color.orbMuted)
 
                         Text("Non ci sono spese in questa categoria per il periodo corrente")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 32)
-                }
+                }.listRowBackground(Color.orbCard)
             } else {
                 ForEach(groupedTransactions, id: \.0) { date, transactions in
                     Section {
@@ -80,11 +82,11 @@ struct BudgetDetailView: View {
                         }
                     } header: {
                         Text(formatDate(date))
-                            .font(.subheadline.bold())
-                    }
+                            .font(.orbSubheadline.bold())
+                    }.listRowBackground(Color.orbCard)
                 }
             }
-        }
+        }.orbScreen()
         .navigationTitle(budget.category?.name ?? "Budget")
         .navigationBarTitleDisplayMode(.large)
     }
@@ -102,10 +104,10 @@ struct BudgetDetailView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Speso")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                     Text("\(currencySymbol) \(formatAmount(spent))")
-                        .font(.title2.bold())
+                        .font(.orbTitle2.bold())
                         .foregroundStyle(progressColor(percentage: percentage))
                 }
 
@@ -113,10 +115,10 @@ struct BudgetDetailView: View {
 
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("Budget")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
                     Text("\(currencySymbol) \(formatAmount(budget.amount))")
-                        .font(.title2.bold())
+                        .font(.orbTitle2.bold())
                 }
             }
 
@@ -126,7 +128,7 @@ struct BudgetDetailView: View {
                     ZStack(alignment: .leading) {
                         // Background
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color(.systemGray5))
+                            .fill(Color.orbCard2)
                             .frame(height: 8)
 
                         // Progress
@@ -139,19 +141,19 @@ struct BudgetDetailView: View {
 
                 HStack {
                     Text("\(Int(percentage))% utilizzato")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.orbCaption)
+                        .foregroundStyle(Color.orbMuted)
 
                     Spacer()
 
                     if remaining > 0 {
                         Text("Rimangono \(currencySymbol) \(formatAmount(remaining))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.orbCaption)
+                            .foregroundStyle(Color.orbMuted)
                     } else {
                         Text("Budget superato!")
-                            .font(.caption.bold())
-                            .foregroundStyle(.red)
+                            .font(.orbCaption.bold())
+                            .foregroundStyle(Color.orbNegative)
                     }
                 }
             }
@@ -159,24 +161,24 @@ struct BudgetDetailView: View {
             // Period info
             HStack {
                 Image(systemName: "calendar")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbMuted)
 
                 Text(periodText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbMuted)
 
                 Spacer()
 
                 Text(budget.period.rawValue)
-                    .font(.caption)
+                    .font(.orbCaption)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(appSettings.accentColor.opacity(0.15))
+                            .fill(Color.orbAccent.opacity(0.15))
                     )
-                    .foregroundStyle(appSettings.accentColor)
+                    .foregroundStyle(Color.orbHighlight)
             }
         }
         .padding(.vertical, 8)
@@ -189,8 +191,8 @@ struct BudgetDetailView: View {
             // Time
             VStack(alignment: .leading, spacing: 2) {
                 Text(formatTime(transaction.date))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.orbCaption)
+                    .foregroundStyle(Color.orbMuted)
             }
 
             Spacer()
@@ -207,8 +209,8 @@ struct BudgetDetailView: View {
                 ))
 
             Text("- \(currencySymbol) \(formatAmount(amount))")
-                .font(.body.bold())
-                .foregroundStyle(.red)
+                .font(.orbBody.bold())
+                .foregroundStyle(Color.orbNegative)
         }
     }
 
@@ -216,11 +218,11 @@ struct BudgetDetailView: View {
 
     private func progressColor(percentage: Double) -> Color {
         if percentage >= 100 {
-            return .red
+            return Color.orbNegative
         } else if percentage >= 80 {
-            return .orange
+            return Color.orbHighlight
         } else {
-            return .green
+            return Color.orbPositive
         }
     }
 

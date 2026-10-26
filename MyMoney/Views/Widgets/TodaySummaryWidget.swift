@@ -79,164 +79,41 @@ struct TodaySummaryWidget: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            // Header con navigazione date
-            HStack {
-                Button {
-                    withAnimation {
-                        selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
-                    }
-                } label: {
-                    Image(systemName: "chevron.left.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.orange, .red],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                }
-                .buttonStyle(.plain)
-
-                Spacer()
-
-                VStack(spacing: 2) {
-                    Text(formatDate(selectedDate))
-                        .font(.headline.bold())
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.orange, .red],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-
-                    Text("\(allDayTransactions.count) transazioni")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Button {
-                    withAnimation {
-                        selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
-                    }
-                } label: {
-                    Image(systemName: "chevron.right.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.orange, .red],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-
-            // Entrate e Uscite - verticale
-            VStack(spacing: 8) {
-                // Entrate
+        OrbCard {
+            VStack(spacing: 14) {
                 HStack {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .foregroundStyle(.green)
-                    Text("Entrate")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    dayButton(-1, icon: "chevron.left")
                     Spacer()
-                    Text(formatAmount(dayIncome))
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(.green)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.green.opacity(0.1))
-                )
-
-                // Uscite
-                HStack {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .foregroundStyle(.red)
-                    Text("Uscite")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    Text(formatDate(selectedDate)).font(.orbHeadline).lineLimit(1)
                     Spacer()
-                    Text(formatAmount(dayExpenses))
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundStyle(.red)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                    dayButton(1, icon: "chevron.right")
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.red.opacity(0.1))
-                )
-
-                // Bilancio
-                HStack {
-                    Image(systemName: dayIncome - dayExpenses >= 0 ? "checkmark.circle.fill" : "minus.circle.fill")
-                        .foregroundStyle(dayIncome - dayExpenses >= 0 ? .green : .red)
-                    Text("Bilancio")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(formatAmount(dayIncome - dayExpenses))
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundStyle(dayIncome - dayExpenses >= 0 ? .green : .red)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(.secondarySystemGroupedBackground))
-                )
-            }
-
-            // Previste (solo se ci sono)
-            if !scheduledTransactions.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Previste (\(scheduledTransactions.count))")
-                        .font(.caption.bold())
-                        .foregroundStyle(.orange)
-
-                    ForEach(scheduledTransactions.prefix(3)) { transaction in
-                        HStack(spacing: 6) {
-                            Image(systemName: transactionIcon(for: transaction))
-                                .font(.caption2)
-                                .foregroundStyle(transactionColor(for: transaction))
-                            Text(transaction.notes.isEmpty ? transaction.category?.name ?? "Transazione" : transaction.notes)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                            Spacer()
-                            Text(formatShortAmount(transaction.amount))
-                                .font(.caption2)
-                                .foregroundStyle(transactionColor(for: transaction))
-                        }
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.orange.opacity(0.05))
-                )
+                HStack(spacing: 0) {
+                    summary("Entrate", value: dayIncome, color: .orbPositive)
+                    Divider()
+                    summary("Uscite", value: dayExpenses, color: .orbNegative)
+                    Divider()
+                    summary("Saldo", value: dayIncome - dayExpenses, color: .orbText)
+                }.fixedSize(horizontal: false, vertical: true)
+                Text("\(allDayTransactions.count) transazioni").font(.orbCaption).foregroundStyle(Color.orbMuted)
             }
         }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .glassEffect(in: .rect(cornerRadius: 16))
+    }
+    private func dayButton(_ offset: Int, icon: String) -> some View {
+        Button {
+            withAnimation { selectedDate = Calendar.current.date(byAdding: .day, value: offset, to: selectedDate) ?? selectedDate }
+        } label: {
+            Image(systemName: icon).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.orbText)
+                .frame(width: 36, height: 36).overlay(Circle().stroke(Color.orbLine, lineWidth: 1))
+                .frame(width: 44, height: 44)
+        }.buttonStyle(.plain).accessibilityLabel(offset < 0 ? "Giorno precedente" : "Giorno successivo")
+    }
+    private func summary(_ title: String, value: Decimal, color: Color) -> some View {
+        VStack(spacing: 7) {
+            Text(title).font(.orbCaption).foregroundStyle(Color.orbMuted)
+            Text(OrbCurrency.string(value, symbol: preferredCurrencyRecord?.displaySymbol ?? "€"))
+                .font(.orbHeadline).foregroundStyle(color).monospacedDigit().lineLimit(1).minimumScaleFactor(0.65)
+        }.frame(maxWidth: .infinity)
     }
 
     private func formatDate(_ date: Date) -> String {
@@ -267,22 +144,23 @@ struct TodaySummaryWidget: View {
 
     private func transactionColor(for transaction: Transaction) -> Color {
         switch transaction.transactionType {
-        case .expense: return .red
-        case .income: return .green
-        case .transfer: return .blue
-        case .liabilityPayment: return .orange
-        case .adjustment: return .purple
+        case .expense: return Color.orbNegative
+        case .income: return Color.orbPositive
+        case .transfer: return Color.orbAccent
+        case .liabilityPayment: return Color.orbHighlight
+        case .adjustment: return Color.orbAccent
         }
     }
 
     private func formatAmount(_ amount: Decimal) -> String {
         let symbol = preferredCurrencyRecord?.displaySymbol ?? "$"
-        let flag = preferredCurrencyRecord?.flagEmoji ?? ""
-        return "\(symbol)\(FormatterCache.formatCurrency(amount)) \(flag)"
+
+        return "\(symbol) \(FormatterCache.formatCurrencyFixed(amount))"
     }
 
     private func formatShortAmount(_ amount: Decimal) -> String {
         let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "it_IT")
         formatter.numberStyle = .decimal
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 0
